@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>جزئیات پروژه - {{ project.customer_name }}</title>
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f4f7f6;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            margin-top: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 .project-meta {
+            font-size: 0.7em;
+            color: #7f8c8d;
+            font-weight: normal;
+        }
+
+        .actions {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .action-btn {
+            display: inline-block;
+            padding: 8px 15px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+
+        .action-btn.green {
+            background-color: #27ae60;
+        }
+
+        .action-btn.red {
+            background-color: #e74c3c;
+        }
+
+        .action-btn:hover {
+            opacity: 0.9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: right;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            color: #333;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        /* کلاس‌های رنگ سطر */
+        .row-color {
+            /* کلاس پایه */
+        }
+        
+        /* در نهایت جاوااسکریپت رنگ‌ها را تنظیم خواهد کرد */
+
+        .no-doors {
+            color: #7f8c8d;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+            background-color: #f8f9f9;
+            border: 1px dashed #bdc3c7;
+            border-radius: 5px;
+        }
+
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f44336;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        /* استایل‌های مربوط به ویرایش سطر */
+        .edit-icon {
+            cursor: pointer;
+            color: #4CAF50;
+            margin-right: 5px;
+        }
+        
+        .delete-icon {
+            cursor: pointer;
+            color: #f44336;
+            margin-left: 5px;
+        }
+        
+        .edit-form {
+            display: none;
+        }
+        
+        .door-data {
+            display: block;
+        }
+        
+        .edit-input {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        
+        .save-btn, .cancel-btn {
+            padding: 3px 8px;
+            margin: 3px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        
+        .save-btn {
+            background-color: #27ae60;
+            color: white;
+        }
+        
+        .cancel-btn {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .action-cell {
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 95%;
+                padding: 15px;
+            }
+
+            h1 {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            h1 .project-meta {
+                margin-top: 10px;
+            }
+
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+        }
+    </style>
+    <!-- اضافه کردن فونت آیکون -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>
+            جزئیات پروژه
+            <span class="project-meta">
+                مشتری: {{ project.customer_name if project.customer_name else 'نامشخص' }}
+                {% if project.order_ref %}
+                | شماره سفارش: {{ project.order_ref }}
+                {% endif %}
+            </span>
+        </h1>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="actions">
+            <a href="{{ url_for('add_door_form', project_id=project.id) }}" class="action-btn green">
+                افزودن درب جدید
+            </a>
+            <a href="{{ url_for('project_treeview', project_id=project.id) }}" class="action-btn">
+                نمایش درختی
+            </a>
+            <a href="{{ url_for('export_to_excel', project_id=project.id) }}" class="action-btn">
+                خروجی اکسل
+            </a>
+            <a href="{{ url_for('index') }}" class="action-btn red">
+                بازگشت به لیست پروژه‌ها
+            </a>
+        </div>
+
+        {% if doors %}
+        <table>
+            <thead>
+                <tr>
+                    <th>شناسه</th>
+                    <th>مکان نصب</th>
+                    <th>عرض</th>
+                    <th>ارتفاع</th>
+                    <th>تعداد</th>
+                    <th>جهت</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for door in doors %}
+                <tr class="row-color" data-color="{{ door.row_color_tag }}" id="door-row-{{ door.id }}">
+                    <td>{{ door.id }}</td>
+                    <td>
+                        <span class="door-data door-location">{{ door.location }}</span>
+                        <div class="edit-form location-form">
+                            <input type="text" class="edit-input" value="{{ door.location }}" data-field="location">
+                        </div>
+                    </td>
+                    <td>
+                        <span class="door-data door-width">{{ door.width }}</span>
+                        <div class="edit-form width-form">
+                            <input type="number" step="0.1" min="0" class="edit-input" value="{{ door.width }}" data-field="width">
+                        </div>
+                    </td>
+                    <td>
+                        <span class="door-data door-height">{{ door.height }}</span>
+                        <div class="edit-form height-form">
+                            <input type="number" step="0.1" min="0" class="edit-input" value="{{ door.height }}" data-field="height">
+                        </div>
+                    </td>
+                    <td>
+                        <span class="door-data door-quantity">{{ door.quantity }}</span>
+                        <div class="edit-form quantity-form">
+                            <input type="number" min="1" class="edit-input" value="{{ door.quantity }}" data-field="quantity">
+                        </div>
+                    </td>
+                    <td>
+                        <span class="door-data door-direction">{{ door.direction }}</span>
+                        <div class="edit-form direction-form">
+                            <select class="edit-input" data-field="direction">
+                                <option value="" {% if not door.direction %}selected{% endif %}>-- انتخاب کنید --</option>
+                                <option value="راست" {% if door.direction == 'راست' %}selected{% endif %}>راست</option>
+                                <option value="چپ" {% if door.direction == 'چپ' %}selected{% endif %}>چپ</option>
+                            </select>
+                        </div>
+                    </td>
+                    <td class="action-cell">
+                        <span class="edit-icon" onclick="editDoor({{ door.id }})"><i class="fas fa-edit"></i></span>
+                        <span class="delete-icon" onclick="confirmDeleteDoor({{ door.id }})"><i class="fas fa-trash"></i></span>
+                        <div class="edit-form edit-actions">
+                            <button class="save-btn" onclick="saveDoor({{ door.id }})"><i class="fas fa-save"></i></button>
+                            <button class="cancel-btn" onclick="cancelEdit({{ door.id }})"><i class="fas fa-times"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="no-doors">هنوز هیچ دربی برای این پروژه ثبت نشده است.</p>
+        {% endif %}
+    </div>
+
+    <script>
+        // تنظیم رنگ پس‌زمینه سطرها بر اساس مقدار data-color
+        document.addEventListener('DOMContentLoaded', function() {
+            const rows = document.querySelectorAll('tr.row-color');
+            rows.forEach(function(row) {
+                const color = row.getAttribute('data-color');
+                if (color) {
+                    row.style.backgroundColor = color;
+                }
+            });
+        });
+
+        // فعالسازی حالت ویرایش برای یک سطر
+        function editDoor(doorId) {
+            const row = document.getElementById(`door-row-${doorId}`);
+            const dataElements = row.querySelectorAll('.door-data');
+            const formElements = row.querySelectorAll('.edit-form');
+            
+            // نمایش فرم‌های ویرایش و مخفی کردن داده‌های نمایشی
+            dataElements.forEach(el => el.style.display = 'none');
+            formElements.forEach(el => el.style.display = 'block');
+        }
+        
+        // ذخیره تغییرات
+        function saveDoor(doorId) {
+            const row = document.getElementById(`door-row-${doorId}`);
+            const inputs = row.querySelectorAll('.edit-input');
+            const formData = new FormData();
+            
+            formData.append('door_id', doorId);
+            
+            // جمع‌آوری داده‌های فرم
+            inputs.forEach(input => {
+                formData.append(input.dataset.field, input.value);
+            });
+            
+            // ارسال درخواست AJAX
+            fetch(`/project/{{ project.id }}/update_door/${doorId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // به‌روزرسانی مقادیر نمایشی
+                    inputs.forEach(input => {
+                        const fieldName = input.dataset.field;
+                        const displayElement = row.querySelector(`.door-${fieldName}`);
+                        displayElement.textContent = input.value;
+                    });
+                    
+                    // بازگشت به حالت نمایش
+                    cancelEdit(doorId);
+                    
+                    // نمایش پیام موفقیت
+                    const flashContainer = document.createElement('div');
+                    flashContainer.className = 'flash success';
+                    flashContainer.textContent = 'اطلاعات درب با موفقیت به‌روزرسانی شد.';
+                    document.querySelector('.container').insertBefore(flashContainer, document.querySelector('.actions'));
+                    
+                    // حذف پیام بعد از چند ثانیه
+                    setTimeout(() => {
+                        flashContainer.remove();
+                    }, 3000);
+                } else {
+                    alert('خطا در به‌روزرسانی اطلاعات: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('خطا در ارتباط با سرور');
+            });
+        }
+        
+        // لغو ویرایش و بازگشت به حالت نمایش
+        function cancelEdit(doorId) {
+            const row = document.getElementById(`door-row-${doorId}`);
+            const dataElements = row.querySelectorAll('.door-data');
+            const formElements = row.querySelectorAll('.edit-form');
+            
+            dataElements.forEach(el => el.style.display = 'block');
+            formElements.forEach(el => el.style.display = 'none');
+        }
+        
+        // تأیید حذف درب
+        function confirmDeleteDoor(doorId) {
+            if (confirm('آیا از حذف این درب اطمینان دارید؟ این عملیات قابل بازگشت نیست.')) {
+                deleteDoor(doorId);
+            }
+        }
+        
+        // حذف درب
+        function deleteDoor(doorId) {
+            fetch(`/project/{{ project.id }}/delete_door/${doorId}`, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // حذف سطر از جدول
+                    const row = document.getElementById(`door-row-${doorId}`);
+                    row.remove();
+                    
+                    // نمایش پیام موفقیت
+                    const flashContainer = document.createElement('div');
+                    flashContainer.className = 'flash success';
+                    flashContainer.textContent = 'درب با موفقیت حذف شد.';
+                    document.querySelector('.container').insertBefore(flashContainer, document.querySelector('.actions'));
+                    
+                    // حذف پیام بعد از چند ثانیه
+                    setTimeout(() => {
+                        flashContainer.remove();
+                    }, 3000);
+                    
+                    // بررسی تعداد درب‌های باقی‌مانده
+                    const remainingDoors = document.querySelectorAll('tbody tr').length;
+                    if (remainingDoors === 0) {
+                        // اگر هیچ دربی باقی نمانده، پیام مناسب را نمایش می‌دهیم
+                        const tbody = document.querySelector('tbody');
+                        const tableContainer = document.querySelector('.table-container');
+                        
+                        // پاک کردن جدول
+                        tbody.innerHTML = '';
+                        
+                        // نمایش پیام "هیچ دربی وجود ندارد"
+                        const noDoorMessage = document.createElement('p');
+                        noDoorMessage.className = 'no-doors';
+                        noDoorMessage.textContent = 'هنوز هیچ دربی برای این پروژه ثبت نشده است.';
+                        tableContainer.appendChild(noDoorMessage);
+                    }
+                } else {
+                    alert('خطا در حذف درب: ' + (data.error || 'خطای نامشخص'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('خطا در ارتباط با سرور');
+            });
+        }
+    </script>
+</body>
+
+</html>

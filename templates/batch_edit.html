@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ویرایش گروهی درب‌ها</title>
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 20px;
+            line-height: 1.7;
+            background-color: #f4f7f6;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            margin-top: 0;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+
+        .field-row:hover {
+            background-color: #e9ecef;
+        }
+
+        .checkbox-container {
+            flex: 0 0 50px;
+            text-align: center;
+        }
+
+        .field-label {
+            flex: 0 0 150px;
+            font-weight: bold;
+        }
+
+        .field-input {
+            flex: 1;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        .button-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 1em;
+            margin: 0 5px;
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .selected-count {
+            color: #2980b9;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>ویرایش گروهی درب‌ها - پروژه: {{ project.customer_name }}</h1>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="selected-count">
+            تعداد درب‌های انتخاب شده: {{ door_ids|length }} عدد
+        </div>
+
+        <form method="post" action="{{ url_for('apply_batch_edit', project_id=project.id) }}">
+            <input type="hidden" name="door_ids" value="{{ door_ids|join(',') }}">
+
+            <!-- فیلدهای پایه -->
+            <p class="note">در این قسمت می‌توانید ویژگی‌های مشترک را برای تمام درب‌های انتخاب شده به یکباره تغییر دهید.
+            </p>
+
+            {% for key, column_data in column_options.items() %}
+            <div class="field-row">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="update_{{ key }}" name="update_{{ key }}" {% if column_data.visible %}checked{% endif %}>
+                </div>
+                <label class="field-label" for="value_{{ key }}">{{ column_data.display }}:</label>
+                <div class="field-input">
+                    {% if column_data.options %}
+                    <select id="value_{{ key }}" name="value_{{ key }}" {% if not column_data.visible %}disabled{% endif %}>
+                        <option value="">انتخاب کنید</option>
+                        {% for option in column_data.options %}
+                        <option value="{{ option }}">{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input type="text" id="value_{{ key }}" name="value_{{ key }}" {% if not column_data.visible %}disabled{% endif %}>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="button-container">
+                <button type="submit" class="btn btn-primary">اعمال تغییرات</button>
+                <a href="{{ url_for('project_treeview', project_id=project.id, t=timestamp) }}" class="btn btn-secondary">انصراف</a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // فعال/غیرفعال کردن فیلدها بر اساس چک‌باکس
+        document.addEventListener('DOMContentLoaded', function () {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+
+            checkboxes.forEach(function (checkbox) {
+                // غیرفعال کردن اولیه فیلدها
+                const fieldId = checkbox.id.replace('update_', 'value_');
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    field.disabled = !checkbox.checked;
+                }
+
+                // رویداد تغییر چک‌باکس
+                checkbox.addEventListener('change', function () {
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        field.disabled = !this.checked;
+                        if (this.checked) {
+                            field.focus();
+                        }
+                    }
+                    
+                    // ارسال درخواست AJAX برای به‌روزرسانی وضعیت نمایش ستون
+                    const columnKey = checkbox.id.replace('update_', '');
+                    console.log(`تغییر وضعیت نمایش ستون ${columnKey} به ${checkbox.checked ? 'نمایش' : 'پنهان'}`);
+                    
+                    fetch(`/project/{{ project.id }}/toggle_column_display`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `column_key=${columnKey}&is_visible=${checkbox.checked ? 1 : 0}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log(`وضعیت نمایش ستون ${columnKey} با موفقیت به‌روز شد`);
+                        } else {
+                            console.error('خطا در به‌روزرسانی نمایش ستون');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                });
+            });
+            
+            // تولید timestamp برای استفاده در URL‌ها
+            const timestamp = Math.floor(Date.now() / 1000);
+            document.querySelectorAll('a[href*="project_treeview"]').forEach(link => {
+                link.href = link.href + (link.href.includes('?') ? '&' : '?') + 't=' + timestamp;
+            });
+        });
+    </script>
+</body>
+
+</html>

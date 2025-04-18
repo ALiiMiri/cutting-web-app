@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نتایج محاسبه برش - {{ project.customer_name }}</title>
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 20px;
+            line-height: 1.7;
+            background-color: #f4f7f6;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        h1 {
+            font-size: 1.8em;
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            font-size: 1.5em;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+
+        h3 {
+            font-size: 1.2em;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #3498db;
+        }
+
+        .summary-box {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .summary-item {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .summary-item i {
+            color: #3498db;
+            margin-left: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .summary-item strong {
+            color: #2980b9;
+        }
+
+        .bins-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .bin-box {
+            flex: 1 1 300px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            position: relative;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .bin-title {
+            background-color: #3498db;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+
+        .bin-stats {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #ccc;
+        }
+
+        .bin-visual {
+            width: 100%;
+            height: 60px;
+            background-color: #ddd;
+            position: relative;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .bin-pieces {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .piece-item {
+            background-color: #3498db;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+
+        .piece-visual-wrapper {
+            height: 100%;
+            background-color: #3498db;
+            position: absolute;
+            top: 0;
+            left: 0;
+            text-align: center;
+            color: white;
+            font-size: 12px;
+            line-height: 60px;
+        }
+
+        .waste-visual-wrapper {
+            height: 100%;
+            background-color: #e74c3c;
+            position: absolute;
+            top: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            font-size: 12px;
+            line-height: 60px;
+        }
+
+        .waste-small {
+            background-color: #e74c3c;
+        }
+
+        .waste-medium {
+            background-color: #f39c12;
+        }
+
+        .waste-large {
+            background-color: #2ecc71;
+        }
+
+        .action-links {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+        }
+
+        .action-links a {
+            display: inline-block;
+            margin: 0 10px;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            transition: background-color 0.2s;
+        }
+
+        .print-button {
+            background-color: #27ae60;
+        }
+
+        .print-button:hover {
+            background-color: #219a52;
+        }
+
+        .back-button {
+            background-color: #7f8c8d;
+        }
+
+        .back-button:hover {
+            background-color: #6c7a7a;
+        }
+
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 95%;
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 1.6em;
+            }
+
+            h2 {
+                font-size: 1.4em;
+            }
+
+            .bin-box {
+                flex: 0 0 100%;
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+                font-size: 12pt;
+            }
+
+            .container {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                border: none;
+                box-shadow: none;
+            }
+
+            .action-links {
+                display: none;
+            }
+
+            .flash {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>نتایج محاسبه بهینه برش پروفیل - پروژه {{ project.customer_name }}</h1>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="summary-box">
+            <h2>خلاصه نتایج:</h2>
+            <div class="summary-item">
+                <i class="fas fa-bars"></i>
+                <span>تعداد کل شاخه‌های مورد نیاز ({{ stock_length }}cm): <strong>{{ total_bins }} عدد</strong></span>
+            </div>
+            <div class="summary-item">
+                <i class="fas fa-cut"></i>
+                <span>تعداد تکه‌های باقی‌مانده کوچک‌تر از {{ waste_threshold }}cm: <strong>{{ small_pieces_count }}
+                        عدد</strong></span>
+            </div>
+            <div class="summary-item">
+                <i class="fas fa-ruler-horizontal"></i>
+                <span>طول کل ضایعات کوچک‌تر از {{ waste_threshold }}cm: <strong>{{ small_waste_length }}
+                        سانتی‌متر</strong></span>
+            </div>
+            <div class="summary-item">
+                <i class="fas fa-weight-hanging"></i>
+                <span>وزن تقریبی ضایعات کوچک‌تر از {{ waste_threshold }}cm: <strong>{{ small_waste_weight }}
+                        کیلوگرم</strong></span>
+            </div>
+            <div class="summary-item">
+                <i class="fas fa-percentage"></i>
+                <span>درصد ضایعات کل: <strong>{{ total_waste_percentage }}%</strong></span>
+            </div>
+        </div>
+
+        <h2>جزئیات برش هر شاخه:</h2>
+        <div class="bins-container">
+            {% for bin in bins %}
+            <div class="bin-box">
+                <div class="bin-title">شاخه {{ bin.index }}</div>
+                <div class="bin-stats">
+                    <div>طول مورد استفاده: {{ bin.used_length }} سانتی‌متر</div>
+                    <div>طول باقی‌مانده: {{ bin.remaining }} سانتی‌متر</div>
+                    {% if bin.remaining > 0 %}
+                    <div>
+                        نوع باقی‌مانده:
+                        {% if bin.waste_type == "small" %}
+                        <span class="waste-small">ضایعات کوچک</span>
+                        {% elif bin.waste_type == "medium" %}
+                        <span class="waste-medium">قطعه متوسط</span>
+                        {% else %}
+                        <span class="waste-large">قطعه بزرگ</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="bin-visual">
+                    <div class="piece-visual-wrapper" data-width="{{ bin.used_percent_style }}">
+                        {{ bin.used_percent }}%
+                    </div>
+
+                    {% if bin.remaining > 0 %}
+                    <div class="waste-visual-wrapper" data-width="{{ bin.waste_percent_style }}">
+                        {{ bin.waste_percent }}%
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div>برش‌ها:</div>
+                <div class="bin-pieces">
+                    {% for piece in bin.pieces %}
+                    <span class="piece-item">{{ piece }} cm</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="action-links">
+            <a href="javascript:window.print()" class="print-button">
+                <i class="fas fa-print"></i>
+                چاپ نتایج
+            </a>
+            <a href="{{ url_for('view_project', project_id=project.id) }}" class="back-button">
+                <i class="fas fa-arrow-right"></i>
+                بازگشت به جزئیات پروژه
+            </a>
+        </div>
+    </div>
+
+    <!-- اضافه کردن Font Awesome برای آیکون‌ها -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+    
+    <!-- اسکریپت برای تنظیم عرض با جاوااسکریپت -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // تنظیم عرض نمایشگر قطعات مصرفی
+            const pieceVisuals = document.querySelectorAll('.piece-visual-wrapper');
+            pieceVisuals.forEach(function(elem) {
+                elem.style.width = elem.getAttribute('data-width');
+            });
+            
+            // تنظیم عرض نمایشگر ضایعات
+            const wasteVisuals = document.querySelectorAll('.waste-visual-wrapper');
+            wasteVisuals.forEach(function(elem) {
+                elem.style.width = elem.getAttribute('data-width');
+            });
+        });
+    </script>
+</body>
+
+</html>

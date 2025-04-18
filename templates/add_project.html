@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>افزودن پروژه جدید</title>
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f4f7f6;
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            margin-top: 0;
+        }
+
+        form {
+            background-color: #fff;
+            padding: 25px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            max-width: 500px;
+            margin: 20px auto;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="text"] {
+            width: 95%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1em;
+        }
+
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            display: block;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        a.back-link {
+            color: #007bff;
+            text-decoration: none;
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        a.back-link:hover {
+            text-decoration: underline;
+        }
+
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* استایل‌های مربوط به تقویم */
+        .date-picker-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .date-picker-container input {
+            width: 95%;
+            padding: 10px;
+            padding-left: 35px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1em;
+            cursor: pointer;
+        }
+
+        .calendar-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #3498db;
+            pointer-events: none;
+        }
+
+        /* تقویم شمسی */
+        #datepicker {
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            width: 300px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 10px;
+            margin-top: 5px;
+        }
+
+        .datepicker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .datepicker-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            cursor: pointer;
+        }
+
+        .datepicker-nav button {
+            background: none;
+            border: none;
+            color: #3498db;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 5px 10px;
+            width: auto;
+        }
+
+        .datepicker-calendar {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .datepicker-calendar th {
+            padding: 8px 0;
+            text-align: center;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .datepicker-calendar td {
+            padding: 8px 0;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .datepicker-calendar td:hover {
+            background-color: #f5f5f5;
+        }
+
+        .datepicker-calendar td.selected {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .datepicker-calendar td.today {
+            border: 2px solid #3498db;
+        }
+
+        .datepicker-calendar td.disabled {
+            color: #ccc;
+            cursor: default;
+        }
+
+        .datepicker-months, .datepicker-years {
+            display: none;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 10px 0;
+        }
+
+        .month-item, .year-item {
+            text-align: center;
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .month-item:hover, .year-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .month-item.selected, .year-item.selected {
+            background-color: #3498db;
+            color: white;
+        }
+
+        @media (max-width: 600px) {
+            form {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+    <!-- اضافه کردن فونت آیکون -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>افزودن پروژه جدید</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+        <form method="post" action="{{ url_for('add_project_route') }}">
+            <div>
+                <label for="customer_name">نام مشتری:</label>
+                <input type="text" id="customer_name" name="customer_name">
+            </div>
+            <div>
+                <label for="order_ref">شماره سفارش:</label>
+                <input type="text" id="order_ref" name="order_ref">
+            </div>
+            <div class="date-picker-container">
+                <label for="date_picker_input">تاریخ:</label>
+                <input type="text" id="date_picker_input" readonly placeholder="انتخاب تاریخ">
+                <input type="hidden" id="date_shamsi" name="date_shamsi">
+                <span class="calendar-icon"><i class="fas fa-calendar-alt"></i></span>
+                
+                <!-- تقویم شمسی -->
+                <div id="datepicker">
+                    <div class="datepicker-header">
+                        <div class="datepicker-nav">
+                            <button id="prevMonth">&lt;</button>
+                        </div>
+                        <div class="datepicker-title" id="datepicker-title"></div>
+                        <div class="datepicker-nav">
+                            <button id="nextMonth">&gt;</button>
+                        </div>
+                    </div>
+                    <table class="datepicker-calendar">
+                        <thead>
+                            <tr>
+                                <th>ش</th>
+                                <th>ی</th>
+                                <th>د</th>
+                                <th>س</th>
+                                <th>چ</th>
+                                <th>پ</th>
+                                <th>ج</th>
+                            </tr>
+                        </thead>
+                        <tbody id="calendar-body">
+                        </tbody>
+                    </table>
+                    <div class="datepicker-months" id="months-grid"></div>
+                    <div class="datepicker-years" id="years-grid"></div>
+                </div>
+            </div>
+            <div>
+                <button type="submit">ذخیره پروژه</button>
+            </div>
+        </form>
+        <a href="{{ url_for('index') }}" class="back-link">بازگشت به لیست پروژه‌ها</a>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const monthNames = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+            const datePickerInput = document.getElementById('date_picker_input');
+            const dateShamsihidden = document.getElementById('date_shamsi');
+            const datepicker = document.getElementById('datepicker');
+            const datepickerTitle = document.getElementById('datepicker-title');
+            const calendarBody = document.getElementById('calendar-body');
+            const prevMonth = document.getElementById('prevMonth');
+            const nextMonth = document.getElementById('nextMonth');
+            const monthsGrid = document.getElementById('months-grid');
+            const yearsGrid = document.getElementById('years-grid');
+            
+            let currentView = 'day'; // 'day', 'month', 'year'
+            let currentDate = new Date();
+            const today = new Date();
+            
+            // تبدیل تاریخ میلادی به شمسی
+            function toJalali(gy, gm, gd) {
+                const g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+                let jy = (gy <= 1600) ? 0 : 979;
+                gy -= (gy <= 1600) ? 621 : 1600;
+                let gy2 = (gm > 2) ? (gy + 1) : gy;
+                let days = (365 * gy) + (parseInt((gy2 + 3) / 4)) - (parseInt((gy2 + 99) / 100)) + (parseInt((gy2 + 399) / 400)) - 80 + gd + g_d_m[gm - 1];
+                jy += 33 * (parseInt(days / 12053));
+                days %= 12053;
+                jy += 4 * (parseInt(days / 1461));
+                days %= 1461;
+                jy += parseInt((days - 1) / 365);
+                
+                if (days > 365) days = (days - 1) % 365;
+                
+                let jm = (days < 186) ? 1 + parseInt(days / 31) : 7 + parseInt((days - 186) / 30);
+                let jd = 1 + ((days < 186) ? (days % 31) : ((days - 186) % 30));
+                
+                return [jy, jm, jd];
+            }
+            
+            // تبدیل تاریخ شمسی به میلادی
+            function toGregorian(jy, jm, jd) {
+                jy += 1595;
+                let days = -355668 + (365 * jy) + (parseInt(jy / 33) * 8) + (parseInt(((jy % 33) + 3) / 4)) + jd + ((jm < 7) ? (jm - 1) * 31 : ((jm - 7) * 30) + 186);
+                let gy = 400 * parseInt(days / 146097);
+                days %= 146097;
+                
+                if (days > 36524) {
+                    gy += 100 * parseInt(--days / 36524);
+                    days %= 36524;
+                    if (days >= 365) days++;
+                }
+                
+                gy += 4 * parseInt(days / 1461);
+                days %= 1461;
+                if (days > 365) {
+                    gy += parseInt((days - 1) / 365);
+                    days = (days - 1) % 365;
+                }
+                
+                let gd = days + 1;
+                let sal_a = [0, 31, ((gy % 4 === 0 && gy % 100 !== 0) || (gy % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+                let gm;
+                
+                for (gm = 0; gm < 13 && gd > sal_a[gm]; gm++) {
+                    gd -= sal_a[gm];
+                }
+                
+                return [gy, gm, gd];
+            }
+            
+            // تعداد روز‌های ماه شمسی
+            function daysInMonth(year, month) {
+                if (month <= 6) return 31;
+                if (month <= 11) return 30;
+                // اسفند
+                const g = toGregorian(year, month, 29);
+                const date = new Date(g[0], g[1]-1, g[2]);
+                const nextMonth = new Date(date);
+                nextMonth.setDate(nextMonth.getDate() + 1);
+                const nextMonthJalali = toJalali(nextMonth.getFullYear(), nextMonth.getMonth() + 1, nextMonth.getDate());
+                return nextMonthJalali[1] === 1 ? 29 : 30;
+            }
+            
+            // رندر تقویم
+            function renderCalendar() {
+                const jalaliDate = toJalali(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+                const year = jalaliDate[0];
+                const month = jalaliDate[1];
+                
+                datepickerTitle.textContent = `${monthNames[month - 1]} ${year}`;
+                
+                // رندر روزهای ماه
+                calendarBody.innerHTML = '';
+                
+                // روز اول ماه شمسی
+                const firstDayOfMonth = toGregorian(year, month, 1);
+                let date = new Date(firstDayOfMonth[0], firstDayOfMonth[1] - 1, firstDayOfMonth[2]);
+                
+                // تعیین روز هفته (0 = یکشنبه، 6 = شنبه)
+                let day = date.getDay();
+                // تبدیل به 0 = شنبه، 6 = جمعه
+                day = (day + 1) % 7;
+                
+                // تعداد روزهای ماه
+                const totalDays = daysInMonth(year, month);
+                
+                let html = '';
+                let cellCounter = 0;
+                
+                // روزهای خالی ابتدای ماه
+                html += '<tr>';
+                for (let i = 0; i < day; i++) {
+                    html += '<td></td>';
+                    cellCounter++;
+                }
+                
+                // روزهای ماه
+                for (let i = 1; i <= totalDays; i++) {
+                    if (cellCounter % 7 === 0) {
+                        html += '</tr><tr>';
+                    }
+                    
+                    const todayJalali = toJalali(today.getFullYear(), today.getMonth() + 1, today.getDate());
+                    const isToday = year === todayJalali[0] && month === todayJalali[1] && i === todayJalali[2];
+                    
+                    let classes = isToday ? 'today' : '';
+                    
+                    html += `<td class="${classes}" data-day="${i}" data-month="${month}" data-year="${year}">${i}</td>`;
+                    cellCounter++;
+                }
+                
+                // روزهای خالی انتهای ماه
+                while (cellCounter % 7 !== 0) {
+                    html += '<td></td>';
+                    cellCounter++;
+                }
+                
+                html += '</tr>';
+                calendarBody.innerHTML = html;
+                
+                // افزودن رویداد کلیک به روزها
+                const days = calendarBody.querySelectorAll('td[data-day]');
+                days.forEach(day => {
+                    day.addEventListener('click', function() {
+                        const selectedDay = parseInt(this.dataset.day);
+                        const selectedMonth = parseInt(this.dataset.month);
+                        const selectedYear = parseInt(this.dataset.year);
+                        
+                        // فرمت تاریخ شمسی (مثال: 1402/08/15)
+                        const formattedDate = `${selectedYear}/${selectedMonth.toString().padStart(2, '0')}/${selectedDay.toString().padStart(2, '0')}`;
+                        datePickerInput.value = formattedDate;
+                        dateShamsihidden.value = formattedDate;
+                        
+                        datepicker.style.display = 'none';
+                    });
+                });
+            }
+            
+            // رندر ماه‌ها
+            function renderMonths() {
+                monthsGrid.innerHTML = '';
+                const jalaliDate = toJalali(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+                const year = jalaliDate[0];
+                
+                datepickerTitle.textContent = `${year}`;
+                
+                for (let i = 0; i < 12; i++) {
+                    const monthElement = document.createElement('div');
+                    monthElement.className = 'month-item';
+                    monthElement.textContent = monthNames[i];
+                    monthElement.dataset.month = i + 1;
+                    
+                    if (jalaliDate[1] === i + 1) {
+                        monthElement.classList.add('selected');
+                    }
+                    
+                    monthElement.addEventListener('click', function() {
+                        const selectedMonth = parseInt(this.dataset.month);
+                        const gregorianDate = toGregorian(year, selectedMonth, 1);
+                        currentDate = new Date(gregorianDate[0], gregorianDate[1] - 1, 1);
+                        currentView = 'day';
+                        updateCalendarView();
+                    });
+                    
+                    monthsGrid.appendChild(monthElement);
+                }
+            }
+            
+            // رندر سال‌ها
+            function renderYears() {
+                yearsGrid.innerHTML = '';
+                const jalaliDate = toJalali(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+                const currentYear = jalaliDate[0];
+                const startYear = currentYear - 6;
+                
+                datepickerTitle.textContent = `${startYear} - ${startYear + 11}`;
+                
+                for (let i = 0; i < 12; i++) {
+                    const year = startYear + i;
+                    const yearElement = document.createElement('div');
+                    yearElement.className = 'year-item';
+                    yearElement.textContent = year;
+                    yearElement.dataset.year = year;
+                    
+                    if (currentYear === year) {
+                        yearElement.classList.add('selected');
+                    }
+                    
+                    yearElement.addEventListener('click', function() {
+                        const selectedYear = parseInt(this.dataset.year);
+                        const selectedMonth = jalaliDate[1];
+                        const gregorianDate = toGregorian(selectedYear, selectedMonth, 1);
+                        currentDate = new Date(gregorianDate[0], gregorianDate[1] - 1, 1);
+                        currentView = 'month';
+                        updateCalendarView();
+                    });
+                    
+                    yearsGrid.appendChild(yearElement);
+                }
+            }
+            
+            // بروزرسانی نمایش تقویم
+            function updateCalendarView() {
+                calendarBody.style.display = 'none';
+                monthsGrid.style.display = 'none';
+                yearsGrid.style.display = 'none';
+                
+                if (currentView === 'day') {
+                    renderCalendar();
+                    calendarBody.style.display = '';
+                } else if (currentView === 'month') {
+                    renderMonths();
+                    monthsGrid.style.display = 'grid';
+                } else if (currentView === 'year') {
+                    renderYears();
+                    yearsGrid.style.display = 'grid';
+                }
+            }
+            
+            // ماه قبل
+            prevMonth.addEventListener('click', function() {
+                if (currentView === 'day') {
+                    currentDate.setMonth(currentDate.getMonth() - 1);
+                } else if (currentView === 'month') {
+                    const jalaliDate = toJalali(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+                    const gregorianDate = toGregorian(jalaliDate[0] - 1, jalaliDate[1], 1);
+                    currentDate = new Date(gregorianDate[0], gregorianDate[1] - 1, 1);
+                } else if (currentView === 'year') {
+                    const jalaliDate = toJalali(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+                    const gregorianDate = toGregorian(jalaliDate[0] - 12, jalaliDate[1], 1);
+                    currentDate = new Date(gregorianDate[0], gregorianDate[1] - 1, 1);
+                }
+                updateCalendarView();
+            });
+            
+            // ماه بعد
+            nextMonth.addEventListener('click', function() {
+                if (currentView === 'day') {
+                    currentDate.setMonth(currentDate.getMonth() + 1);
+                } else if (currentView === 'month') {
+                    const jalaliDate = toJalali(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+                    const gregorianDate = toGregorian(jalaliDate[0] + 1, jalaliDate[1], 1);
+                    currentDate = new Date(gregorianDate[0], gregorianDate[1] - 1, 1);
+                } else if (currentView === 'year') {
+                    const jalaliDate = toJalali(currentDate.getFullYear(), currentDate.getMonth() + 1, currentDate.getDate());
+                    const gregorianDate = toGregorian(jalaliDate[0] + 12, jalaliDate[1], 1);
+                    currentDate = new Date(gregorianDate[0], gregorianDate[1] - 1, 1);
+                }
+                updateCalendarView();
+            });
+            
+            // تغییر نمایش با کلیک روی عنوان
+            datepickerTitle.addEventListener('click', function() {
+                if (currentView === 'day') {
+                    currentView = 'month';
+                } else if (currentView === 'month') {
+                    currentView = 'year';
+                }
+                updateCalendarView();
+            });
+            
+            // باز کردن تقویم با کلیک روی فیلد
+            datePickerInput.addEventListener('click', function(e) {
+                e.stopPropagation();
+                if (datepicker.style.display === 'block') {
+                    datepicker.style.display = 'none';
+                } else {
+                    currentView = 'day';
+                    updateCalendarView();
+                    datepicker.style.display = 'block';
+                }
+            });
+            
+            // بستن تقویم با کلیک بیرون
+            document.addEventListener('click', function(e) {
+                if (!datepicker.contains(e.target) && e.target !== datePickerInput) {
+                    datepicker.style.display = 'none';
+                }
+            });
+            
+            // جلوگیری از بستن تقویم با کلیک روی تقویم
+            datepicker.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+            
+            // مقداردهی اولیه
+            updateCalendarView();
+        });
+    </script>
+
+</body>
+
+</html>

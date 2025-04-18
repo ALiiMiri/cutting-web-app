@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدیریت درب‌های پروژه - {{ project.customer_name }}</title>
+    <!-- افزودن Font Awesome از CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* تعریف فونت وزیر - اگر در پوشه static است */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* استایل‌های پایه */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 0;
+            background-color: #f4f7f6;
+            margin: 0;
+            color: #333;
+        }
+
+        .container {
+            max-width: 98%;
+            margin: 20px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 3px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            margin-top: 0;
+        }
+
+        /* استایل نوار اطلاعات مشتری */
+        .customer-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            background-color: #edf7ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #d1e8ff;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .customer-info-item {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .customer-info-label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .customer-info-label i {
+            margin-left: 5px;
+            color: #3498db;
+        }
+
+        .customer-info-value {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            transition: all 0.2s;
+            min-height: 42px;
+        }
+
+        /* استایل نوار دکمه‌ها */
+        .action-bar {
+            background-color: #f9f9f9;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .button-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .action-button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-button i {
+            margin-left: 8px;
+            font-size: 16px;
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .add-button {
+            background-color: #2ecc71;
+        }
+
+        .excel-button {
+            background-color: #27ae60;
+        }
+
+        .pdf-button {
+            background-color: #e74c3c;
+        }
+
+        .batch-edit-button {
+            background-color: #e67e22;
+        }
+
+        .settings-button {
+            background-color: #7f8c8d;
+        }
+
+        .calculate-button {
+            background-color: #3498db;
+        }
+
+        .back-button {
+            background-color: #95a5a6;
+        }
+
+        /* نوار جستجو */
+        .search-bar {
+            display: flex;
+            margin-top: 10px;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-input input {
+            width: 100%;
+            padding: 10px 12px 10px 40px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .search-input i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #7f8c8d;
+        }
+
+        .filter-dropdown {
+            min-width: 180px;
+        }
+
+        .filter-dropdown select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        /* استایل TreeView */
+        .treeview-container {
+            margin-top: 20px;
+            overflow: hidden;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .scroll-container {
+            overflow-x: auto;
+            max-height: 60vh;
+            position: relative;
+        }
+
+        table.treeview {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        table.treeview th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 15px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        table.treeview th .sort-icon {
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        table.treeview td {
+            padding: 10px 15px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        table.treeview td.note-cell {
+            text-align: right;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        table.treeview td.note-cell:hover {
+            white-space: normal;
+            overflow: visible;
+            background-color: #f9f9f9;
+            position: relative;
+            z-index: 5;
+        }
+
+        table.treeview tbody tr {
+            transition: background-color 0.2s;
+        }
+
+        table.treeview tbody tr:hover {
+            background-color: #ecf0f1 !important;
+        }
+
+        table.treeview tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* چک‌باکس‌های انتخاب */
+        .select-cell {
+            width: 40px;
+        }
+
+        .select-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* رنگ‌های سفارشی ردیف‌ها */
+        table.treeview tr.yellow {
+            background-color: #fff9c4;
+        }
+
+        table.treeview tr.lightgreen {
+            background-color: #c8e6c9;
+        }
+
+        table.treeview tr.lightblue {
+            background-color: #bbdefb;
+        }
+
+        /* منوی راست-کلیک */
+        .context-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            padding: 5px 0;
+            min-width: 180px;
+        }
+
+        .context-menu-item {
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .context-menu-item i {
+            margin-left: 8px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .context-menu-item:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* نوار وضعیت */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #f5f5f5;
+            border-top: 1px solid #ddd;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .status-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .status-item i {
+            margin-left: 5px;
+            color: #3498db;
+        }
+
+        /* فایل فلش */
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* استایل سطر انتخاب شده */
+        .selected-row {
+            background-color: #e3f2fd !important; /* رنگ آبی روشن */
+            border-left: 3px solid #2196F3; /* نوار آبی سمت چپ */
+        }
+
+        .selectable-row {
+            cursor: pointer; /* تغییر شکل نشانگر ماوس به حالت اشاره */
+        }
+
+        /* رفتار hover برای سطرهای قابل انتخاب */
+        .selectable-row:hover {
+            background-color: #f5f5f5 !important;
+        }
+
+        /* سازگاری موبایل */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                margin: 10px auto;
+            }
+
+            .button-bar {
+                flex-direction: column;
+            }
+
+            .action-button {
+                width: 100%;
+            }
+
+            .customer-info {
+                flex-direction: column;
+            }
+
+            .search-bar {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>مدیریت درب‌های پروژه: {{ project.customer_name }}</h1>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- اطلاعات مشتری -->
+        <div class="customer-info">
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-user"></i>
+                    نام مشتری:
+                </div>
+                <div class="customer-info-value">{{ project.customer_name or "نامشخص" }}</div>
+            </div>
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-hashtag"></i>
+                    شماره محک:
+                </div>
+                <div class="customer-info-value">{{ project.cust_id or "" }}</div>
+            </div>
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-file-invoice"></i>
+                    شماره سفارش:
+                </div>
+                <div class="customer-info-value">{{ project.order_ref or "" }}</div>
+            </div>
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-calendar"></i>
+                    تاریخ:
+                </div>
+                <div class="customer-info-value">{{ project.date_shamsi or "" }}</div>
+            </div>
+        </div>
+
+        <!-- نوار اکشن‌ها و جستجو -->
+        <div class="action-bar">
+            <!-- نوار دکمه‌ها -->
+            <div class="button-bar">
+                <a href="{{ url_for('add_door_form', project_id=project.id) }}" class="action-button add-button">
+                    <i class="fas fa-plus"></i>
+                    افزودن درب
+                </a>
+                <button class="action-button excel-button" onclick="exportToExcel()">
+                    <i class="fas fa-file-excel"></i>
+                    خروجی Excel
+                </button>
+                <a href="{{ url_for('export_table_to_pdf_html', project_id=project.id) }}" class="action-button pdf-button">
+                    <i class="fas fa-file-pdf"></i>
+                    PDF جدول (HTML)
+                </a>
+                <button class="action-button batch-edit-button" onclick="batchEdit()">
+                    <i class="fas fa-edit"></i>
+                    ویرایش گروهی
+                </button>
+                <a href="{{ url_for('settings_columns', project_id=project.id) }}"
+                    class="action-button settings-button">
+                    <i class="fas fa-cog"></i>
+                    تنظیمات
+                </a>
+                <button class="action-button calculate-button" onclick="calculateCutting()">
+                    <i class="fas fa-calculator"></i>
+                    محاسبه برش
+                </button>
+                <a href="{{ url_for('view_project', project_id=project.id) }}" class="action-button back-button">
+                    <i class="fas fa-arrow-right"></i>
+                    بازگشت
+                </a>
+            </div>
+
+            <!-- نوار جستجو -->
+            <div class="search-bar">
+                <div class="search-input">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="جستجو در تمام فیلدها..." id="search-input">
+                </div>
+                <div class="filter-dropdown">
+                    <select id="filter-column">
+                        <option value="">فیلتر براساس...</option>
+                        <option value="location">مکان نصب</option>
+                        <option value="rang">رنگ پروفیل</option>
+                        <option value="noe_profile">نوع پروفیل</option>
+                        <option value="vaziat">وضعیت تولید</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- TreeView برای نمایش درب‌ها -->
+        <div class="treeview-container">
+            <div class="scroll-container">
+                <table class="treeview" id="door-table">
+                    <thead>
+                        <tr>
+                            <th class="select-cell">
+                                <input type="checkbox" id="select-all" title="انتخاب همه">
+                            </th>
+                            <th data-column="location" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                مکان نصب
+                            </th>
+                            <th data-column="width" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                عرض (cm)
+                            </th>
+                            <th data-column="height" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                ارتفاع (cm)
+                            </th>
+                            <th data-column="quantity" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                تعداد
+                            </th>
+                            <th data-column="direction" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                جهت
+                            </th>
+                            
+                            <!-- ستون‌های پویا بر اساس وضعیت نمایش -->
+                            {% if 'rang' in visible_columns %}
+                            <th data-column="rang" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                رنگ پروفیل
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'noe_profile' in visible_columns %}
+                            <th data-column="noe_profile" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                نوع پروفیل
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'vaziat' in visible_columns %}
+                            <th data-column="vaziat" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                وضعیت تولید
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'lola' in visible_columns %}
+                            <th data-column="lola" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                لولا
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'ghofl' in visible_columns %}
+                            <th data-column="ghofl" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                قفل
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'accessory' in visible_columns %}
+                            <th data-column="accessory" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                اکسسوری
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'kolaft' in visible_columns %}
+                            <th data-column="kolaft" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                کلاف
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'dastgire' in visible_columns %}
+                            <th data-column="dastgire" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                دستگیره
+                            </th>
+                            {% endif %}
+                            
+                            {% if 'tozihat' in visible_columns %}
+                            <th data-column="tozihat" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                توضیحات
+                            </th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for door in doors %}
+                        <tr class="{{ door.row_color_tag if door.row_color_tag else 'white' }} selectable-row" data-id="{{ door.id }}">
+                            <td class="select-cell">
+                                <input type="checkbox" class="door-select" data-id="{{ door.id }}">
+                            </td>
+                            <td>{{ door.location or "" }}</td>
+                            <td>{{ door.width }}</td>
+                            <td>{{ door.height }}</td>
+                            <td>{{ door.quantity }}</td>
+                            <td>{{ door.direction or "" }}</td>
+                            
+                            {% if 'rang' in visible_columns %}
+                            <td>{{ door.rang or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'noe_profile' in visible_columns %}
+                            <td>{{ door.noe_profile or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'vaziat' in visible_columns %}
+                            <td>{{ door.vaziat or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'lola' in visible_columns %}
+                            <td>{{ door.lola or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'ghofl' in visible_columns %}
+                            <td>{{ door.ghofl or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'accessory' in visible_columns %}
+                            <td>{{ door.accessory or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'kolaft' in visible_columns %}
+                            <td>{{ door.kolaft or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'dastgire' in visible_columns %}
+                            <td>{{ door.dastgire or "" }}</td>
+                            {% endif %}
+                            
+                            {% if 'tozihat' in visible_columns %}
+                            <td class="note-cell">{{ door.tozihat or "" }}</td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- نوار وضعیت -->
+            <div class="status-bar">
+                <div class="status-info">
+                    <div class="status-item">
+                        <i class="fas fa-door-open"></i>
+                        تعداد کل درب‌ها: <span id="door-count">{{ doors|length }}</span>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas fa-check-square"></i>
+                        انتخاب شده: <span id="selected-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- منوی راست-کلیک -->
+        <div class="context-menu" id="context-menu">
+            <div class="context-menu-item yellow" onclick="setRowColor('yellow')">
+                <i class="fas fa-square"></i>
+                رنگ زرد
+            </div>
+            <div class="context-menu-item lightgreen" onclick="setRowColor('lightgreen')">
+                <i class="fas fa-square"></i>
+                رنگ سبز
+            </div>
+            <div class="context-menu-item lightblue" onclick="setRowColor('lightblue')">
+                <i class="fas fa-square"></i>
+                رنگ آبی
+            </div>
+            <div class="context-menu-item white" onclick="setRowColor('white')">
+                <i class="fas fa-square"></i>
+                رنگ سفید (پیش‌فرض)
+            </div>
+        </div>
+
+        <script>
+            // متغیرهای عمومی
+            let contextMenuTargetRow = null;
+
+            // مدیریت منوی راست-کلیک
+            document.addEventListener('DOMContentLoaded', function () {
+                // انتخاب همه/هیچ‌کدام
+                const selectAllBox = document.getElementById('select-all');
+                selectAllBox.addEventListener('change', function () {
+                    const checkboxes = document.querySelectorAll('.door-select');
+                    checkboxes.forEach(box => {
+                        box.checked = selectAllBox.checked;
+                    });
+                    updateSelectedCount();
+                });
+
+                // به‌روزرسانی شمارنده انتخاب‌ها هنگام تغییر هر چک‌باکس
+                const individualBoxes = document.querySelectorAll('.door-select');
+                individualBoxes.forEach(box => {
+                    box.addEventListener('change', updateSelectedCount);
+                });
+
+                // نمایش اولیه تعداد انتخاب‌ها
+                updateSelectedCount();
+
+                // اضافه کردن جستجو و فیلتر
+                document.getElementById('search-input').addEventListener('input', filterTable);
+                document.getElementById('filter-column').addEventListener('change', filterTable);
+                
+                // اگر URL حاوی پارامتر زمانی است، آن را از URL پاک کنیم
+                if (window.location.href.includes('?t=') || window.location.href.includes('&t=')) {
+                    let cleanUrl = window.location.href.split('?')[0];
+                    let params = new URLSearchParams(window.location.search);
+                    params.delete('t');
+                    
+                    if (params.toString()) {
+                        cleanUrl += '?' + params.toString();
+                    }
+                    
+                    // با استفاده از History API بدون رفرش URL را تغییر دهیم
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }
+            });
+
+            // مرتب‌سازی جدول
+            function sortTable(header) {
+                const table = document.querySelector('.treeview');
+                const columnIndex = Array.from(header.parentNode.children).indexOf(header) - 1; // -1 برای ستون چک‌باکس
+                const isAsc = header.querySelector('.sort-icon').textContent === '▼';
+
+                // تغییر جهت آیکون
+                header.querySelector('.sort-icon').textContent = isAsc ? '▲' : '▼';
+
+                // حذف حالت فعال از همه ستون‌ها
+                const allHeaders = table.querySelectorAll('th');
+                allHeaders.forEach(th => {
+                    if (th !== header && th.querySelector('.sort-icon')) {
+                        th.querySelector('.sort-icon').textContent = '▼';
+                    }
+                });
+
+                // استخراج و مرتب‌سازی ردیف‌ها
+                const rows = Array.from(table.querySelectorAll('tbody tr'));
+                rows.sort((a, b) => {
+                    let aValue = a.children[columnIndex + 1].textContent.trim(); // +1 برای جبران ستون چک‌باکس
+                    let bValue = b.children[columnIndex + 1].textContent.trim();
+
+                    // اگر اعداد هستند
+                    if (!isNaN(aValue) && !isNaN(bValue)) {
+                        return isAsc ? parseFloat(aValue) - parseFloat(bValue) : parseFloat(bValue) - parseFloat(aValue);
+                    }
+
+                    // مرتب‌سازی متنی
+                    return isAsc ? aValue.localeCompare(bValue, 'fa') : bValue.localeCompare(aValue, 'fa');
+                });
+
+                // بازسازی جدول
+                const tbody = table.querySelector('tbody');
+                rows.forEach(row => tbody.appendChild(row));
+            }
+
+            // فیلتر کردن جدول
+            function filterTable() {
+                const searchText = document.getElementById('search-input').value.toLowerCase();
+                const filterColumn = document.getElementById('filter-column').value;
+                const rows = document.querySelectorAll('table.treeview tbody tr');
+
+                rows.forEach(row => {
+                    let visible = false;
+
+                    if (filterColumn) {
+                        // شاخص ستون فیلتر را پیدا کن
+                        const headerCells = document.querySelectorAll('table.treeview th');
+                        let columnIndex = -1;
+
+                        headerCells.forEach((th, index) => {
+                            if (th.getAttribute('data-column') === filterColumn) {
+                                columnIndex = index - 1; // -1 برای ستون چک‌باکس
+                            }
+                        });
+
+                        // فیلتر روی ستون خاص
+                        if (columnIndex >= 0) {
+                            const cellText = row.children[columnIndex + 1].textContent.toLowerCase();
+                            visible = cellText.includes(searchText);
+                        }
+                    } else {
+                        // جستجو در تمام سلول‌ها
+                        const cells = row.querySelectorAll('td');
+                        cells.forEach(cell => {
+                            if (cell.textContent.toLowerCase().includes(searchText)) {
+                                visible = true;
+                            }
+                        });
+                    }
+
+                    row.style.display = visible ? '' : 'none';
+                });
+            }
+
+            // به‌روزرسانی شمارنده انتخاب‌ها
+            function updateSelectedCount() {
+                const selectedBoxes = document.querySelectorAll('.door-select:checked');
+                document.getElementById('selected-count').textContent = selectedBoxes.length;
+            }
+
+            // اضافه کردن فرش به انتهای URL برای اطمینان از عدم کش
+            function generateCacheBuster() {
+                return Math.floor(Date.now() / 1000);
+            }
+
+            // توابع برای عملیات‌های دکمه‌ها
+            function batchEdit() {
+                const selectedBoxes = document.querySelectorAll('.door-select:checked');
+                if (selectedBoxes.length === 0) {
+                    alert('لطفاً حداقل یک درب را انتخاب کنید.');
+                    return;
+                }
+
+                // جمع‌آوری شناسه‌های درب‌های انتخاب شده
+                const doorIds = Array.from(selectedBoxes).map(box => box.getAttribute('data-id')).join(',');
+
+                // هدایت به صفحه ویرایش گروهی با ارسال شناسه‌های درب‌ها
+                window.location.href = `/project/{{ project.id }}/batch_edit?door_ids=${doorIds}`;
+            }
+
+            function calculateCutting() {
+                // به جای نمایش آلرت، کاربر را به صفحه محاسبه برش هدایت کنید
+                window.location.href = `/project/{{ project.id }}/calculate_cutting`;
+            }
+
+            // تغییر رنگ سطر
+            function setRowColor(color) {
+                if (contextMenuTargetRow) {
+                    // حذف تمام کلاس‌های رنگ قبلی
+                    contextMenuTargetRow.classList.remove('yellow', 'lightgreen', 'lightblue', 'white');
+
+                    // فقط اگر سفید نیست، کلاس جدید اضافه کن
+                    if (color !== 'white') {
+                        contextMenuTargetRow.classList.add(color);
+                    }
+
+                    // ارسال به سرور (پیاده‌سازی بعدی)
+                    const doorId = contextMenuTargetRow.getAttribute('data-id');
+                    console.log(`تغییر رنگ سطر ${doorId} به ${color}`);
+
+                    // در اینجا می‌توان یک درخواست AJAX برای ذخیره تغییرات در سرور ارسال کرد
+                }
+                // ارسال به سرور با AJAX
+                const doorId = contextMenuTargetRow.getAttribute('data-id');
+                const projectId = "{{ project.id }}";
+            } // مقدار پروژه ID از جینجا
+
+            fetch(`/project/${projectId}/door/${doorId}/set_color`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `color=${color}`
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        console.error('خطا در ذخیره رنگ');
+                        alert('خطا در ذخیره تغییرات');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('خطا در ارتباط با سرور');
+                });
+
+            // مخفی کردن منو
+            document.getElementById('context-menu').style.display = 'none';
+        </script>
+
+        <script>
+            // مدیریت کلیک روی سطرها
+            document.addEventListener('DOMContentLoaded', function() {
+                const selectableRows = document.querySelectorAll('.selectable-row');
+                
+                selectableRows.forEach(row => {
+                    row.addEventListener('click', function(event) {
+                        // اگر کلیک روی خود چک‌باکس نبود
+                        if (!event.target.classList.contains('door-select')) {
+                            // پیدا کردن چک‌باکس مربوطه
+                            const checkbox = row.querySelector('.door-select');
+                            if (checkbox) {
+                                // تغییر وضعیت چک‌باکس
+                                checkbox.checked = !checkbox.checked;
+                                
+                                // ایجاد رویداد change برای چک‌باکس
+                                const changeEvent = new Event('change', { bubbles: true });
+                                checkbox.dispatchEvent(changeEvent);
+                                
+                                // تغییر رنگ پس‌زمینه سطر بر اساس وضعیت انتخاب
+                                if (checkbox.checked) {
+                                    row.classList.add('selected-row');
+                                } else {
+                                    row.classList.remove('selected-row');
+                                }
+                                
+                                // به‌روزرسانی شمارنده انتخاب‌ها
+                                updateSelectedCount();
+                            }
+                        }
+                    });
+                });
+                
+                // اضافه کردن رویداد change به چک‌باکس‌ها برای تغییر کلاس سطر
+                const checkboxes = document.querySelectorAll('.door-select');
+                checkboxes.forEach(checkbox => {
+                    checkbox.addEventListener('change', function(event) {
+                        // جلوگیری از تکرار رویداد در صورت فراخوانی از کلیک سطر
+                        event.stopPropagation();
+                        
+                        const row = this.closest('tr');
+                        if (row) {
+                            if (this.checked) {
+                                row.classList.add('selected-row');
+                            } else {
+                                row.classList.remove('selected-row');
+                            }
+                        }
+                        
+                        // به‌روزرسانی شمارنده انتخاب‌ها
+                        updateSelectedCount();
+                    });
+                });
+                
+                // چک‌باکس انتخاب همه
+                const selectAllCheckbox = document.getElementById('select-all');
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.addEventListener('change', function() {
+                        const allCheckboxes = document.querySelectorAll('.door-select');
+                        allCheckboxes.forEach(cb => {
+                            cb.checked = this.checked;
+                            
+                            // تغییر کلاس سطر
+                            const row = cb.closest('tr');
+                            if (row) {
+                                if (this.checked) {
+                                    row.classList.add('selected-row');
+                                } else {
+                                    row.classList.remove('selected-row');
+                                }
+                            }
+                        });
+                        
+                        // به‌روزرسانی شمارنده انتخاب‌ها
+                        updateSelectedCount();
+                    });
+                }
+            });
+        </script>
+    </div>
+</body>
+
+</html>
