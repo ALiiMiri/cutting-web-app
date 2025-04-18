@@ -1,0 +1,9 @@
+{
+    "build": {
+      "env": {
+        "PYTHON_VERSION": "3.10"
+      }
+    },
+    "start": "gunicorn cutting_web_app:app"
+  }
+  
