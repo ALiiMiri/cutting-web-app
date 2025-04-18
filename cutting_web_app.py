@@ -1959,6 +1959,9 @@ def export_table_to_pdf_html(project_id):
     )
 
 if __name__ == "__main__":
-    print("INFO: Starting Flask application...")
-    app.run(debug=True, host="0.0.0.0", port=8080)
+    import os
+    if os.environ.get("RAILWAY_ENVIRONMENT") is None:
+        print("INFO: Starting Flask application locally...")
+        app.run(debug=True, host="0.0.0.0", port=8080)
+
 
