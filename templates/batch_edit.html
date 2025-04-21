@@ -131,6 +131,28 @@
             font-weight: bold;
             margin-bottom: 20px;
         }
+
+        .has-data {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 2px;
+        }
+        
+        .data-indicator {
+            margin-right: 5px;
+            color: #e74c3c;
+            font-size: 14px;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
     </style>
 </head>
 
@@ -187,20 +209,35 @@
     </div>
 
     <script>
-        // فعال/غیرفعال کردن فیلدها بر اساس چک‌باکس
-        document.addEventListener('DOMContentLoaded', function () {
-            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-
-            checkboxes.forEach(function (checkbox) {
-                // غیرفعال کردن اولیه فیلدها
-                const fieldId = checkbox.id.replace('update_', 'value_');
-                const field = document.getElementById(fieldId);
-                if (field) {
-                    field.disabled = !checkbox.checked;
-                }
-
-                // رویداد تغییر چک‌باکس
-                checkbox.addEventListener('change', function () {
+        // بهبود مدیریت نمایش ستون‌ها با افزودن بازخورد کاربری
+        document.addEventListener('DOMContentLoaded', function() {
+            // بررسی وضعیت اولیه ستون‌ها - کدام ستون‌ها قابل مخفی کردن هستند
+            checkColumnVisibilityStatus();
+            
+            // رویداد تغییر چک‌باکس‌ها
+            const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="update_"]');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function(event) {
+                    const columnKey = this.id.replace('update_', '');
+                    
+                    // فقط اگر کاربر می‌خواهد ستون را مخفی کند، بررسی شود
+                    if (!this.checked) {
+                        if (!canHideColumn(columnKey)) {
+                            // نمایش پیام خطا با استفاده از کلاس flash
+                            showErrorMessage(`ستون "${getColumnDisplayName(columnKey)}" نمی‌تواند مخفی شود زیرا دارای داده است.`);
+                            
+                            // برگرداندن وضعیت چک‌باکس به حالت قبلی
+                            this.checked = true;
+                            
+                            // جلوگیری از ادامه اجرای رویداد
+                            event.preventDefault();
+                            event.stopPropagation();
+                            return false;
+                        }
+                    }
+                    
+                    // فعال/غیرفعال کردن فیلد مربوطه (کد موجود)
+                    const fieldId = this.id.replace('update_', 'value_');
                     const field = document.getElementById(fieldId);
                     if (field) {
                         field.disabled = !this.checked;
@@ -209,16 +246,13 @@
                         }
                     }
                     
-                    // ارسال درخواست AJAX برای به‌روزرسانی وضعیت نمایش ستون
-                    const columnKey = checkbox.id.replace('update_', '');
-                    console.log(`تغییر وضعیت نمایش ستون ${columnKey} به ${checkbox.checked ? 'نمایش' : 'پنهان'}`);
-                    
+                    // ارسال درخواست AJAX برای تغییر وضعیت نمایش ستون
                     fetch(`/project/{{ project.id }}/toggle_column_display`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
                         },
-                        body: `column_key=${columnKey}&is_visible=${checkbox.checked ? 1 : 0}`
+                        body: `column_key=${columnKey}&is_visible=${this.checked ? 1 : 0}`
                     })
                     .then(response => response.json())
                     .then(data => {
@@ -226,6 +260,14 @@
                             console.log(`وضعیت نمایش ستون ${columnKey} با موفقیت به‌روز شد`);
                         } else {
                             console.error('خطا در به‌روزرسانی نمایش ستون');
+                            if (data.error) {
+                                showErrorMessage(data.error);
+                                // برگرداندن وضعیت چک‌باکس
+                                this.checked = true;
+                                if (field) {
+                                    field.disabled = false;
+                                }
+                            }
                         }
                     })
                     .catch(error => {
@@ -233,6 +275,150 @@
                     });
                 });
             });
+            
+            // تابع بررسی امکان مخفی کردن ستون
+            function canHideColumn(columnKey) {
+                let canHide = true;
+                
+                // ارسال درخواست همزمان به API برای بررسی امکان مخفی کردن
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/project/{{ project.id }}/check_column_can_hide`, false); // همزمان
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        canHide = response.can_hide;
+                        if (!canHide) {
+                            console.log('دلیل عدم امکان مخفی کردن:', response.reason);
+                        }
+                    } else {
+                        console.error('خطا در بررسی ستون:', xhr.statusText);
+                    }
+                };
+                xhr.send(`column_key=${columnKey}`);
+                
+                return canHide;
+            }
+            
+            // تابع بررسی وضعیت اولیه ستون‌ها - کدام ستون‌ها می‌توانند مخفی شوند
+            function checkColumnVisibilityStatus() {
+                const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="update_"]');
+                
+                // برای تشخیص بهتر ستون‌هایی که احتمالاً داده دارند، از visible_columns استفاده می‌کنیم
+                {% if visible_columns is defined %}
+                const visibleColumns = {{ visible_columns|tojson }};
+                {% else %}
+                const visibleColumns = [];
+                {% endif %}
+                
+                checkboxes.forEach(function(checkbox) {
+                    const columnKey = checkbox.id.replace('update_', '');
+                    
+                    // اگر ستون در لیست ستون‌های نمایشی است، احتمالاً داده دارد
+                    if (visibleColumns.includes(columnKey)) {
+                        // افزودن نشانگر داده بدون نیاز به درخواست API
+                        checkbox.parentElement.classList.add('has-data');
+                        checkbox.setAttribute('title', 'این ستون احتمالاً دارای داده است');
+                        
+                        // اضافه کردن نشانگر بصری
+                        const indicator = document.createElement('span');
+                        indicator.className = 'data-indicator';
+                        indicator.textContent = '📝'; // نماد داده
+                        indicator.title = 'این ستون احتمالاً دارای داده است';
+                        checkbox.parentElement.appendChild(indicator);
+                    }
+                    // برای ستون‌هایی که فعال هستند، بررسی دقیق‌تر با API انجام می‌دهیم
+                    else if (checkbox.checked) {
+                        // بررسی امکان مخفی کردن
+                        const canHide = canHideColumn(columnKey);
+                        
+                        // اگر ستون نمی‌تواند مخفی شود
+                        if (!canHide) {
+                            // حالت‌های مختلف بازخورد کاربری:
+                            
+                            // 1. افزودن کلاس CSS برای نشان دادن اینکه نمی‌تواند مخفی شود
+                            checkbox.parentElement.classList.add('has-data');
+                            
+                            // 2. افزودن tooltip برای توضیح بیشتر
+                            checkbox.setAttribute('title', 'این ستون دارای داده است و نمی‌تواند مخفی شود');
+                            
+                            // 3. افزودن نشانگر بصری در کنار چک‌باکس
+                            const indicator = document.createElement('span');
+                            indicator.className = 'data-indicator';
+                            indicator.textContent = '📝'; // نماد داده
+                            indicator.title = 'این ستون دارای داده است';
+                            checkbox.parentElement.appendChild(indicator);
+                        }
+                    }
+                });
+            }
+            
+            // تابع نمایش پیام خطا
+            function showErrorMessage(message) {
+                // ایجاد المان پیام خطا
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'flash error';
+                errorDiv.textContent = message;
+                
+                // افزودن به ابتدای صفحه
+                const container = document.querySelector('.container');
+                container.insertBefore(errorDiv, container.firstChild);
+                
+                // حذف پیام بعد از 5 ثانیه
+                setTimeout(function() {
+                    if (errorDiv.parentNode) {
+                        errorDiv.parentNode.removeChild(errorDiv);
+                    }
+                }, 5000);
+            }
+            
+            // تابع دریافت نام نمایشی ستون براساس کلید - بهبود یافته
+            function getColumnDisplayName(columnKey) {
+                // جستجو در لیبل‌های صفحه - بهبود روش جستجو
+                const labelEl = document.querySelector(`label[for="value_${columnKey}"]`) || 
+                              document.querySelector(`label[for="update_${columnKey}"]`) ||
+                              document.querySelector(`.field-label`);
+                
+                if (labelEl) {
+                    return labelEl.textContent.replace(':', '').trim();
+                }
+                
+                // اگر لیبل پیدا نشد، از کلید استفاده می‌کنیم
+                return columnKey;
+            }
+            
+            // افزودن CSS برای نمایش بهتر
+            function addCustomStyles() {
+                const styleEl = document.createElement('style');
+                styleEl.textContent = `
+                    .has-data {
+                        background-color: #f8f9fa;
+                        border-radius: 4px;
+                        padding: 2px;
+                    }
+                    
+                    .data-indicator {
+                        margin-right: 5px;
+                        color: #e74c3c;
+                        font-size: 16px;
+                        cursor: help;
+                    }
+                    
+                    .flash.error {
+                        background-color: #f8d7da;
+                        color: #721c24;
+                        border: 1px solid #f5c6cb;
+                        padding: 10px;
+                        border-radius: 4px;
+                        margin-bottom: 10px;
+                        text-align: center;
+                    }
+                `;
+                document.head.appendChild(styleEl);
+            }
+            
+            // اضافه کردن استایل‌های سفارشی
+            addCustomStyles();
             
             // تولید timestamp برای استفاده در URL‌ها
             const timestamp = Math.floor(Date.now() / 1000);

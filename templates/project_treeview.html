@@ -972,6 +972,96 @@
             });
         </script>
     </div>
+
+    <!-- تابع‌های مدیریت ستون‌ها -->
+    <script>
+        // تابع بررسی امکان مخفی کردن ستون
+        function _can_hide_column(column_key) {
+            // اگر کلید ستون نامعتبر است یا در جدول وجود ندارد
+            if (!column_key) {
+                console.log("کلید ستون خالی است");
+                return true;  // اجازه مخفی کردن را می‌دهیم
+            }
+            
+            try {
+                // بررسی اینکه آیا ستون در جدول وجود دارد
+                const tableEl = document.querySelector('table.treeview') || document.getElementById('door-table');
+                if (!tableEl) {
+                    console.log("جدول پیدا نشد");
+                    return false;  // اگر جدول پیدا نشد، اجازه مخفی کردن نمی‌دهیم (محافظه‌کارانه)
+                }
+                
+                // یافتن شاخص ستون در جدول
+                let columnIndex = -1;
+                const headers = tableEl.querySelectorAll('th');
+                for (let i = 0; i < headers.length; i++) {
+                    const dataColumn = headers[i].getAttribute('data-column');
+                    if (dataColumn === column_key) {
+                        columnIndex = i;
+                        break;
+                    }
+                }
+                
+                if (columnIndex === -1) {
+                    console.log(`ستون با کلید ${column_key} در جدول پیدا نشد`);
+                    return true;  // اگر ستون در جدول پیدا نشد، اجازه مخفی کردن را می‌دهیم
+                }
+                
+                // بررسی داده‌های سطرها
+                const rows = tableEl.querySelectorAll('tbody tr');
+                console.log(`تعداد سطرها: ${rows.length}, شاخص ستون: ${columnIndex}`);
+                
+                for (let row of rows) {
+                    // دریافت سلول مربوط به ستون
+                    const cells = row.querySelectorAll('td');
+                    if (columnIndex < cells.length) {
+                        const cellValue = cells[columnIndex].textContent.trim();
+                        
+                        // اگر سلول حاوی مقدار معتبری است (غیر خالی)
+                        if (cellValue !== "") {
+                            console.log(`ستون ${column_key} در یکی از سطرها دارای مقدار است: ${cellValue}`);
+                            return false;  // این ستون دارای محتوا است و نمی‌تواند مخفی شود
+                        }
+                    }
+                }
+                
+                // اگر به اینجا رسیدیم، یعنی ستون در هیچ سطری مقدار ندارد
+                console.log(`ستون ${column_key} در هیچ سطری مقدار ندارد و می‌تواند مخفی شود`);
+                return true;
+                
+            } catch (error) {
+                console.error(`خطا در بررسی ستون ${column_key}:`, error);
+                return false;  // در صورت بروز خطا، اجازه مخفی کردن نمی‌دهیم (احتیاط)
+            }
+        }
+        
+        // تابع بررسی پیش از مخفی کردن ستون
+        function checkBeforeHidingColumn(columnKey) {
+            // اگر ستون دارای داده‌ است، نباید مخفی شود
+            if (!_can_hide_column(columnKey)) {
+                alert(`ستون '${columnKey}' نمی‌تواند مخفی شود زیرا دارای داده است.`);
+                return false;
+            }
+            return true;
+        }
+        
+        // تابع تغییر وضعیت نمایش ستون
+        function toggle_column_display(columnKey, is_visible) {
+            // اگر می‌خواهیم ستون را مخفی کنیم
+            if (!is_visible) {
+                // بررسی امکان مخفی کردن
+                if (!_can_hide_column(columnKey)) {
+                    alert(`ستون '${columnKey}' نمی‌تواند مخفی شود زیرا دارای داده است.`);
+                    return false;
+                }
+            }
+            
+            // ادامه روند تغییر وضعیت ستون
+            // ... کد AJAX برای ذخیره تغییرات ...
+            
+            return true;
+        }
+    </script>
 </body>
 
 </html>

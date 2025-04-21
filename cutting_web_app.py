@@ -1440,13 +1440,51 @@ def apply_batch_edit(project_id):
 
 @app.route("/project/<int:project_id>/toggle_column_display", methods=["POST"])
 def toggle_column_display(project_id):
-    """تغییر وضعیت نمایش ستون در جلسه کاربر"""
+    """تغییر وضعیت نمایش ستون در جلسه کاربر با بررسی امکان مخفی کردن"""
     column_key = request.form.get("column_key")
     is_visible = request.form.get("is_visible") == "1"
     
     print(f"DEBUG: تغییر وضعیت نمایش ستون '{column_key}' به {is_visible}")
     
-    # ذخیره وضعیت نمایش ستون در جلسه کاربر
+    # اگر کاربر می‌خواهد ستون را مخفی کند (is_visible=0)، بررسی کنیم
+    if not is_visible:
+        # بررسی ستون در پایگاه داده
+        conn = None
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            
+            # ابتدا شناسه ستون را پیدا می‌کنیم
+            cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
+            result = cursor.fetchone()
+            if result:
+                column_id = result[0]
+                
+                # حالا بررسی می‌کنیم که آیا این ستون در جدول door_custom_values دارای مقدار است
+                cursor.execute("""
+                    SELECT COUNT(*) FROM door_custom_values 
+                    JOIN doors ON door_custom_values.door_id = doors.id
+                    WHERE door_custom_values.column_id = ? 
+                    AND doors.project_id = ?
+                    AND door_custom_values.value IS NOT NULL 
+                    AND door_custom_values.value != ''
+                """, (column_id, project_id))
+                
+                count = cursor.fetchone()[0]
+                if count > 0:
+                    # اگر این ستون دارای مقدار است، نمی‌تواند مخفی شود
+                    return jsonify({
+                        "success": False, 
+                        "error": f"ستون '{column_key}' دارای {count} مقدار در پروژه است و نمی‌تواند مخفی شود"
+                    })
+        except sqlite3.Error as e:
+            print(f"خطا در بررسی ستون {column_key}: {e}")
+            return jsonify({"success": False, "error": f"خطای پایگاه داده: {e}"})
+        finally:
+            if conn:
+                conn.close()
+    
+    # کد فعلی برای ذخیره وضعیت نمایش ستون در جلسه کاربر
     session_key = f"visible_columns_{project_id}"
     visible_columns = session.get(session_key, [])
     
@@ -1461,6 +1499,59 @@ def toggle_column_display(project_id):
     print(f"DEBUG: لیست ستون‌های نمایشی به‌روز شد: {visible_columns}")
     
     return jsonify({"success": True})
+
+
+@app.route("/project/<int:project_id>/check_column_can_hide", methods=["POST"])
+def check_column_can_hide(project_id):
+    """بررسی می‌کند که آیا یک ستون خاص می‌تواند مخفی شود یا خیر"""
+    column_key = request.form.get("column_key")
+    if not column_key:
+        return jsonify({"can_hide": True, "reason": "کلید ستون خالی است"})
+    
+    try:
+        # بررسی اینکه آیا ستون در پایگاه داده وجود دارد
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        # ابتدا شناسه ستون را پیدا می‌کنیم
+        cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
+        result = cursor.fetchone()
+        if not result:
+            # اگر ستون وجود ندارد، می‌تواند مخفی شود
+            return jsonify({"can_hide": True, "reason": "ستون در پایگاه داده وجود ندارد"})
+        
+        column_id = result[0]
+        
+        # حالا بررسی می‌کنیم که آیا این ستون در جدول door_custom_values دارای مقدار است
+        cursor.execute("""
+            SELECT COUNT(*) FROM door_custom_values 
+            JOIN doors ON door_custom_values.door_id = doors.id
+            WHERE door_custom_values.column_id = ? 
+            AND doors.project_id = ?
+            AND door_custom_values.value IS NOT NULL 
+            AND door_custom_values.value != ''
+        """, (column_id, project_id))
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        if count > 0:
+            # اگر این ستون دارای مقدار است، نمی‌تواند مخفی شود
+            return jsonify({
+                "can_hide": False, 
+                "reason": f"ستون '{column_key}' دارای {count} مقدار در پروژه است"
+            })
+        
+        # اگر به اینجا رسیدیم، یعنی ستون می‌تواند مخفی شود
+        return jsonify({"can_hide": True, "reason": "ستون هیچ داده‌ای ندارد"})
+        
+    except sqlite3.Error as e:
+        print(f"خطا در بررسی ستون {column_key}: {e}")
+        # در صورت بروز خطا، از روی احتیاط اجازه مخفی کردن نمی‌دهیم
+        return jsonify({"can_hide": False, "reason": f"خطای پایگاه داده: {e}"})
+    except Exception as e:
+        print(f"خطای غیرمنتظره در بررسی ستون {column_key}: {e}")
+        return jsonify({"can_hide": False, "reason": f"خطای غیرمنتظره: {e}"})
 
 
 @app.route("/settings/columns/<int:project_id>")

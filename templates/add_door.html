@@ -278,6 +278,106 @@
             }
         });
     });
+    
+    // تابع بررسی امکان مخفی کردن یک ستون 
+    function canHideColumn(columnKey) {
+        // اگر کلید ستون نامعتبر است یا در جدول وجود ندارد
+        if (!columnKey || !treeView.columns.includes(columnKey)) {
+            return true; // اجازه مخفی کردن را می‌دهیم (چون اصلاً وجود ندارد)
+        }
+        
+        try {
+            // پیدا کردن شاخص ستون در جدول
+            const columnIndex = treeView.columns.indexOf(columnKey);
+            
+            // بررسی تمام سطرهای جدول
+            const allRows = treeView.getRows();
+            for (let rowId of allRows) {
+                const rowData = treeView.getRowData(rowId);
+                const cellValue = rowData[columnIndex];
+                
+                // اگر سلول حاوی مقدار معتبری است (غیر خالی)
+                if (cellValue !== null && cellValue !== undefined && cellValue.toString().trim() !== '') {
+                    return false; // این ستون دارای محتوا است و نمی‌تواند مخفی شود
+                }
+            }
+            
+            // اگر به اینجا رسیدیم، یعنی ستون در هیچ سطری مقدار ندارد
+            return true;
+            
+        } catch (error) {
+            console.error(`خطا در بررسی ستون ${columnKey}:`, error);
+            return false; // در صورت بروز خطا، اجازه مخفی کردن نمی‌دهیم (احتیاط)
+        }
+    }
+
+    // استفاده در تابع تغییر وضعیت چک‌باکس در فرم تنظیمات ستون‌ها
+    function toggleColumnVisibility(columnId, displayName) {
+        const checkbox = document.getElementById(`column_checkbox_${columnId}`);
+        const columnKey = getColumnKeyById(columnId); // تابعی که کلید ستون را از ID آن بازیابی می‌کند
+        
+        // اگر کاربر می‌خواهد ستون را مخفی کند (وضعیت چک‌باکس را از checked به unchecked تغییر داده)
+        if (!checkbox.checked) {
+            // بررسی اینکه آیا این ستون می‌تواند مخفی شود
+            if (!canHideColumn(columnKey)) {
+                // نمایش پیام خطا
+                showError(`ستون '${displayName}' نمی‌تواند مخفی شود زیرا دارای داده است.`);
+                
+                // برگرداندن وضعیت چک‌باکس به حالت قبل (checked)
+                checkbox.checked = true;
+                return false;
+            }
+        }
+        
+        // اگر مشکلی نبود، تغییر وضعیت نمایش ستون
+        updateColumnVisibility(columnId, checkbox.checked);
+        return true;
+    }
+
+    // نمایش پیام خطا به کاربر
+    function showError(message) {
+        // می‌توانید از هر روشی که برای نمایش خطا استفاده می‌کنید بهره بگیرید
+        // نمونه استفاده از alert ساده:
+        alert(message);
+        
+        // یا استفاده از یک المان HTML برای نمایش پیام:
+        /*
+        const errorDiv = document.getElementById('error-message') || document.createElement('div');
+        errorDiv.id = 'error-message';
+        errorDiv.className = 'flash error';
+        errorDiv.textContent = message;
+        
+        // نمایش المان در بالای صفحه
+        const container = document.querySelector('.container');
+        container.insertBefore(errorDiv, container.firstChild);
+        
+        // حذف پیام بعد از مدتی
+        setTimeout(() => {
+            if (errorDiv.parentNode) {
+                errorDiv.parentNode.removeChild(errorDiv);
+            }
+        }, 5000);
+        */
+    }
+
+    // نمونه استفاده در صفحه batch_edit.html
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+        
+        checkboxes.forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                // استخراج شناسه ستون و نام نمایشی آن
+                const columnId = this.id.replace('column_checkbox_', '');
+                const displayName = document.querySelector(`label[for="${this.id}"]`).textContent;
+                
+                // اگر تابع مدیریت تغییر وضعیت false برگرداند، یعنی مشکلی بوده
+                if (!toggleColumnVisibility(columnId, displayName)) {
+                    // جلوگیری از پردازش بیشتر رویداد
+                    event.preventDefault();
+                }
+            });
+        });
+    });
     </script>
 </body>
 
