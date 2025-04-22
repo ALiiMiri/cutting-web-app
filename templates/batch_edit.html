@@ -47,10 +47,18 @@
             padding: 10px;
             border-radius: 5px;
             background-color: #f8f9fa;
+            transition: background-color 0.3s, border-left 0.3s;
+            border-left: 4px solid transparent;
         }
 
         .field-row:hover {
-            background-color: #e9ecef;
+            background-color: #e9ecef !important;
+            border-left: 4px solid #3498db;
+        }
+
+        .field-row.selected-row {
+            background-color: #e3f2fd !important;
+            border-left: 4px solid #2196F3;
         }
 
         .checkbox-container {
@@ -152,6 +160,35 @@
             border-radius: 4px;
             margin-bottom: 10px;
             text-align: center;
+        }
+
+        /* سبک‌دهی بیشتر برای چک‌باکس‌ها تا بزرگتر و واضح‌تر باشند */
+        .checkbox-container input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* افزودن انیمیشن برای تغییر وضعیت */
+        .field-row {
+            transition: background-color 0.3s, border-left 0.3s;
+            border-left: 4px solid transparent;
+        }
+
+        .field-row.clickable-row {
+            cursor: pointer;
+            transition: background-color 0.2s, border-left 0.2s;
+            position: relative;
+        }
+
+        .field-row.clickable-row:hover {
+            background-color: #e9ecef !important;
+            border-left: 4px solid #3498db;
+        }
+
+        .field-row.selected-row {
+            background-color: #e3f2fd !important;
+            border-left: 4px solid #2196F3;
         }
     </style>
 </head>
@@ -476,6 +513,50 @@
             const timestamp = Math.floor(Date.now() / 1000);
             document.querySelectorAll('a[href*="project_treeview"]').forEach(link => {
                 link.href = link.href + (link.href.includes('?') ? '&' : '?') + 't=' + timestamp;
+            });
+            
+            // یافتن تمام سطرهای فرم ویرایش گروهی
+            const rows = document.querySelectorAll('.field-row');
+            
+            rows.forEach(function(row) {
+                // اضافه کردن کلاس برای نشان دادن اینکه این سطر قابل کلیک است
+                row.classList.add('clickable-row');
+                
+                // اضافه کردن رویداد کلیک به سطر
+                row.addEventListener('click', function(event) {
+                    // اگر کلیک روی خود چک‌باکس یا عناصر ورودی نبود
+                    if (!event.target.matches('input[type="checkbox"], input, select, button, label') && 
+                        !event.target.closest('input, select, button')) {
+                        
+                        // پیدا کردن چک‌باکس درون این سطر
+                        const checkbox = row.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            // تغییر وضعیت چک‌باکس
+                            checkbox.checked = !checkbox.checked;
+                            
+                            // اضافه یا حذف کلاس برای نشان دادن وضعیت انتخاب شده
+                            if (checkbox.checked) {
+                                row.classList.add('selected-row');
+                            } else {
+                                row.classList.remove('selected-row');
+                            }
+                            
+                            // فعال/غیرفعال کردن فیلد مربوطه
+                            const fieldId = checkbox.id.replace('update_', 'value_');
+                            const field = document.getElementById(fieldId);
+                            if (field) {
+                                field.disabled = !checkbox.checked;
+                                if (checkbox.checked) {
+                                    field.focus();
+                                }
+                            }
+                            
+                            // فراخوانی رویداد change برای چک‌باکس تا کدهای وابسته اجرا شوند
+                            const event = new Event('change', { bubbles: true });
+                            checkbox.dispatchEvent(event);
+                        }
+                    }
+                });
             });
         });
     </script>
