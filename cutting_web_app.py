@@ -2025,7 +2025,7 @@ def export_table_to_pdf_html(project_id):
                 <td>{{ door[key] }}</td>
                 {% endfor %}
                 {% if show_notes %}
-                <td>{{ door.notes }}</td>
+                <td>{{ door.tozihat }}</td>
                 {% endif %}
             </tr>
             {% endfor %}
