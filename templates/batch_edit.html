@@ -304,52 +304,56 @@
             function checkColumnVisibilityStatus() {
                 const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="update_"]');
                 
-                // برای تشخیص بهتر ستون‌هایی که احتمالاً داده دارند، از visible_columns استفاده می‌کنیم
-                {% if visible_columns is defined %}
-                const visibleColumns = {{ visible_columns|tojson }};
-                {% else %}
-                const visibleColumns = [];
-                {% endif %}
-                
                 checkboxes.forEach(function(checkbox) {
                     const columnKey = checkbox.id.replace('update_', '');
                     
-                    // اگر ستون در لیست ستون‌های نمایشی است، احتمالاً داده دارد
-                    if (visibleColumns.includes(columnKey)) {
-                        // افزودن نشانگر داده بدون نیاز به درخواست API
-                        checkbox.parentElement.classList.add('has-data');
-                        checkbox.setAttribute('title', 'این ستون احتمالاً دارای داده است');
-                        
-                        // اضافه کردن نشانگر بصری
-                        const indicator = document.createElement('span');
-                        indicator.className = 'data-indicator';
-                        indicator.textContent = '📝'; // نماد داده
-                        indicator.title = 'این ستون احتمالاً دارای داده است';
-                        checkbox.parentElement.appendChild(indicator);
-                    }
-                    // برای ستون‌هایی که فعال هستند، بررسی دقیق‌تر با API انجام می‌دهیم
-                    else if (checkbox.checked) {
-                        // بررسی امکان مخفی کردن
-                        const canHide = canHideColumn(columnKey);
-                        
-                        // اگر ستون نمی‌تواند مخفی شود
-                        if (!canHide) {
+                    // قبل از نشان دادن نشانگر، از سرور استعلام کنیم که آیا ستون واقعاً داده دارد یا خیر
+                    fetch(`/project/{{ project.id }}/check_column_can_hide`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `column_key=${columnKey}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // اگر ستون نمی‌تواند مخفی شود (دارای داده است)
+                        if (!data.can_hide) {
                             // حالت‌های مختلف بازخورد کاربری:
                             
                             // 1. افزودن کلاس CSS برای نشان دادن اینکه نمی‌تواند مخفی شود
                             checkbox.parentElement.classList.add('has-data');
                             
                             // 2. افزودن tooltip برای توضیح بیشتر
-                            checkbox.setAttribute('title', 'این ستون دارای داده است و نمی‌تواند مخفی شود');
+                            const reason = data.reason || 'این ستون دارای داده است و نمی‌تواند مخفی شود';
+                            checkbox.setAttribute('title', reason);
                             
-                            // 3. افزودن نشانگر بصری در کنار چک‌باکس
-                            const indicator = document.createElement('span');
-                            indicator.className = 'data-indicator';
-                            indicator.textContent = '📝'; // نماد داده
-                            indicator.title = 'این ستون دارای داده است';
-                            checkbox.parentElement.appendChild(indicator);
+                            // 3. افزودن نشانگر بصری در کنار چک‌باکس (فقط اگر قبلاً اضافه نشده)
+                            if (!checkbox.parentElement.querySelector('.data-indicator')) {
+                                const indicator = document.createElement('span');
+                                indicator.className = 'data-indicator';
+                                indicator.textContent = '📝'; // نماد داده
+                                indicator.title = reason;
+                                checkbox.parentElement.appendChild(indicator);
+                            }
+                        } else {
+                            // اگر ستون می‌تواند مخفی شود (داده ندارد)
+                            // نشانگر داده را حذف کنیم اگر قبلاً اضافه شده
+                            const existingIndicator = checkbox.parentElement.querySelector('.data-indicator');
+                            if (existingIndicator) {
+                                existingIndicator.remove();
+                            }
+                            
+                            // حذف کلاس has-data
+                            checkbox.parentElement.classList.remove('has-data');
+                            
+                            // به‌روزرسانی tooltip
+                            checkbox.setAttribute('title', 'این ستون می‌تواند مخفی شود (داده ندارد)');
                         }
-                    }
+                    })
+                    .catch(error => {
+                        console.error('Error checking column status:', error);
+                    });
                 });
             }
             
@@ -392,16 +396,64 @@
                 const styleEl = document.createElement('style');
                 styleEl.textContent = `
                     .has-data {
-                        background-color: #f8f9fa;
+                        background-color: #ffeeee;
                         border-radius: 4px;
                         padding: 2px;
+                        position: relative;
+                    }
+                    
+                    .has-data input[type="checkbox"] {
+                        border-color: #e74c3c;
                     }
                     
                     .data-indicator {
                         margin-right: 5px;
                         color: #e74c3c;
-                        font-size: 16px;
+                        font-size: 14px;
                         cursor: help;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 50%;
+                        background-color: #fff;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                        animation: pulse 2s infinite;
+                    }
+                    
+                    @keyframes pulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                        100% { transform: scale(1); }
+                    }
+                    
+                    .tooltip {
+                        position: absolute;
+                        background-color: #333;
+                        color: white;
+                        padding: 5px 10px;
+                        border-radius: 4px;
+                        z-index: 100;
+                        display: none;
+                        max-width: 250px;
+                        font-size: 12px;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    }
+                    
+                    .tooltip:after {
+                        content: "";
+                        position: absolute;
+                        top: 100%;
+                        left: 50%;
+                        margin-left: -5px;
+                        border-width: 5px;
+                        border-style: solid;
+                        border-color: #333 transparent transparent transparent;
+                    }
+                    
+                    .has-data:hover .tooltip {
+                        display: block;
                     }
                     
                     .flash.error {
