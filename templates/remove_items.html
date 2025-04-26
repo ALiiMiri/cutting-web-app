@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حذف شاخه‌های کامل از انبار</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        @font-face {
+            font-family: 'Vazir';
+            src: url('/static/fonts/Vazir.eot');
+            src: url('/static/fonts/Vazir.eot?#iefix') format('embedded-opentype'),
+                 url('/static/fonts/Vazir.woff2') format('woff2'),
+                 url('/static/fonts/Vazir.woff') format('woff'),
+                 url('/static/fonts/Vazir.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .page-title .profile-color {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 5px;
+            border: none;
+            font-family: inherit;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+            color: white;
+        }
+
+        .btn-warning {
+            background-color: #f39c12;
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 15px 20px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .card-title {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #2c3e50;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #dce4ec;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-col {
+            flex: 1;
+        }
+
+        .form-text {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .profile-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .profile-info-item {
+            min-width: 150px;
+        }
+
+        .profile-info-label {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-bottom: 3px;
+        }
+
+        .profile-info-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .header-buttons {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+
+            .form-row {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">
+                <span class="profile-color" style="background-color: {{ profile.color }};"></span>
+                حذف شاخه‌های کامل - {{ profile.name }}
+            </h1>
+            <div class="header-buttons">
+                <a href="{{ url_for('inventory_details_route', profile_id=profile.id) }}" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i>
+                    بازگشت به جزئیات
+                </a>
+                <a href="{{ url_for('inventory_route') }}" class="btn btn-warning">
+                    <i class="fas fa-warehouse"></i>
+                    بازگشت به انبار
+                </a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">اطلاعات پروفیل</h2>
+            </div>
+            <div class="card-body">
+                <div class="profile-info">
+                    <div class="profile-info-item">
+                        <div class="profile-info-label">نام پروفیل</div>
+                        <div class="profile-info-value">{{ profile.name }}</div>
+                    </div>
+                    <div class="profile-info-item">
+                        <div class="profile-info-label">طول استاندارد (متر)</div>
+                        <div class="profile-info-value">{{ profile.standard_length }}</div>
+                    </div>
+                    <div class="profile-info-item">
+                        <div class="profile-info-label">وزن در متر (کیلوگرم)</div>
+                        <div class="profile-info-value">{{ profile.weight_per_meter }}</div>
+                    </div>
+                    <div class="profile-info-item">
+                        <div class="profile-info-label">موجودی فعلی (شاخه)</div>
+                        <div class="profile-info-value">{{ current_count }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">حذف شاخه‌های کامل</h2>
+            </div>
+            <div class="card-body">
+                {% if current_count == 0 %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    هیچ شاخه کاملی از این پروفیل در انبار موجود نیست.
+                </div>
+                {% else %}
+                <div class="warning-box">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    توجه: با حذف شاخه‌های کامل، این اقلام از موجودی انبار کم می‌شوند. این عملیات قابل بازگشت نیست.
+                </div>
+
+                <form method="POST" action="{{ url_for('remove_items_route', profile_id=profile.id) }}">
+                    <div class="form-row">
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label class="form-label" for="quantity">تعداد شاخه</label>
+                                <input type="number" class="form-control" id="quantity" name="quantity" min="1" max="{{ current_count }}" value="1" required>
+                                <div class="form-text">تعداد شاخه‌های کامل که می‌خواهید از انبار کم کنید (حداکثر: {{ current_count }})</div>
+                            </div>
+                        </div>
+                        <div class="form-col">
+                            <div class="form-group">
+                                <label class="form-label" for="reason">دلیل حذف</label>
+                                <select class="form-control" id="reason" name="reason" required>
+                                    <option value="">انتخاب کنید...</option>
+                                    <option value="استفاده در پروژه">استفاده در پروژه</option>
+                                    <option value="خرابی/ضایعات">خرابی/ضایعات</option>
+                                    <option value="فروش">فروش</option>
+                                    <option value="مرجوعی">مرجوعی</option>
+                                    <option value="سایر">سایر</option>
+                                </select>
+                                <div class="form-text">دلیل حذف این شاخه‌ها از انبار</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="project">پروژه (اختیاری)</label>
+                        <select class="form-control" id="project" name="project_id">
+                            <option value="">بدون پروژه</option>
+                            {% for project in projects %}
+                            <option value="{{ project.id }}">{{ project.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">اگر این شاخه‌ها برای یک پروژه حذف می‌شوند، می‌توانید پروژه را مشخص کنید</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="notes">توضیحات</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="هرگونه توضیح اضافی درباره این کاهش موجودی..."></textarea>
+                        <div class="form-text">اختیاری - یادداشت‌های مربوط به این عملیات</div>
+                    </div>
+
+                    <div class="form-group" style="text-align: left;">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-minus"></i>
+                            حذف از انبار
+                        </button>
+                    </div>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

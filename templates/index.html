@@ -355,8 +355,10 @@
         <p class="no-projects">هنوز هیچ پروژه‌ای ثبت نشده است.</p>
         {% endif %}
 
-        {# لینک افزودن پروژه جدید در پایین #}
-        <a href="{{ url_for('add_project_form') }}" class="add-project-link">افزودن پروژه جدید</a>
+        <div style="display: flex; flex-direction: column; gap: 15px;">
+            <a href="{{ url_for('add_project_form') }}" class="add-project-link">افزودن پروژه جدید</a>
+            <a href="{{ url_for('inventory_route') }}" class="add-project-link" style="background-color: #3498db;">مدیریت انبار</a>
+        </div>
     </div>
     
     <!-- مودال ویرایش پروژه -->

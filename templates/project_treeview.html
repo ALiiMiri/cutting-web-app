@@ -412,6 +412,35 @@
                 flex-direction: column;
             }
         }
+
+        .has-data {
+            background-color: #ffeeee;
+            border-radius: 4px;
+            padding: 2px;
+            position: relative;
+        }
+        
+        .data-indicator {
+            margin-right: 5px;
+            color: #e74c3c;
+            font-size: 14px;
+            cursor: help;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 
@@ -975,6 +1004,59 @@
 
     <!-- تابع‌های مدیریت ستون‌ها -->
     <script>
+        // تابع چک کردن ستون‌ها هنگام بارگذاری صفحه
+        document.addEventListener('DOMContentLoaded', function() {
+            // بررسی وضعیت ستون‌های موجود
+            checkColumnsStatus();
+        });
+        
+        // تابع بررسی وضعیت ستون‌های موجود
+        function checkColumnsStatus() {
+            // فهرست ستون‌های پویا برای بررسی
+            const columnKeys = [
+                'rang', 'noe_profile', 'vaziat', 'lola', 
+                'ghofl', 'accessory', 'kolaft', 'dastgire', 'tozihat'
+                // می‌توانید ستون‌های دیگر را اضافه کنید
+            ];
+            
+            // بررسی هر ستون
+            columnKeys.forEach(columnKey => {
+                // درخواست بررسی به سرور
+                fetch(`/project/{{ project.id }}/check_column_can_hide`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `column_key=${columnKey}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`وضعیت ستون ${columnKey}:`, data);
+                    
+                    // آموزش: اگر ستون داده دارد، به آن علامت گذاری اضافه می‌کنیم
+                    if (!data.can_hide) {
+                        // پیدا کردن المان‌های مربوط به این ستون در منوی تنظیمات
+                        const columnElements = document.querySelectorAll(`[data-column-key="${columnKey}"]`);
+                        
+                        columnElements.forEach(element => {
+                            // افزودن کلاس
+                            element.classList.add('has-data');
+                            
+                            // افزودن tooltip
+                            element.setAttribute('title', data.reason);
+                            
+                            // افزودن علامت شاخص
+                            const dataIcon = document.createElement('span');
+                            dataIcon.className = 'data-indicator';
+                            dataIcon.textContent = '📝';
+                            dataIcon.setAttribute('title', data.reason);
+                            element.appendChild(dataIcon);
+                        });
+                    }
+                });
+            });
+        }
+    
         // تابع بررسی امکان مخفی کردن ستون
         function _can_hide_column(column_key) {
             // اگر کلید ستون نامعتبر است یا در جدول وجود ندارد
@@ -984,50 +1066,25 @@
             }
             
             try {
-                // بررسی اینکه آیا ستون در جدول وجود دارد
-                const tableEl = document.querySelector('table.treeview') || document.getElementById('door-table');
-                if (!tableEl) {
-                    console.log("جدول پیدا نشد");
-                    return false;  // اگر جدول پیدا نشد، اجازه مخفی کردن نمی‌دهیم (محافظه‌کارانه)
-                }
-                
-                // یافتن شاخص ستون در جدول
-                let columnIndex = -1;
-                const headers = tableEl.querySelectorAll('th');
-                for (let i = 0; i < headers.length; i++) {
-                    const dataColumn = headers[i].getAttribute('data-column');
-                    if (dataColumn === column_key) {
-                        columnIndex = i;
-                        break;
-                    }
-                }
-                
-                if (columnIndex === -1) {
-                    console.log(`ستون با کلید ${column_key} در جدول پیدا نشد`);
-                    return true;  // اگر ستون در جدول پیدا نشد، اجازه مخفی کردن را می‌دهیم
-                }
-                
-                // بررسی داده‌های سطرها
-                const rows = tableEl.querySelectorAll('tbody tr');
-                console.log(`تعداد سطرها: ${rows.length}, شاخص ستون: ${columnIndex}`);
-                
-                for (let row of rows) {
-                    // دریافت سلول مربوط به ستون
-                    const cells = row.querySelectorAll('td');
-                    if (columnIndex < cells.length) {
-                        const cellValue = cells[columnIndex].textContent.trim();
-                        
-                        // اگر سلول حاوی مقدار معتبری است (غیر خالی)
-                        if (cellValue !== "") {
-                            console.log(`ستون ${column_key} در یکی از سطرها دارای مقدار است: ${cellValue}`);
-                            return false;  // این ستون دارای محتوا است و نمی‌تواند مخفی شود
+                // این صدا زدن همزمان برای بررسی وضعیت ستون با سرور را انجام می‌دهیم
+                let canHide = true;
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/project/{{ project.id }}/check_column_can_hide`, false); // همزمان
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        canHide = response.can_hide;
+                        if (!canHide) {
+                            console.log('دلیل عدم امکان مخفی کردن:', response.reason);
                         }
+                    } else {
+                        console.error('خطا در بررسی ستون:', xhr.statusText);
                     }
-                }
+                };
+                xhr.send(`column_key=${column_key}`);
                 
-                // اگر به اینجا رسیدیم، یعنی ستون در هیچ سطری مقدار ندارد
-                console.log(`ستون ${column_key} در هیچ سطری مقدار ندارد و می‌تواند مخفی شود`);
-                return true;
+                return canHide;
                 
             } catch (error) {
                 console.error(`خطا در بررسی ستون ${column_key}:`, error);
@@ -1056,8 +1113,30 @@
                 }
             }
             
-            // ادامه روند تغییر وضعیت ستون
-            // ... کد AJAX برای ذخیره تغییرات ...
+            // ارسال درخواست AJAX برای ذخیره تغییرات
+            fetch(`/project/{{ project.id }}/toggle_column_display`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `column_key=${columnKey}&is_visible=${is_visible ? 1 : 0}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`وضعیت نمایش ستون ${columnKey} با موفقیت به‌روز شد`);
+                    return true;
+                } else {
+                    console.error('خطا در به‌روزرسانی نمایش ستون:', data.error);
+                    alert(data.error || 'خطا در به‌روزرسانی وضعیت ستون');
+                    return false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('خطا در ارتباط با سرور');
+                return false;
+            });
             
             return true;
         }

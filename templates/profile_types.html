@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>انواع پروفیل</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @font-face {
+            font-family: 'Vazir';
+            src: url('{{ url_for("static", filename="fonts/Vazir.woff2") }}') format('woff2'),
+                 url('{{ url_for("static", filename="fonts/Vazir.woff") }}') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            color: #2c3e50;
+            margin: 0;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .btn i {
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+
+        .btn-success {
+            background-color: #2ecc71;
+        }
+
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+
+        .btn-warning {
+            background-color: #f39c12;
+        }
+
+        .btn-warning:hover {
+            background-color: #e67e22;
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+
+        .btn-dark {
+            background-color: #34495e;
+        }
+
+        .btn-dark:hover {
+            background-color: #2c3e50;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f8f9fa;
+        }
+
+        .card-title {
+            font-size: 1.4rem;
+            color: #2c3e50;
+            margin: 0;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        .profile-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .profile-table th,
+        .profile-table td {
+            padding: 12px 15px;
+            text-align: right;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .profile-table th {
+            background-color: #f8f9fa;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .profile-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .profile-table tr:hover {
+            background-color: #f5f7fa;
+        }
+
+        .color-swatch {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-left: 8px;
+            vertical-align: middle;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .action-buttons .btn {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #d1d8e0;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .details-row {
+            display: none;
+            background-color: #f8f9fa;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .details-content {
+            padding: 15px;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .details-item {
+            background-color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .details-label {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .details-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .delete-confirmation-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 400px;
+            max-width: 90%;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .modal-title {
+            color: #e74c3c;
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .close-modal {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #7f8c8d;
+            border: none;
+            background: none;
+            padding: 0;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .search-box {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 50px 12px 15px;
+            border: 1px solid #dce4ec;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 1rem;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.1);
+        }
+
+        .search-box .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #7f8c8d;
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .header-buttons {
+                width: 100%;
+                flex-wrap: wrap;
+            }
+
+            .profile-table {
+                display: block;
+                overflow-x: auto;
+            }
+
+            .profile-table th,
+            .profile-table td {
+                white-space: nowrap;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">انواع پروفیل</h1>
+            <div class="header-buttons">
+                <a href="{{ url_for('add_profile_type_route') }}" class="btn btn-success">
+                    <i class="fas fa-plus"></i>
+                    افزودن پروفیل جدید
+                </a>
+                <a href="{{ url_for('inventory_route') }}" class="btn btn-dark">
+                    <i class="fas fa-arrow-right"></i>
+                    بازگشت به داشبورد انبار
+                </a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">لیست انواع پروفیل</h2>
+            </div>
+            <div class="card-body">
+                {% if profile_types %}
+                <div class="search-box">
+                    <input type="text" id="searchProfiles" placeholder="جستجو در انواع پروفیل..." onkeyup="filterProfiles()">
+                    <i class="fas fa-search search-icon"></i>
+                </div>
+                <table class="profile-table" id="profileTable">
+                    <thead>
+                        <tr>
+                            <th width="50%">نام پروفیل</th>
+                            <th>طول استاندارد</th>
+                            <th>وزن هر متر</th>
+                            <th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for profile in profile_types %}
+                        <tr data-name="{{ profile.name|lower }}" data-id="{{ profile.id }}">
+                            <td>
+                                <span class="color-swatch" style="background-color: {{ profile.color }}"></span>
+                                {{ profile.name }}
+                            </td>
+                            <td>{{ profile.standard_length }} متر</td>
+                            <td>{{ profile.weight_per_meter }} کیلوگرم</td>
+                            <td class="action-buttons">
+                                <button class="btn btn-primary" onclick="toggleDetails({{ profile.id }})">
+                                    <i class="fas fa-info-circle"></i>
+                                    جزئیات
+                                </button>
+                                <a href="{{ url_for('edit_profile_type_route', profile_id=profile.id) }}" class="btn btn-warning">
+                                    <i class="fas fa-edit"></i>
+                                    ویرایش
+                                </a>
+                                <button class="btn btn-danger" onclick="confirmDelete({{ profile.id }}, '{{ profile.name }}')">
+                                    <i class="fas fa-trash"></i>
+                                    حذف
+                                </button>
+                            </td>
+                        </tr>
+                        <tr id="details-row-{{ profile.id }}" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content">
+                                    <div class="details-grid">
+                                        <div class="details-item">
+                                            <div class="details-label">حداقل ضایعات (سانتی‌متر)</div>
+                                            <div class="details-value">{{ profile.min_waste }}</div>
+                                        </div>
+                                        <div class="details-item">
+                                            <div class="details-label">تعداد شاخه کامل در انبار</div>
+                                            <div class="details-value">{{ profile.inventory_stats.complete_count or 0 }}</div>
+                                        </div>
+                                        <div class="details-item">
+                                            <div class="details-label">تعداد قطعات برش خورده</div>
+                                            <div class="details-value">{{ profile.inventory_stats.cut_count or 0 }}</div>
+                                        </div>
+                                        <div class="details-item">
+                                            <div class="details-label">مجموع متراژ در انبار</div>
+                                            <div class="details-value">{{ profile.inventory_stats.total_length|round(1) or 0 }} متر</div>
+                                        </div>
+                                    </div>
+                                    {% if profile.description %}
+                                    <div style="margin-top: 15px;">
+                                        <div style="font-weight: bold; margin-bottom: 5px;">توضیحات:</div>
+                                        <div>{{ profile.description }}</div>
+                                    </div>
+                                    {% endif %}
+                                    <div style="margin-top: 15px; text-align: left;">
+                                        <a href="{{ url_for('inventory_details_route', profile_id=profile.id) }}" class="btn btn-primary">
+                                            <i class="fas fa-warehouse"></i>
+                                            مشاهده موجودی انبار
+                                        </a>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-layer-group"></i>
+                    <h3>هیچ پروفیلی تعریف نشده است</h3>
+                    <p>برای مدیریت انبار، ابتدا باید انواع پروفیل‌های مورد استفاده خود را تعریف کنید. با کلیک بر روی دکمه زیر، پروفیل جدیدی اضافه کنید.</p>
+                    <a href="{{ url_for('add_profile_type_route') }}" class="btn btn-success">
+                        <i class="fas fa-plus"></i>
+                        افزودن پروفیل جدید
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div id="deleteConfirmationModal" class="delete-confirmation-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">تأیید حذف</h3>
+                <button class="close-modal" onclick="closeDeleteModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>آیا از حذف پروفیل "<span id="profileNameToDelete"></span>" اطمینان دارید؟</p>
+                <p style="color: #e74c3c; margin-top: 10px;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    توجه: با حذف این پروفیل، تمامی قطعات موجود در انبار مربوط به آن نیز حذف خواهند شد!
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-dark" onclick="closeDeleteModal()">انصراف</button>
+                <form id="deleteForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">حذف</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleDetails(profileId) {
+            const detailsRow = document.getElementById(`details-row-${profileId}`);
+            if (detailsRow.style.display === 'table-row') {
+                detailsRow.style.display = 'none';
+            } else {
+                // Hide all other details rows first
+                document.querySelectorAll('.details-row').forEach(row => {
+                    row.style.display = 'none';
+                });
+                detailsRow.style.display = 'table-row';
+            }
+        }
+        
+        function confirmDelete(profileId, profileName) {
+            document.getElementById('profileNameToDelete').textContent = profileName;
+            document.getElementById('deleteForm').action = "{{ url_for('delete_profile_type_route', profile_id=0) }}".replace('0', profileId);
+            document.getElementById('deleteConfirmationModal').style.display = 'block';
+        }
+        
+        function closeDeleteModal() {
+            document.getElementById('deleteConfirmationModal').style.display = 'none';
+        }
+        
+        function filterProfiles() {
+            const searchInput = document.getElementById('searchProfiles').value.toLowerCase();
+            const tableRows = document.querySelectorAll('#profileTable tbody tr:not(.details-row)');
+            
+            tableRows.forEach(row => {
+                const profileName = row.getAttribute('data-name');
+                const detailsRowId = `details-row-${row.getAttribute('data-id')}`;
+                const detailsRow = document.getElementById(detailsRowId);
+                
+                if (profileName.includes(searchInput)) {
+                    row.style.display = '';
+                    if (detailsRow && detailsRow.style.display === 'table-row') {
+                        detailsRow.style.display = 'table-row';
+                    }
+                } else {
+                    row.style.display = 'none';
+                    if (detailsRow) {
+                        detailsRow.style.display = 'none';
+                    }
+                }
+            });
+            
+            // Check if no results and show message
+            const visibleRows = document.querySelectorAll('#profileTable tbody tr:not(.details-row):not([style*="display: none"])');
+            const noResultsMsg = document.getElementById('noResultsMessage');
+            
+            if (visibleRows.length === 0 && searchInput !== '') {
+                if (!noResultsMsg) {
+                    const tableBody = document.querySelector('#profileTable tbody');
+                    const noResults = document.createElement('tr');
+                    noResults.id = 'noResultsMessage';
+                    noResults.innerHTML = `<td colspan="4" style="text-align: center; padding: 20px;">
+                        <i class="fas fa-search" style="font-size: 2rem; color: #d1d8e0; margin-bottom: 10px; display: block;"></i>
+                        <h3>نتیجه‌ای یافت نشد</h3>
+                        <p>هیچ پروفیلی با عبارت جستجو شده یافت نشد.</p>
+                    </td>`;
+                    tableBody.appendChild(noResults);
+                }
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
+            }
+        }
+        
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteConfirmationModal');
+            if (event.target === modal) {
+                closeDeleteModal();
+            }
+        }
+    </script>
+</body>
+
+</html>

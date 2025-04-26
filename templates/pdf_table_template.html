@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.cust_name }} - {{ project.order_ref }} - خروجی PDF</title>
+    <style>
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            direction: rtl;
+            padding: 20px;
+            font-size: 12px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+        
+        .header .project-info {
+            margin-bottom: 10px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        th, td {
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: center;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+        }
+        
+        .footer {
+            text-align: center;
+            font-size: 10px;
+            margin-top: 20px;
+            color: #666;
+        }
+        
+        /* رنگ‌های ردیف */
+        .white { background-color: #ffffff; }
+        .red { background-color: #ffcccc; }
+        .blue { background-color: #cce5ff; }
+        .green { background-color: #d4edda; }
+        .yellow { background-color: #fff3cd; }
+        .purple { background-color: #e2d9f3; }
+        .orange { background-color: #ffe5cc; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>گزارش پروژه: {{ project.cust_name }}</h1>
+        <div class="project-info">
+            <strong>مشتری:</strong> {{ project.cust_name }} | 
+            <strong>شماره سفارش:</strong> {{ project.order_ref }} | 
+            <strong>تاریخ:</strong> {{ project.date_shamsi }}
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>ردیف</th>
+                <th>مکان نصب</th>
+                <th>عرض (cm)</th>
+                <th>ارتفاع (cm)</th>
+                <th>تعداد</th>
+                <th>جهت</th>
+                
+                {% if 'rang' in visible_columns %}
+                <th>رنگ پروفیل</th>
+                {% endif %}
+                
+                {% if 'noe_profile' in visible_columns %}
+                <th>نوع پروفیل</th>
+                {% endif %}
+                
+                {% if 'vaziat' in visible_columns %}
+                <th>وضعیت تولید</th>
+                {% endif %}
+                
+                {% if 'lola' in visible_columns %}
+                <th>لولا</th>
+                {% endif %}
+                
+                {% if 'ghofl' in visible_columns %}
+                <th>قفل</th>
+                {% endif %}
+                
+                {% if 'accessory' in visible_columns %}
+                <th>اکسسوری</th>
+                {% endif %}
+                
+                {% if 'kolaft' in visible_columns %}
+                <th>کلاف</th>
+                {% endif %}
+                
+                {% if 'dastgire' in visible_columns %}
+                <th>دستگیره</th>
+                {% endif %}
+                
+                {% if 'tozihat' in visible_columns %}
+                <th>توضیحات</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for door in doors %}
+            <tr class="{{ door.row_color_tag if door.row_color_tag else 'white' }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ door.location or "" }}</td>
+                <td>{{ door.width }}</td>
+                <td>{{ door.height }}</td>
+                <td>{{ door.quantity }}</td>
+                <td>{{ door.direction or "" }}</td>
+                
+                {% if 'rang' in visible_columns %}
+                <td>{{ door.rang or "" }}</td>
+                {% endif %}
+                
+                {% if 'noe_profile' in visible_columns %}
+                <td>{{ door.noe_profile or "" }}</td>
+                {% endif %}
+                
+                {% if 'vaziat' in visible_columns %}
+                <td>{{ door.vaziat or "" }}</td>
+                {% endif %}
+                
+                {% if 'lola' in visible_columns %}
+                <td>{{ door.lola or "" }}</td>
+                {% endif %}
+                
+                {% if 'ghofl' in visible_columns %}
+                <td>{{ door.ghofl or "" }}</td>
+                {% endif %}
+                
+                {% if 'accessory' in visible_columns %}
+                <td>{{ door.accessory or "" }}</td>
+                {% endif %}
+                
+                {% if 'kolaft' in visible_columns %}
+                <td>{{ door.kolaft or "" }}</td>
+                {% endif %}
+                
+                {% if 'dastgire' in visible_columns %}
+                <td>{{ door.dastgire or "" }}</td>
+                {% endif %}
+                
+                {% if 'tozihat' in visible_columns %}
+                <td>{{ door.tozihat or "" }}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        این گزارش در تاریخ {{ jdatetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S') }} تولید شده است.
+    </div>
+    
+    <script>
+        window.onload = function() {
+            window.print();
+        }
+    </script>
+</body>
+</html> 

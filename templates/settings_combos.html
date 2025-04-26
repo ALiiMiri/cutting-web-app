@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدیریت گزینه‌های کمبوباکس - پروژه {{ project.customer_name }}</title>
+    <!-- افزودن Font Awesome از CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 0;
+            background-color: #f4f7f6;
+            margin: 0;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 3px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            font-size: 1.8em;
+            margin-top: 0;
+        }
+
+        h2 {
+            font-size: 1.4em;
+            margin-top: 30px;
+        }
+
+        /* بخش انتخاب ستون */
+        .column-selection {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .column-selection select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            margin-top: 8px;
+        }
+
+        /* بخش افزودن گزینه جدید */
+        .add-option-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+        }
+
+        .add-option-section input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            margin-right: 10px;
+        }
+
+        .add-button {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+        }
+
+        .add-button:hover {
+            background-color: #27ae60;
+        }
+
+        /* لیست گزینه‌ها */
+        .options-list {
+            margin-top: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            min-height: 200px; /* حداقل ارتفاع برای نمایش بهتر */
+        }
+
+        .option-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background-color: #fff;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .option-item:last-child {
+            border-bottom: none;
+        }
+
+        .option-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .option-text {
+            flex: 1;
+        }
+
+        .option-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            color: white;
+        }
+
+        .edit-button {
+            background-color: #f39c12;
+        }
+
+        .edit-button:hover {
+            background-color: #e67e22;
+        }
+
+        .delete-button {
+            background-color: #e74c3c;
+        }
+
+        .delete-button:hover {
+            background-color: #c0392b;
+        }
+
+        /* نوار دکمه‌ها */
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+
+        .back-button {
+            background-color: #7f8c8d;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+            display: inline-block;
+        }
+
+        .back-button:hover {
+            background-color: #6c7a7c;
+        }
+
+        /* پیام‌های فلش */
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .no-options {
+            text-align: center;
+            padding: 30px;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+        
+        /* سازگاری موبایل */
+        @media (max-width: 768px) {
+            .container {
+                width: 95%;
+                padding: 15px;
+            }
+            
+            .option-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .option-actions {
+                margin-top: 10px;
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>مدیریت گزینه‌های کمبوباکس - پروژه: {{ project.customer_name }}</h1>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- بخش انتخاب ستون -->
+        <h2>1. انتخاب ستون</h2>
+        <div class="column-selection">
+            <label for="column-select">ستون مورد نظر را انتخاب کنید:</label>
+            <select id="column-select">
+                <option value="">-- انتخاب ستون --</option>
+                {% for column in columns %}
+                <option value="{{ column.id }}">{{ column.display }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- بخش افزودن گزینه جدید -->
+        <h2>2. افزودن گزینه جدید</h2>
+        <div class="add-option-section">
+            <input type="text" id="new-option" placeholder="متن گزینه جدید را وارد کنید...">
+            <button id="add-option-btn" class="add-button">
+                <i class="fas fa-plus"></i>
+                افزودن گزینه
+            </button>
+        </div>
+
+        <!-- لیست گزینه‌ها -->
+        <h2>3. گزینه‌های موجود</h2>
+        <div class="options-list" id="options-container">
+            <div class="no-options">لطفاً ابتدا یک ستون انتخاب کنید</div>
+        </div>
+
+        <!-- دکمه بازگشت -->
+        <div class="action-bar">
+            <a href="{{ url_for('project_treeview', project_id=project.id) }}" class="back-button">
+                <i class="fas fa-arrow-right"></i>
+                بازگشت به نمای پروژه
+            </a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const columnSelect = document.getElementById('column-select');
+            const newOptionInput = document.getElementById('new-option');
+            const addOptionBtn = document.getElementById('add-option-btn');
+            const optionsContainer = document.getElementById('options-container');
+            
+            // وقتی ستون انتخاب شود، گزینه‌های آن را بارگذاری کن
+            columnSelect.addEventListener('change', function() {
+                const columnId = columnSelect.value;
+                if (columnId) {
+                    loadOptionsForColumn(columnId);
+                } else {
+                    // اگر ستونی انتخاب نشده، پیام پیش‌فرض را نمایش بده
+                    optionsContainer.innerHTML = '<div class="no-options">لطفاً ابتدا یک ستون انتخاب کنید</div>';
+                }
+            });
+            
+            // افزودن گزینه جدید
+            addOptionBtn.addEventListener('click', function() {
+                addNewOption();
+            });
+            
+            // امکان افزودن گزینه با فشردن Enter
+            newOptionInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addNewOption();
+                }
+            });
+            
+            // تابع بارگذاری گزینه‌های یک ستون
+            function loadOptionsForColumn(columnId) {
+                fetch(`/api/column/${columnId}/options`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            displayOptions(data.options);
+                        } else {
+                            showError('خطا در بارگذاری گزینه‌ها: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showError('خطا در ارتباط با سرور');
+                    });
+            }
+            
+            // تابع نمایش گزینه‌ها در لیست
+            function displayOptions(options) {
+                optionsContainer.innerHTML = '';
+                
+                if (options.length === 0) {
+                    optionsContainer.innerHTML = '<div class="no-options">هیچ گزینه‌ای برای این ستون تعریف نشده است</div>';
+                    return;
+                }
+                
+                options.forEach(option => {
+                    const optionItem = document.createElement('div');
+                    optionItem.className = 'option-item';
+                    
+                    const optionText = document.createElement('div');
+                    optionText.className = 'option-text';
+                    optionText.textContent = option.value;
+                    
+                    const optionActions = document.createElement('div');
+                    optionActions.className = 'option-actions';
+                    
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'action-button delete-button';
+                    deleteBtn.innerHTML = '<i class="fas fa-trash"></i> حذف';
+                    deleteBtn.onclick = function() {
+                        deleteOption(option.id, option.value);
+                    };
+                    
+                    optionActions.appendChild(deleteBtn);
+                    optionItem.appendChild(optionText);
+                    optionItem.appendChild(optionActions);
+                    
+                    optionsContainer.appendChild(optionItem);
+                });
+            }
+            
+            // تابع افزودن گزینه جدید
+            function addNewOption() {
+                const columnId = columnSelect.value;
+                const optionValue = newOptionInput.value.trim();
+                
+                if (!columnId) {
+                    showError('لطفاً ابتدا یک ستون انتخاب کنید');
+                    return;
+                }
+                
+                if (!optionValue) {
+                    showError('لطفاً متن گزینه را وارد کنید');
+                    return;
+                }
+                
+                fetch('/api/column/option/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `column_id=${columnId}&option_value=${encodeURIComponent(optionValue)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccess('گزینه با موفقیت اضافه شد');
+                        newOptionInput.value = '';
+                        loadOptionsForColumn(columnId); // بارگذاری مجدد گزینه‌ها
+                    } else {
+                        showError('خطا در افزودن گزینه: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showError('خطا در ارتباط با سرور');
+                });
+            }
+            
+            // تابع حذف گزینه
+            function deleteOption(optionId, optionValue) {
+                if (confirm(`آیا از حذف گزینه "${optionValue}" اطمینان دارید؟`)) {
+                    fetch(`/api/column/option/${optionId}/delete`, {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            showSuccess('گزینه با موفقیت حذف شد');
+                            // بارگذاری مجدد گزینه‌ها
+                            loadOptionsForColumn(columnSelect.value);
+                        } else {
+                            showError('خطا در حذف گزینه: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showError('خطا در ارتباط با سرور');
+                    });
+                }
+            }
+            
+            // نمایش پیام خطا
+            function showError(message) {
+                const flashDiv = document.createElement('div');
+                flashDiv.className = 'flash error';
+                flashDiv.textContent = message;
+                
+                const container = document.querySelector('.container');
+                container.insertBefore(flashDiv, container.firstChild);
+                
+                setTimeout(() => {
+                    flashDiv.remove();
+                }, 5000);
+            }
+            
+            // نمایش پیام موفقیت
+            function showSuccess(message) {
+                const flashDiv = document.createElement('div');
+                flashDiv.className = 'flash success';
+                flashDiv.textContent = message;
+                
+                const container = document.querySelector('.container');
+                container.insertBefore(flashDiv, container.firstChild);
+                
+                setTimeout(() => {
+                    flashDiv.remove();
+                }, 5000);
+            }
+        });
+    </script>
+</body>
+
+</html> 

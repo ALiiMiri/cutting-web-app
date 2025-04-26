@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تنظیمات ستون‌ها - پروژه {{ project.customer_name }}</title>
+    <!-- افزودن jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- افزودن Font Awesome از CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -91,7 +93,7 @@
             margin-top: 20px;
         }
 
-        .column-item {
+        .setting-item {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -103,7 +105,7 @@
             transition: all 0.2s;
         }
 
-        .column-item:hover {
+        .setting-item:hover {
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
@@ -122,9 +124,9 @@
         }
 
         .column-key {
-            color: #7f8c8d;
-            margin-right: 10px;
-            font-size: 0.9em;
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 5px;
         }
 
         .column-actions {
@@ -316,7 +318,7 @@
                 padding: 15px;
             }
 
-            .column-item {
+            .setting-item {
                 flex-direction: column;
                 align-items: flex-start;
             }
@@ -330,6 +332,35 @@
             .modal-content {
                 width: 90%;
             }
+        }
+        
+        /* نشانگر ستون‌های دارای داده */
+        .has-data {
+            background-color: #ffeeee;
+            border-radius: 4px;
+            padding: 2px;
+            position: relative;
+        }
+        
+        .data-indicator {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: #2e86de;
+        }
+        
+        .data-indicator i {
+            margin-left: 5px;
+        }
+
+        .setting-item.has-data {
+            position: relative;
+            border-right: 3px solid #2e86de;
+        }
+
+        .setting-item.has-data .data-indicator {
+            display: flex;
         }
     </style>
 </head>
@@ -362,11 +393,11 @@
         <h2>مدیریت ستون‌های موجود</h2>
         <div class="columns-list">
             {% for column in columns %}
-            <div class="column-item">
+            <div class="setting-item" data-column-key="{{ column.key }}">
                 <div class="column-info">
                     <div class="column-status">
                         <label class="switch">
-                            <input type="checkbox" class="status-toggle" data-id="{{ column.id }}" {{ 'checked' if
+                            <input type="checkbox" class="toggle-switch" data-id="{{ column.id }}" data-column-key="{{ column.key }}" {{ 'checked' if
                                 column.is_active else '' }}>
                             <span class="slider"></span>
                         </label>
@@ -374,6 +405,10 @@
                     </div>
                     <div class="column-name">{{ column.display }}</div>
                     <div class="column-key">({{ column.key }})</div>
+                    <div class="data-indicator" style="display: none;">
+                        <i class="fas fa-database"></i>
+                        <span>دارای داده</span>
+                    </div>
                 </div>
                 <div class="column-actions">
                     <button class="action-button edit-button"
@@ -393,6 +428,12 @@
 
         <!-- دکمه بازگشت -->
         <div class="action-bar">
+            <div>
+                <a href="{{ url_for('settings_combos', project_id=project.id) }}" class="action-button edit-button" style="margin-right: 10px;">
+                    <i class="fas fa-list"></i>
+                    مدیریت گزینه‌های کمبوباکس
+                </a>
+            </div>
             <a href="{{ url_for('project_treeview', project_id=project.id) }}" class="back-button">
                 <i class="fas fa-arrow-right"></i>
                 بازگشت به نمای پروژه
@@ -420,68 +461,141 @@
     </div>
 
     <script>
-        // تغییر وضعیت فعال/غیرفعال ستون
-        document.querySelectorAll('.status-toggle').forEach(toggle => {
-            toggle.addEventListener('change', function () {
-                const columnId = this.getAttribute('data-id');
-                const isActive = this.checked ? 1 : 0;
+        $(document).ready(function () {
+            // بررسی وضعیت ستون‌ها در زمان بارگذاری صفحه
+            checkColumnsStatus();
+            
+            // بررسی ستون‌های دارای داده
+            checkColumnsWithData();
 
-                // ارسال درخواست به سرور برای تغییر وضعیت
-                fetch(`/settings/toggle_column/${columnId}`, {
+            // تغییر وضعیت فعال/غیرفعال بودن ستون‌ها
+            $(".toggle-switch").on("click", function() {
+                const columnKey = $(this).data("column-key");
+                toggleColumnVisibility(columnKey, $(this));
+            });
+
+            // بررسی وضعیت ستون‌ها
+            function checkColumnsStatus() {
+                $(".toggle-switch").each(function() {
+                    const columnKey = $(this).data("column-key");
+                    const isChecked = $(this).prop("checked");
+                    const statusText = $(this).closest('.column-status').find('.status-text');
+                    statusText.text(isChecked ? 'فعال' : 'غیرفعال');
+                });
+            }
+
+            // بررسی ستون‌های دارای داده
+            function checkColumnsWithData() {
+                // درخواست به سرور برای دریافت لیست ستون‌های دارای داده
+                fetch(`/project/{{ project.id }}/get_columns_with_data`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const columnsWithData = data.columns_with_data || [];
+                        
+                        // نمایش نشانگر داده برای هر ستون
+                        columnsWithData.forEach(function (columnKey) {
+                            const column = $(`.setting-item[data-column-key="${columnKey}"]`);
+                            column.addClass('has-data');
+                        });
+                    })
+                    .catch(error => {
+                        console.error('خطا در دریافت اطلاعات ستون‌های دارای داده:', error);
+                    });
+            }
+
+            // تغییر وضعیت فعال/غیرفعال بودن ستون
+            function toggleColumnVisibility(columnKey, toggleElement) {
+                const isActive = toggleElement.prop("checked");
+                
+                // قبل از تغییر وضعیت، بررسی کنید که آیا ستون قابل مخفی کردن است
+                if (!isActive) {
+                    // اگر میخواهیم ستون را غیرفعال کنیم، ابتدا چک کنیم که دارای داده نباشد
+                    fetch(`/project/{{ project.id }}/check_column_can_hide`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `column_key=${columnKey}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.can_hide) {
+                            // اگر ستون دارای داده باشد
+                            toggleElement.prop("checked", true); // برگرداندن به حالت فعال
+                            alert("این ستون دارای داده است و نمی‌تواند مخفی شود.");
+                            return;
+                        }
+                        
+                        // ادامه روند غیرفعال کردن ستون
+                        sendColumnVisibilityToServer(columnKey, isActive);
+                    })
+                    .catch(error => {
+                        console.error('خطا در بررسی وضعیت ستون:', error);
+                        toggleElement.prop("checked", !isActive); // برگرداندن به حالت قبلی
+                    });
+                } else {
+                    // اگر میخواهیم ستون را فعال کنیم، مشکلی نیست
+                    sendColumnVisibilityToServer(columnKey, isActive);
+                }
+            }
+
+            // ارسال وضعیت ستون به سرور
+            function sendColumnVisibilityToServer(columnKey, isActive) {
+                fetch('/project/{{ project.id }}/toggle_column_visibility', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: `is_active=${isActive}`
+                    body: `column_key=${columnKey}&is_active=${isActive}`
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // بروزرسانی متن وضعیت
-                            const statusText = this.parentElement.nextElementSibling;
-                            statusText.textContent = isActive ? 'فعال' : 'غیرفعال';
-                        } else {
-                            // برگرداندن وضعیت تاگل در صورت خطا
-                            this.checked = !this.checked;
-                            alert('خطا در تغییر وضعیت ستون: ' + data.error);
-                        }
-                    })
-                    .catch(error => {
-                        // برگرداندن وضعیت تاگل در صورت خطا
-                        this.checked = !this.checked;
-                        alert('خطا در ارتباط با سرور');
-                        console.error('Error:', error);
-                    });
-            });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // به‌روزرسانی رابط کاربری در صورت موفقیت
+                        toastr.success('وضعیت ستون با موفقیت تغییر کرد');
+                    } else {
+                        // خطا در تغییر وضعیت ستون
+                        toastr.error(data.message || 'خطا در تغییر وضعیت ستون');
+                        // برگرداندن وضعیت توگل به حالت قبلی
+                        $(`.toggle-switch[data-column-key="${columnKey}"]`).prop("checked", !isActive);
+                    }
+                })
+                .catch(error => {
+                    console.error('خطا در تغییر وضعیت ستون:', error);
+                    // برگرداندن وضعیت توگل به حالت قبلی
+                    $(`.toggle-switch[data-column-key="${columnKey}"]`).prop("checked", !isActive);
+                    toastr.error('خطا در ارتباط با سرور');
+                });
+            }
+
+            // نمایش مدال ویرایش
+            function openEditModal(columnId, displayName) {
+                document.getElementById('edit_column_id').value = columnId;
+                document.getElementById('edit_display_name').value = displayName;
+                document.getElementById('editColumnForm').action = `/settings/update_column_name/${columnId}`;
+                document.getElementById('editColumnModal').style.display = 'block';
+            }
+
+            // بستن مدال
+            function closeEditModal() {
+                document.getElementById('editColumnModal').style.display = 'none';
+            }
+
+            // تایید حذف ستون
+            function confirmDelete(columnId, displayName) {
+                if (confirm(`آیا از حذف ستون "${displayName}" اطمینان دارید؟`)) {
+                    window.location.href = `/settings/delete_column/${columnId}?redirect_to={{ project.id }}`;
+                }
+            }
+
+            // بستن مدال با کلیک خارج از آن
+            window.onclick = function (event) {
+                const modal = document.getElementById('editColumnModal');
+                if (event.target == modal) {
+                    closeEditModal();
+                }
+            }
         });
-
-        // نمایش مدال ویرایش
-        function openEditModal(columnId, displayName) {
-            document.getElementById('edit_column_id').value = columnId;
-            document.getElementById('edit_display_name').value = displayName;
-            document.getElementById('editColumnForm').action = `/settings/update_column_name/${columnId}`;
-            document.getElementById('editColumnModal').style.display = 'block';
-        }
-
-        // بستن مدال
-        function closeEditModal() {
-            document.getElementById('editColumnModal').style.display = 'none';
-        }
-
-        // تایید حذف ستون
-        function confirmDelete(columnId, displayName) {
-            if (confirm(`آیا از حذف ستون "${displayName}" اطمینان دارید؟`)) {
-                window.location.href = `/settings/delete_column/${columnId}?redirect_to={{ project.id }}`;
-            }
-        }
-
-        // بستن مدال با کلیک خارج از آن
-        window.onclick = function (event) {
-            const modal = document.getElementById('editColumnModal');
-            if (event.target == modal) {
-                closeEditModal();
-            }
-        }
     </script>
 </body>
 

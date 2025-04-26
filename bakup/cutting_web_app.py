@@ -10,7 +10,6 @@ from bidi.algorithm import get_display
 from weasyprint import HTML, CSS
 from datetime import datetime, date
 import jdatetime
-from inventory_init import initialize_inventory_database
 
 # --- تنظیمات اولیه ---
 DB_NAME = "cutting_web_data.db"
@@ -135,91 +134,6 @@ def initialize_database():
         except sqlite3.OperationalError:
             print("DEBUG: اضافه کردن ستون 'date_shamsi' به جدول 'projects'...")
             cursor.execute("ALTER TABLE projects ADD COLUMN date_shamsi TEXT")
-        
-        # اضافه کردن جداول سیستم انبارداری
-        print("DEBUG: ایجاد جداول سیستم انبارداری...")
-        
-        # جدول انواع پروفیل
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS profile_types (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,               -- نام نوع پروفیل
-                description TEXT,                        -- توضیحات
-                default_length INTEGER DEFAULT 600,      -- طول پیش‌فرض شاخه به سانتی‌متر
-                weight_per_meter REAL DEFAULT 1.9,       -- وزن هر متر به کیلوگرم
-                color TEXT,                              -- رنگ پروفیل
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # جدول موجودی انبار (شاخه‌های کامل)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inventory_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_type_id INTEGER NOT NULL,        -- نوع پروفیل
-                quantity INTEGER NOT NULL DEFAULT 0,     -- تعداد شاخه‌های موجود
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE
-            )
-        """)
-
-        # جدول شاخه‌های برش خورده (غیر کامل)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inventory_pieces (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_type_id INTEGER NOT NULL,       -- نوع پروفیل
-                length REAL NOT NULL,                   -- طول شاخه به سانتی‌متر
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE
-            )
-        """)
-
-        # جدول لاگ تغییرات انبار
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inventory_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_type_id INTEGER NOT NULL,        -- نوع پروفیل
-                change_type TEXT NOT NULL,               -- نوع تغییر: add, remove, cut
-                quantity INTEGER,                        -- تعداد شاخه‌های اضافه/کم شده (برای شاخه‌های کامل)
-                length REAL,                             -- طول (برای شاخه‌های برش خورده)
-                project_id INTEGER,                      -- شناسه پروژه مرتبط (اگر موجود باشد)
-                description TEXT,                        -- توضیحات بیشتر
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE,
-                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
-            )
-        """)
-
-        # جدول تنظیمات محاسبه برش
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cutting_settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,              -- نام تنظیم
-                value TEXT,                             -- مقدار تنظیم
-                description TEXT                        -- توضیحات
-            )
-        """)
-
-        # داده‌های پیش‌فرض برای تنظیمات
-        cursor.execute("""
-            INSERT OR IGNORE INTO cutting_settings (name, value, description) 
-            VALUES 
-                ('waste_threshold', '70', 'آستانه اندازه ضایعات کوچک (سانتی‌متر)'),
-                ('use_inventory', 'true', 'استفاده از سیستم انبار در محاسبات'),
-                ('prefer_pieces', 'true', 'اولویت استفاده از شاخه‌های نیمه بر کامل')
-        """)
-
-        # داده‌های پیش‌فرض برای انواع پروفیل
-        cursor.execute("""
-            INSERT OR IGNORE INTO profile_types (name, description, default_length, weight_per_meter, color) 
-            VALUES 
-                ('فریم لس آلومینیومی - سفید', 'پروفیل استاندارد فریم لس رنگ سفید', 600, 1.9, 'سفید'),
-                ('فریم لس آلومینیومی - آنادایز', 'پروفیل استاندارد فریم لس رنگ آنادایز', 600, 1.9, 'آنادایز'),
-                ('فریم قدیمی - سفید', 'پروفیل فریم قدیمی رنگ سفید', 600, 2.1, 'سفید'),
-                ('فریم قدیمی - آنادایز', 'پروفیل فریم قدیمی رنگ آنادایز', 600, 2.1, 'آنادایز'),
-                ('داخل چوب دار - سفید', 'پروفیل داخل چوب دار رنگ سفید', 600, 2.2, 'سفید'),
-                ('داخل چوب دار - آنادایز', 'پروفیل داخل چوب دار رنگ آنادایز', 600, 2.2, 'آنادایز')
-        """)
         
         # اضافه کردن این خط در انتهای تابع قبل از conn.commit()
         ensure_base_columns_exist()
@@ -685,38 +599,34 @@ def update_door_custom_value(door_id, column_id, value):
 
 
 def get_door_custom_values(door_id):
-    """دریافت مقادیر سفارشی برای درب"""
+    """تمام مقادیر ستون‌های سفارشی یک درب را برمی‌گرداند"""
     conn = None
-    custom_values = {}
+    values = {}
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT cc.column_name, dcv.value 
+            SELECT cc.column_name, dcv.value
             FROM door_custom_values dcv
             JOIN custom_columns cc ON dcv.column_id = cc.id
             WHERE dcv.door_id = ?
-            """,
+        """,
             (door_id,),
         )
-        
+
         for row in cursor.fetchall():
-            custom_values[row[0]] = row[1]
-        
-        # برای ستون‌های موجود ولی بدون مقدار، مقدار پیش‌فرض خالی
-        all_columns = get_all_custom_columns()
-        for col in all_columns:
-            if col["key"] not in custom_values:
-                custom_values[col["key"]] = ""
-                
+            values[row[0]] = row[1]
+            
+        # اضافه کردن دستور دیباگ برای بررسی مقادیر بازیابی شده
+        print(f"DEBUG: مقادیر سفارشی برای درب {door_id}: {values}")
     except sqlite3.Error as e:
         print(f"!!!!!! خطا در get_door_custom_values: {e}")
         traceback.print_exc()
     finally:
         if conn:
             conn.close()
-    return custom_values
+    return values
 
 
 def update_project_db(project_id, customer_name, order_ref, date_shamsi=""):
@@ -795,12 +705,6 @@ def index():
         traceback.print_exc()
         flash("خطایی در نمایش لیست پروژه‌ها رخ داد.", "error")
         return render_template("index.html", projects=[])
-
-
-@app.route("/home")
-def home():
-    """نام دیگر برای صفحه اصلی (برای سازگاری با تمپلیت‌ها)"""
-    return index()
 
 
 @app.route("/project/add", methods=["GET"])
@@ -1049,27 +953,12 @@ def finish_adding_doors(project_id):
 
 
 def initialize_visible_columns(project_id):
-    """تنظیم ستون‌های نمایشی پیش‌فرض برای پروژه"""
-    print(f"DEBUG: شروع initialize_visible_columns برای پروژه {project_id}")
-    
-    # اگر ستون‌های نمایشی قبلاً تنظیم شده‌اند، کاری انجام نده
+    """تنظیم وضعیت اولیه ستون‌های نمایشی اگر قبلاً تنظیم نشده باشند"""
     session_key = f"visible_columns_{project_id}"
-    if session_key in session and session[session_key]:
-        print(f"DEBUG: ستون‌های نمایشی قبلاً تنظیم شده‌اند: {session[session_key]}")
-        return
-    
-    # دریافت همه ستون‌های فعال
-    active_columns = get_active_custom_columns()
-    
-    # تنظیم ستون‌های پیش‌فرض
-    visible_columns = [
-        "rang", "noe_profile", "vaziat", "lola", "ghofl", "accessory", "kolaft", "dastgire", "tozihat"
-    ]
-    
-    # ذخیره در جلسه
-    session[session_key] = visible_columns
-    print(f"DEBUG: ستون‌های نمایشی پیش‌فرض تنظیم شدند: {visible_columns}")
-    print(f"DEBUG: session پس از تنظیم: {dict(session)}")
+    if session_key not in session:
+        # تنظیم ستون‌های پیش‌فرض برای نمایش (همه ستون‌ها به جز توضیحات)
+        session[session_key] = ["rang", "noe_profile", "vaziat", "lola", "ghofl", "accessory", "kolaft", "dastgire"]
+        print(f"DEBUG: تنظیم اولیه ستون‌های نمایشی برای پروژه {project_id}: {session[session_key]}")
 
 
 @app.route("/project/<int:project_id>/treeview")
@@ -1404,9 +1293,6 @@ def calculate_cutting(project_id):
 @app.route("/project/<int:project_id>/batch_edit", methods=["GET"])
 def batch_edit_form(project_id):
     """نمایش فرم ویرایش گروهی"""
-    print("DEBUG: شروع batch_edit_form")
-    print(f"DEBUG: محتوای کامل session: {dict(session)}")
-    
     door_ids = request.args.get("door_ids")
     if not door_ids:
         flash("هیچ دربی برای ویرایش انتخاب نشده است.", "warning")
@@ -1414,7 +1300,6 @@ def batch_edit_form(project_id):
 
     # تبدیل رشته به لیست
     door_ids = door_ids.split(",")
-    print(f"DEBUG: door_ids={door_ids}")
 
     # بازیابی اطلاعات پایه
     project_info = get_project_details_db(project_id)
@@ -1423,24 +1308,11 @@ def batch_edit_form(project_id):
         return redirect(url_for("index"))
 
     # دریافت وضعیت ستون‌های نمایشی از جلسه
-    session_key = f"visible_columns_{project_id}"
-    visible_columns = session.get(session_key, [])
-    print(f"DEBUG: session key = {session_key}")
+    visible_columns = session.get(f"visible_columns_{project_id}", [])
     print(f"DEBUG: ستون‌های نمایشی برای پروژه {project_id}: {visible_columns}")
-    
-    # اگر ستون‌های نمایشی خالی است، همه ستون‌ها را نمایش می‌دهیم
-    if not visible_columns:
-        print("DEBUG: ستون‌های نمایشی خالی است، ستون‌های پیش‌فرض تنظیم می‌شود")
-        # اجرای تابع مقداردهی اولیه
-        initialize_visible_columns(project_id)
-        # بازخوانی مجدد از سشن
-        visible_columns = session.get(session_key, [])
-        print(f"DEBUG: ستون‌های نمایشی پس از مقداردهی اولیه: {visible_columns}")
 
     # دریافت گزینه‌های ستون‌های قابل ویرایش
     columns_info = get_active_custom_columns()
-    print(f"DEBUG: ستون‌های فعال: {columns_info}")
-    
     column_options = {}
 
     # گزینه‌های پیش‌فرض بر اساس cutting_tool.py
@@ -1467,35 +1339,11 @@ def batch_edit_form(project_id):
         ],
         "kolaft": ["دو طرفه", "سه طرفه"],
         "dastgire": ["دو تیکه", "ایزدو", "گریف ورک", "متفرقه"],
-        "direction": ["راست", "چپ"],
     }
 
-    # اضافه کردن فیلدهای پایه فقط اگر در ستون‌های نمایشی باشند
-    if "location" in visible_columns:
-        column_options["location"] = {"display": "موقعیت", "options": [], "visible": True}
-    
-    if "width" in visible_columns:
-        column_options["width"] = {"display": "عرض", "options": [], "visible": True}
-    
-    if "height" in visible_columns:
-        column_options["height"] = {"display": "ارتفاع", "options": [], "visible": True}
-    
-    if "quantity" in visible_columns:
-        column_options["quantity"] = {"display": "تعداد", "options": [], "visible": True}
-    
-    if "direction" in visible_columns:
-        column_options["direction"] = {"display": "جهت", "options": default_options.get("direction", []), "visible": True}
-
-    # برای هر ستون سفارشی، گزینه‌های آن را دریافت کنیم
+    # برای هر ستون، گزینه‌های آن را دریافت کنیم
     for column in columns_info:
         column_key = column["key"]
-        # بررسی وضعیت نمایش ستون
-        is_visible = column_key in visible_columns
-        
-        # اگر ستون قابل نمایش نیست، آن را اضافه نکن
-        if not is_visible:
-            continue
-            
         # ترکیب گزینه‌های پیش‌فرض با گزینه‌های دیتابیس
         options = []
         
@@ -1508,27 +1356,15 @@ def batch_edit_form(project_id):
             if db_options:
                 options = db_options
         
+        # بررسی وضعیت نمایش ستون
+        is_visible = column_key in visible_columns
+        
         column_options[column_key] = {
             "display": column["display"],
             "options": options,
-            "visible": True  # چون فقط ستون‌های قابل نمایش را اضافه می‌کنیم، همه visible هستند
+            "visible": is_visible  # وضعیت نمایش ستون
         }
-    
-    print(f"DEBUG: column_options={column_options}")
-    print(f"DEBUG: تعداد کلید‌های column_options: {len(column_options)}")
-    print(f"DEBUG: کلیدهای column_options: {list(column_options.keys())}")
-    
-    # چک کردن هر کلید در column_options برای اطمینان از درستی ساختار
-    for key, value in column_options.items():
-        print(f"DEBUG: کلید {key}: {value}")
-        if not isinstance(value, dict) or 'display' not in value or 'options' not in value or 'visible' not in value:
-            print(f"WARNING: ساختار نادرست برای کلید {key}: {value}")
-    
-    # بررسی اینکه آیا column_options خالی است
-    if not column_options:
-        print("ERROR: هیچ ستونی برای نمایش وجود ندارد!")
-        flash("هیچ ستونی برای نمایش وجود ندارد. لطفا ستون‌های مورد نیاز را فعال کنید.", "error")
-    
+        
     # افزودن پارامتر زمانی برای جلوگیری از کش شدن صفحه
     timestamp = int(time.time())
 
@@ -1545,209 +1381,57 @@ def batch_edit_form(project_id):
 @app.route("/project/<int:project_id>/batch_edit", methods=["POST"])
 def apply_batch_edit(project_id):
     """اعمال تغییرات گروهی روی درب‌های انتخاب شده"""
-    
-    # حذف بررسی احراز هویت کاربر چون flask_login استفاده نشده
-    # if not current_user.is_authenticated:
-    #    return redirect(url_for("login"))
-    
     door_ids = request.form.get("door_ids")
     if not door_ids:
         flash("هیچ دربی برای ویرایش انتخاب نشده است.", "warning")
         return redirect(url_for("project_treeview", project_id=project_id))
 
     door_ids = door_ids.split(",")
-    print(f"DEBUG: به‌روزرسانی درب‌های {door_ids}")
-
-    # دریافت ستون‌های قابل نمایش
-    session_key = f"visible_columns_{project_id}"
-    visible_columns = session.get(session_key, [])
 
     # بررسی اینکه کدام ستون‌ها باید به‌روزرسانی شوند
     columns_to_update = {}
-    base_fields_to_update = {}
-    
     for key, value in request.form.items():
         # اگر یک checkbox برای ستون فعال بود و مقدار وارد شده بود
         if key.startswith("update_") and value == "on":
-            field_key = key.replace("update_", "")
-            field_value_key = f"value_{field_key}"
-            
-            if field_value_key in request.form:
-                new_value = request.form.get(field_value_key)
-                
-                # بررسی اینکه آیا فیلد پایه است یا سفارشی
-                if field_key in ["location", "width", "height", "quantity", "direction"]:
-                    # فقط اگر فیلد پایه در ستون‌های قابل نمایش باشد، اجازه به‌روزرسانی بده
-                    if field_key in visible_columns:
-                        base_fields_to_update[field_key] = new_value
-                else:
-                    # فقط اگر فیلد سفارشی در ستون‌های قابل نمایش باشد، اجازه به‌روزرسانی بده
-                    if field_key in visible_columns:
-                        columns_to_update[field_key] = new_value
+            column_key = key.replace("update_", "")
+            if f"value_{column_key}" in request.form:
+                new_value = request.form.get(f"value_{column_key}")
+                columns_to_update[column_key] = new_value
 
-    print(f"DEBUG: فیلدهای پایه برای به‌روزرسانی: {base_fields_to_update}")
-    print(f"DEBUG: فیلدهای سفارشی برای به‌روزرسانی: {columns_to_update}")
-
-    if not columns_to_update and not base_fields_to_update:
+    if not columns_to_update:
         flash("هیچ فیلدی برای به‌روزرسانی انتخاب نشده است.", "warning")
         return redirect(url_for("project_treeview", project_id=project_id))
 
     # اعمال تغییرات روی درب‌های انتخاب شده
-    successful_updates = 0
-    failed_updates = 0
-    success_messages = []
-    error_messages = []
+    update_count = 0
+    print(f"DEBUG: به‌روزرسانی {len(door_ids)} درب با ستون‌های: {columns_to_update}")
     
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        for door_id in door_ids:
-            try:
-                door_id = int(door_id)
-                door_updated = False
+    for door_id in door_ids:
+        try:
+            door_id = int(door_id)
+            
+            # برای هر ستون، مقدار جدید را به‌روزرسانی کنیم
+            for column_key, new_value in columns_to_update.items():
+                # پیدا کردن ID ستون
+                column_id = get_column_id_by_key(column_key)
+                print(f"DEBUG: ستون '{column_key}' با ID={column_id}, مقدار جدید='{new_value}'")
                 
-                # دریافت اطلاعات کنونی درب برای استفاده در گزارش
-                cursor.execute(
-                    "SELECT location FROM doors WHERE id = ?", 
-                    (door_id,)
-                )
-                door_info = cursor.fetchone()
-                door_location = door_info[0] if door_info else f"ID: {door_id}"
-                
-                # به‌روزرسانی فیلدهای پایه
-                if base_fields_to_update:
-                    update_parts = []
-                    params = []
-                    field_updates = []
-                    
-                    for field, value in base_fields_to_update.items():
-                        if field == "width" or field == "height" or field == "quantity":
-                            try:
-                                # تبدیل به عدد
-                                value = float(value) if field != "quantity" else int(value)
-                                update_parts.append(f"{field} = ?")
-                                params.append(value)
-                                field_updates.append(f"{field} = {value}")
-                            except (ValueError, TypeError):
-                                error_msg = f"مقدار نامعتبر برای {field}: '{value}' در درب {door_location}"
-                                print(f"WARNING: {error_msg}")
-                                error_messages.append(error_msg)
-                                continue
-                        else:
-                            update_parts.append(f"{field} = ?")
-                            params.append(value)
-                            field_updates.append(f"{field} = '{value}'")
-                    
-                    if update_parts:
-                        query = f"UPDATE doors SET {', '.join(update_parts)} WHERE id = ?"
-                        params.append(door_id)
-                        
-                        try:
-                            cursor.execute(query, params)
-                            if cursor.rowcount > 0:
-                                door_updated = True
-                                msg = f"درب {door_location}: به‌روزرسانی {', '.join(field_updates)}"
-                                success_messages.append(msg)
-                                print(f"DEBUG: {msg}")
-                        except sqlite3.Error as e:
-                            error_msg = f"خطا در به‌روزرسانی فیلدهای پایه برای درب {door_location}: {str(e)}"
-                            error_messages.append(error_msg)
-                            print(f"ERROR: {error_msg}")
-                
-                # به‌روزرسانی فیلدهای سفارشی
-                for column_key, new_value in columns_to_update.items():
-                    try:
-                        # پیدا کردن ID ستون
-                        column_id = get_column_id_by_key(column_key)
-                        if not column_id:
-                            error_msg = f"ستون '{column_key}' یافت نشد برای درب {door_location}"
-                            error_messages.append(error_msg)
-                            print(f"ERROR: {error_msg}")
-                            continue
-                            
-                        # دریافت نام نمایشی ستون
-                        cursor.execute(
-                            "SELECT display_name FROM custom_columns WHERE id = ?", 
-                            (column_id,)
-                        )
-                        display_result = cursor.fetchone()
-                        column_display = display_result[0] if display_result else column_key
-                        
-                        # بررسی مقدار فعلی برای گزارش تغییرات
-                        cursor.execute(
-                            "SELECT value FROM door_custom_values WHERE door_id = ? AND column_id = ?",
-                            (door_id, column_id)
-                        )
-                        current_result = cursor.fetchone()
-                        current_value = current_result[0] if current_result else None
-                        
-                        # ذخیره مقدار جدید با استفاده از تابع update_door_custom_value
-                        update_door_custom_value(door_id, column_id, new_value)
-                        door_updated = True
-                        
-                        # ساختن پیام موفقیت
-                        if current_value:
-                            msg = f"ستون '{column_display}' از '{current_value}' به '{new_value}' تغییر کرد"
-                        else:
-                            msg = f"ستون '{column_display}' به '{new_value}' تنظیم شد"
-                            
-                        success_messages.append(f"درب {door_location}: {msg}")
-                        print(f"DEBUG: درب {door_location}: {msg}")
-                    
-                    except Exception as e:
-                        error_msg = f"خطا در به‌روزرسانی ستون '{column_key}' برای درب {door_location}: {str(e)}"
-                        error_messages.append(error_msg)
-                        print(f"ERROR: {error_msg}")
-                
-                # شمارش درب‌های به‌روزرسانی شده
-                if door_updated:
-                    successful_updates += 1
+                if column_id:
+                    result = update_door_custom_value(door_id, column_id, new_value)
+                    print(f"DEBUG: نتیجه به‌روزرسانی ستون '{column_key}' برای درب {door_id}: {result}")
                 else:
-                    failed_updates += 1
-                    error_msg = f"هیچ فیلدی برای درب {door_location} به‌روزرسانی نشد"
-                    error_messages.append(error_msg)
-                    print(f"WARNING: {error_msg}")
+                    print(f"ERROR: ستون با کلید '{column_key}' یافت نشد")
 
-            except Exception as e:
-                failed_updates += 1
-                error_msg = f"خطا در به‌روزرسانی درب {door_id}: {str(e)}"
-                error_messages.append(error_msg)
-                print(f"ERROR: {error_msg}")
-                traceback.print_exc()
-        
-        # ذخیره تغییرات
-        conn.commit()
-        print(f"DEBUG: همه تغییرات با موفقیت ذخیره شد. {successful_updates} درب به‌روزرسانی شد.")
+            update_count += 1
 
-    except sqlite3.Error as e:
-        if conn:
-            conn.rollback()
-        failed_updates += len(door_ids)
-        error_msg = f"خطا در دیتابیس: {str(e)}"
-        error_messages.append(error_msg)
-        print(f"ERROR: {error_msg}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
+        except Exception as e:
+            print(f"ERROR در به‌روزرسانی درب {door_id}: {e}")
+            traceback.print_exc()
 
-    # نمایش پیام‌های مناسب
-    if successful_updates > 0:
-        success_summary = f"{successful_updates} درب با موفقیت به‌روزرسانی شد."
-        if len(success_messages) <= 5:  # نمایش جزئیات فقط برای تعداد کمی مورد
-            success_summary += "<br>" + "<br>".join(success_messages[:5])
-        flash(success_summary, "success")
-    
-    if failed_updates > 0:
-        error_summary = f"{failed_updates} درب با خطا مواجه شد."
-        if len(error_messages) <= 5:  # نمایش جزئیات فقط برای تعداد کمی خطا
-            error_summary += "<br>" + "<br>".join(error_messages[:5])
-        flash(error_summary, "error")
-    
-    if successful_updates == 0 and failed_updates == 0:
-        flash("هیچ به‌روزرسانی انجام نشد.", "warning")
+    if update_count > 0:
+        flash(f"{update_count} درب با موفقیت به‌روزرسانی شد.", "success")
+    else:
+        flash("خطا در به‌روزرسانی درب‌ها.", "error")
 
     # افزودن پارامتر زمانی برای جلوگیری از کش شدن صفحه
     timestamp = int(time.time())
@@ -1756,61 +1440,73 @@ def apply_batch_edit(project_id):
 
 @app.route("/project/<int:project_id>/toggle_column_display", methods=["POST"])
 def toggle_column_display(project_id):
-    """تغییر وضعیت نمایش یک ستون"""
+    """تغییر وضعیت نمایش ستون در جلسه کاربر با بررسی امکان مخفی کردن"""
     column_key = request.form.get("column_key")
-    is_visible = request.form.get("is_visible", "0") == "1"  # تبدیل به بولین
+    is_visible = request.form.get("is_visible") == "1"
     
-    if not column_key:
-        return jsonify({"success": False, "error": "کلید ستون ارسال نشده است"})
+    print(f"DEBUG: تغییر وضعیت نمایش ستون '{column_key}' به {is_visible}")
     
-    try:
-        session_key = f"visible_columns_{project_id}"
-        visible_columns = session.get(session_key, [])
-        
-        # اگر ستون باید نمایش داده شود و در لیست نیست، اضافه می‌کنیم
-        if is_visible and column_key not in visible_columns:
-            visible_columns.append(column_key)
-            session[session_key] = visible_columns
-            print(f"DEBUG: ستون {column_key} به لیست ستون‌های نمایشی پروژه {project_id} اضافه شد")
-            return jsonify({"success": True})
-        
-        # اگر ستون نباید نمایش داده شود و در لیست هست، حذف می‌کنیم
-        elif not is_visible and column_key in visible_columns:
-            # قبل از حذف بررسی کنیم که آیا ستون حاوی داده است یا خیر
-            # اگر ستون دارای داده باشد، اجازه مخفی کردن نمی‌دهیم
-            if column_key in ["width", "height", "quantity", "direction"]:
-                return jsonify({
-                    "success": False, 
-                    "error": f"ستون '{column_key}' یک ستون پایه است و نمی‌تواند مخفی شود"
-                })
-                
-            # بررسی تعداد داده‌های ستون با استفاده از اندپوینت check_column_can_hide
-            column_check = check_column_can_hide_internal(project_id, column_key)
-            if not column_check.get("can_hide", True):
-                return jsonify({
-                    "success": False, 
-                    "error": column_check.get("reason", "این ستون دارای داده است و نمی‌تواند مخفی شود")
-                })
+    # اگر کاربر می‌خواهد ستون را مخفی کند (is_visible=0)، بررسی کنیم
+    if not is_visible:
+        # بررسی ستون در پایگاه داده
+        conn = None
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
             
-            # اگر به اینجا رسیدیم، ستون می‌تواند مخفی شود
-            visible_columns.remove(column_key)
-            session[session_key] = visible_columns
-            print(f"DEBUG: ستون {column_key} از لیست ستون‌های نمایشی پروژه {project_id} حذف شد")
-            return jsonify({"success": True})
-        
-        # در غیر این صورت، نیازی به تغییر نیست
-        return jsonify({"success": True, "info": "وضعیت ستون تغییری نکرد"})
-        
-    except Exception as e:
-        print(f"ERROR: خطا در تغییر وضعیت نمایش ستون {column_key}: {e}")
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)})
+            # ابتدا شناسه ستون را پیدا می‌کنیم
+            cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
+            result = cursor.fetchone()
+            if result:
+                column_id = result[0]
+                
+                # حالا بررسی می‌کنیم که آیا این ستون در جدول door_custom_values دارای مقدار است
+                cursor.execute("""
+                    SELECT COUNT(*) FROM door_custom_values 
+                    JOIN doors ON door_custom_values.door_id = doors.id
+                    WHERE door_custom_values.column_id = ? 
+                    AND doors.project_id = ?
+                    AND door_custom_values.value IS NOT NULL 
+                    AND door_custom_values.value != ''
+                """, (column_id, project_id))
+                
+                count = cursor.fetchone()[0]
+                if count > 0:
+                    # اگر این ستون دارای مقدار است، نمی‌تواند مخفی شود
+                    return jsonify({
+                        "success": False, 
+                        "error": f"ستون '{column_key}' دارای {count} مقدار در پروژه است و نمی‌تواند مخفی شود"
+                    })
+        except sqlite3.Error as e:
+            print(f"خطا در بررسی ستون {column_key}: {e}")
+            return jsonify({"success": False, "error": f"خطای پایگاه داده: {e}"})
+        finally:
+            if conn:
+                conn.close()
+    
+    # کد فعلی برای ذخیره وضعیت نمایش ستون در جلسه کاربر
+    session_key = f"visible_columns_{project_id}"
+    visible_columns = session.get(session_key, [])
+    
+    if is_visible and column_key not in visible_columns:
+        visible_columns.append(column_key)
+        print(f"DEBUG: ستون '{column_key}' به لیست نمایش اضافه شد")
+    elif not is_visible and column_key in visible_columns:
+        visible_columns.remove(column_key)
+        print(f"DEBUG: ستون '{column_key}' از لیست نمایش حذف شد")
+    
+    session[session_key] = visible_columns
+    print(f"DEBUG: لیست ستون‌های نمایشی به‌روز شد: {visible_columns}")
+    
+    return jsonify({"success": True})
 
 
-def check_column_can_hide_internal(project_id, column_key):
-    """بررسی اینکه آیا یک ستون می‌تواند مخفی شود یا خیر (نسخه داخلی)"""
+@app.route("/project/<int:project_id>/check_column_can_hide", methods=["POST"])
+def check_column_can_hide(project_id):
+    """بررسی می‌کند که آیا یک ستون خاص می‌تواند مخفی شود یا خیر"""
+    column_key = request.form.get("column_key")
     if not column_key:
-        return {"can_hide": True, "reason": "کلید ستون خالی است"}
+        return jsonify({"can_hide": True, "reason": "کلید ستون خالی است"})
     
     try:
         # بررسی اینکه آیا ستون در پایگاه داده وجود دارد
@@ -1822,7 +1518,7 @@ def check_column_can_hide_internal(project_id, column_key):
         result = cursor.fetchone()
         if not result:
             # اگر ستون وجود ندارد، می‌تواند مخفی شود
-            return {"can_hide": True, "reason": "ستون در پایگاه داده وجود ندارد"}
+            return jsonify({"can_hide": True, "reason": "ستون در پایگاه داده وجود ندارد"})
         
         column_id = result[0]
         
@@ -1841,294 +1537,522 @@ def check_column_can_hide_internal(project_id, column_key):
         
         if count > 0:
             # اگر این ستون دارای مقدار است، نمی‌تواند مخفی شود
-            return {
+            return jsonify({
                 "can_hide": False, 
                 "reason": f"ستون '{column_key}' دارای {count} مقدار در پروژه است"
-            }
+            })
         
         # اگر به اینجا رسیدیم، یعنی ستون می‌تواند مخفی شود
-        return {"can_hide": True, "reason": "ستون هیچ داده‌ای ندارد"}
+        return jsonify({"can_hide": True, "reason": "ستون هیچ داده‌ای ندارد"})
         
     except sqlite3.Error as e:
         print(f"خطا در بررسی ستون {column_key}: {e}")
         # در صورت بروز خطا، از روی احتیاط اجازه مخفی کردن نمی‌دهیم
-        return {"can_hide": False, "reason": f"خطای پایگاه داده: {e}"}
+        return jsonify({"can_hide": False, "reason": f"خطای پایگاه داده: {e}"})
     except Exception as e:
         print(f"خطای غیرمنتظره در بررسی ستون {column_key}: {e}")
-        return {"can_hide": False, "reason": f"خطای غیرمنتظره: {e}"}
+        return jsonify({"can_hide": False, "reason": f"خطای غیرمنتظره: {e}"})
 
 
-@app.route("/project/<int:project_id>/check_column_can_hide", methods=["POST"])
-def check_column_can_hide(project_id):
-    """بررسی می‌کند که آیا ستون مورد نظر می‌تواند مخفی شود یا خیر"""
-    column_key = request.form.get("column_key")
-    if not column_key:
-        return jsonify({"can_hide": False, "reason": "کلید ستون مشخص نشده است."})
-    
-    return jsonify(check_column_can_hide_internal(project_id, column_key))
-
-
-# --- مسیرهای مربوط به سیستم انبار ---
-
-@app.route("/inventory")
-def inventory_route():
-    """صفحه اصلی مدیریت انبار"""
-    try:
-        # در اینجا اطلاعات مورد نیاز برای داشبورد انبار را استخراج می‌کنیم
-        # برای مثال، آمار کلی انبار و انواع پروفیل
-        
-        # آمار کلی انبار (فعلاً با مقادیر پیش‌فرض)
-        stats = {
-            "total_profiles": 0,
-            "total_complete_pieces": 0,
-            "total_cut_pieces": 0,
-            "total_weight": 0,
-            "total_complete_length": 0,
-            "total_cut_length": 0,
-            "total_length": 0,
-            "average_piece_length": 0
-        }
-        
-        # لیست انواع پروفیل (فعلاً خالی)
-        profiles = []
-        
-        return render_template("inventory_dashboard.html", stats=stats, profiles=profiles)
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت inventory_route: {e}")
-        traceback.print_exc()
-        flash("خطایی در نمایش صفحه مدیریت انبار رخ داد.", "error")
+@app.route("/settings/columns/<int:project_id>")
+def settings_columns(project_id):
+    """صفحه تنظیمات ستون‌ها"""
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
         return redirect(url_for("index"))
 
+    # دریافت اطلاعات همه ستون‌ها (پایه و سفارشی)
+    all_columns = get_all_custom_columns()
 
-@app.route("/inventory/profile_types")
-def profile_types_route():
-    """صفحه مدیریت انواع پروفیل"""
-    try:
-        # در اینجا لیست انواع پروفیل را از دیتابیس دریافت می‌کنیم
-        # فعلاً با لیست خالی کار می‌کنیم
-        profile_types = []
-        
-        return render_template("profile_types.html", profile_types=profile_types)
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت profile_types_route: {e}")
-        traceback.print_exc()
-        flash("خطایی در نمایش صفحه انواع پروفیل رخ داد.", "error")
-        return redirect(url_for("inventory_route"))
+    return render_template(
+        "settings_columns.html", project=project_info, columns=all_columns
+    )
 
 
-@app.route("/inventory/settings")
-def inventory_settings_route():
-    """صفحه تنظیمات انبار"""
-    try:
-        # در اینجا تنظیمات فعلی را از دیتابیس دریافت می‌کنیم
-        # فعلاً با مقادیر پیش‌فرض کار می‌کنیم
-        settings = {
-            "waste_threshold": 70,
-            "use_inventory": True,
-            "prefer_pieces": True
-        }
-        
-        return render_template("inventory_settings.html", settings=settings)
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت inventory_settings_route: {e}")
-        traceback.print_exc()
-        flash("خطایی در نمایش صفحه تنظیمات انبار رخ داد.", "error")
-        return redirect(url_for("inventory_route"))
-
-
-@app.route("/inventory/logs")
-def inventory_logs_route():
-    """صفحه تاریخچه تغییرات انبار"""
-    try:
-        # در اینجا لیست لاگ‌های تغییرات را از دیتابیس دریافت می‌کنیم
-        # فعلاً با لیست خالی کار می‌کنیم
-        logs = []
-        
-        return render_template("inventory_logs.html", logs=logs)
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت inventory_logs_route: {e}")
-        traceback.print_exc()
-        flash("خطایی در نمایش صفحه تاریخچه تغییرات انبار رخ داد.", "error")
-        return redirect(url_for("inventory_route"))
-
-
-@app.route("/inventory/profile/<int:profile_id>")
-def inventory_details_route(profile_id):
-    """صفحه جزئیات موجودی یک نوع پروفیل"""
-    try:
-        # در اینجا اطلاعات پروفیل و موجودی آن را از دیتابیس دریافت می‌کنیم
-        # فعلاً با مقادیر پیش‌فرض کار می‌کنیم
-        profile = {
-            "id": profile_id,
-            "name": "نوع پروفیل",
-            "description": "توضیحات",
-            "default_length": 600,
-            "weight_per_meter": 1.9,
-            "color": "#cccccc"
-        }
-        
-        items = {
-            "complete_pieces": 0,
-            "cut_pieces": []
-        }
-        
-        return render_template("profile_inventory_details.html", profile=profile, items=items)
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت inventory_details_route: {e}")
-        traceback.print_exc()
-        flash("خطایی در نمایش صفحه جزئیات موجودی رخ داد.", "error")
-        return redirect(url_for("inventory_route"))
-
-
-@app.route("/inventory/profile/<int:profile_id>/add")
-def add_inventory_items_route(profile_id):
-    """صفحه افزودن موجودی برای یک نوع پروفیل"""
-    try:
-        # در اینجا اطلاعات پروفیل را از دیتابیس دریافت می‌کنیم
-        # فعلاً با مقادیر پیش‌فرض کار می‌کنیم
-        profile = {
-            "id": profile_id,
-            "name": "نوع پروفیل",
-            "default_length": 600
-        }
-        
-        return render_template("add_items.html", profile=profile)
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت add_inventory_items_route: {e}")
-        traceback.print_exc()
-        flash("خطایی در نمایش صفحه افزودن موجودی رخ داد.", "error")
-        return redirect(url_for("inventory_route"))
-
-
-@app.route("/project/<int:project_id>/export_pdf", methods=["GET"])
-def export_table_to_pdf_html(project_id):
-    """صفحه خروجی PDF از جدول پروژه با استفاده از HTML"""
-    try:
-        # دریافت اطلاعات پروژه و درب‌ها
-        project = get_project_details_db(project_id)
-        if not project:
-            flash(f"پروژه با شناسه {project_id} یافت نشد.", "error")
-            return redirect(url_for("index"))
-        
-        doors = get_doors_for_project_db(project_id)
-        
-        # دریافت ستون‌های قابل نمایش از session
-        session_key = f"visible_columns_{project_id}"
-        visible_columns = session.get(session_key, [])
-        
-        # ایجاد یک نام فایل موقت برای خروجی HTML
-        current_date = jdatetime.datetime.now().strftime("%Y%m%d")
-        pdf_filename = f"project_{project_id}_{current_date}.pdf"
-        
-        # رندر قالب جدول برای PDF
-        return render_template(
-            "pdf_table_template.html",
-            project=project,
-            doors=doors,
-            visible_columns=visible_columns,
-            pdf_filename=pdf_filename
-        )
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت export_table_to_pdf_html: {e}")
-        traceback.print_exc()
-        flash("خطایی در ایجاد خروجی PDF رخ داد.", "error")
-        return redirect(url_for("project_treeview", project_id=project_id))
-
-
-@app.route("/project/<int:project_id>/settings_columns", methods=["GET"])
-def settings_columns(project_id):
-    """صفحه تنظیمات ستون‌های نمایشی جدول"""
-    try:
-        # دریافت اطلاعات پروژه
-        project = get_project_details_db(project_id)
-        if not project:
-            flash(f"پروژه با شناسه {project_id} یافت نشد.", "error")
-            return redirect(url_for("index"))
-        
-        # دریافت لیست همه ستون‌های سفارشی
-        all_columns = get_all_custom_columns()
-        
-        # دریافت ستون‌های قابل نمایش فعلی از session
-        session_key = f"visible_columns_{project_id}"
-        visible_columns = session.get(session_key, [])
-        
-        return render_template(
-            "column_settings.html",
-            project=project,
-            all_columns=all_columns,
-            visible_columns=visible_columns
-        )
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت settings_columns: {e}")
-        traceback.print_exc()
-        flash("خطایی در نمایش صفحه تنظیمات ستون‌ها رخ داد.", "error")
-        return redirect(url_for("project_treeview", project_id=project_id))
-
-
-@app.route("/project/<int:project_id>/update_column_display", methods=["POST"])
-def update_column_display(project_id):
-    """به‌روزرسانی تنظیمات نمایش ستون‌ها"""
-    try:
-        visible_columns = request.form.getlist("visible_columns")
-        
-        # ذخیره در session
-        session_key = f"visible_columns_{project_id}"
-        session[session_key] = visible_columns
-        
-        flash("تنظیمات ستون‌های نمایشی با موفقیت ذخیره شد.", "success")
-        return redirect(url_for("project_treeview", project_id=project_id))
-    except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت update_column_display: {e}")
-        traceback.print_exc()
-        flash("خطایی در ذخیره تنظیمات ستون‌ها رخ داد.", "error")
+@app.route("/settings/add_custom_column/<int:project_id>", methods=["POST"])
+def add_custom_column_route(project_id):
+    """افزودن ستون سفارشی جدید"""
+    display_name = request.form.get("display_name")
+    if not display_name:
+        flash("نام نمایشی ستون نمی‌تواند خالی باشد.", "error")
         return redirect(url_for("settings_columns", project_id=project_id))
 
+    # تولید نام کلید داخلی براساس نام نمایشی
+    internal_key = "".join(c if c.isalnum() else "_" for c in display_name.lower())
 
-@app.route("/project/<int:project_id>/get_columns_with_data", methods=["GET"])
-def get_columns_with_data(project_id):
-    """دریافت لیست ستون‌هایی که دارای داده هستند"""
+    # بررسی یکتا بودن کلید
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("SELECT column_name FROM custom_columns")
+    existing_keys = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    # اگر کلید تکراری بود، پسوند اضافه کنیم
+    base_key = internal_key
+    counter = 1
+    while internal_key in existing_keys:
+        internal_key = f"{base_key}_{counter}"
+        counter += 1
+
+    # افزودن ستون جدید
     try:
-        conn = None
-        columns_with_data = []
-        
-        try:
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            
-            # دریافت تمام ستون‌ها
-            cursor.execute("SELECT id, column_name FROM custom_columns")
-            columns = cursor.fetchall()
-            
-            # بررسی هر ستون برای مقادیر غیر خالی
-            for column_id, column_key in columns:
-                cursor.execute("""
-                    SELECT COUNT(*) FROM door_custom_values dcv
-                    JOIN doors d ON dcv.door_id = d.id
-                    WHERE dcv.column_id = ? 
-                    AND d.project_id = ?
-                    AND dcv.value IS NOT NULL 
-                    AND dcv.value != ''
-                """, (column_id, project_id))
-                
-                count = cursor.fetchone()[0]
-                if count > 0:
-                    columns_with_data.append(column_key)
-        
-        except sqlite3.Error as e:
-            print(f"خطا در بررسی ستون‌های دارای داده: {e}")
-            return jsonify({"success": False, "error": str(e)})
-        finally:
-            if conn:
-                conn.close()
-                
-        return jsonify({"success": True, "columns_with_data": columns_with_data})
-    
+        new_id = add_custom_column(internal_key, display_name)
+        if new_id:
+            flash(f"ستون '{display_name}' با موفقیت اضافه شد.", "success")
+        else:
+            flash("خطا در افزودن ستون جدید.", "error")
     except Exception as e:
-        print(f"خطای غیرمنتظره در get_columns_with_data: {e}")
-        traceback.print_exc()
+        flash(f"خطا در افزودن ستون جدید: {e}", "error")
+
+    return redirect(url_for("settings_columns", project_id=project_id))
+
+
+@app.route("/settings/toggle_column/<int:column_id>", methods=["POST"])
+def toggle_column_status(column_id):
+    """تغییر وضعیت فعال/غیرفعال ستون"""
+    is_active = request.form.get("is_active", "0") == "1"
+
+    try:
+        success = update_custom_column_status(column_id, is_active)
+        if success:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "خطا در به‌روزرسانی وضعیت ستون"})
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
 
-# افزودن کد راه‌اندازی Flask در انتهای فایل
+@app.route("/settings/update_column_name/<int:column_id>", methods=["POST"])
+def update_column_name(column_id):
+    """به‌روزرسانی نام نمایشی ستون"""
+    display_name = request.form.get("display_name")
+    project_id = request.args.get("project_id")
+
+    if not display_name:
+        flash("نام نمایشی ستون نمی‌تواند خالی باشد.", "error")
+        return redirect(url_for("settings_columns", project_id=project_id))
+
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE custom_columns SET display_name = ? WHERE id = ?",
+            (display_name, column_id),
+        )
+        conn.commit()
+        conn.close()
+        flash(f"نام ستون با موفقیت به '{display_name}' تغییر یافت.", "success")
+    except Exception as e:
+        flash(f"خطا در به‌روزرسانی نام ستون: {e}", "error")
+
+    return redirect(url_for("settings_columns", project_id=project_id))
+
+
+@app.route("/settings/delete_column/<int:column_id>")
+def delete_column_route(column_id):
+    """حذف ستون سفارشی"""
+    project_id = request.args.get("redirect_to")
+
+    try:
+        # ابتدا باید بررسی کنیم که آیا ستون از ستون‌های پایه حیاتی نیست
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT column_name FROM custom_columns WHERE id = ?", (column_id,)
+        )
+        column_data = cursor.fetchone()
+
+        if column_data:
+            column_key = column_data[0]
+            # برخی ستون‌های پایه که نباید حذف شوند
+            critical_base_keys = ["rang", "noe_profile", "vaziat", "tozihat"]
+
+            if column_key in critical_base_keys:
+                flash(
+                    f"ستون '{column_key}' یک ستون پایه است و نمی‌تواند حذف شود.", "error"
+                )
+                return redirect(url_for("settings_columns", project_id=project_id))
+
+            # حذف ستون
+            cursor.execute("DELETE FROM custom_columns WHERE id = ?", (column_id,))
+            conn.commit()
+            conn.close()
+
+            flash("ستون با موفقیت حذف شد.", "success")
+        else:
+            flash("ستون مورد نظر یافت نشد.", "error")
+    except Exception as e:
+        flash(f"خطا در حذف ستون: {e}", "error")
+
+
+@app.route("/project/<int:project_id>/update", methods=["POST"])
+def update_project(project_id):
+    """به‌روزرسانی اطلاعات یک پروژه"""
+    print(f"DEBUG: ورود به route بروزرسانی پروژه با ID: {project_id}")
+    
+    customer_name = request.form.get("customer_name", "")
+    order_ref = request.form.get("order_ref", "")
+    date_shamsi = request.form.get("date_shamsi", "")
+    
+    print(f"DEBUG: اطلاعات دریافتی از فرم - مشتری: {customer_name}, سفارش: {order_ref}, تاریخ: {date_shamsi}")
+    
+    success = update_project_db(project_id, customer_name, order_ref, date_shamsi)
+    
+    if success:
+        flash("اطلاعات پروژه با موفقیت به‌روزرسانی شد", "success")
+    else:
+        flash("خطا در به‌روزرسانی اطلاعات پروژه", "error")
+    
+    return redirect(url_for("view_project", project_id=project_id))
+
+
+@app.route("/project/<int:project_id>/delete", methods=["POST"])
+def delete_project(project_id):
+    """حذف یک پروژه از دیتابیس"""
+    print(f"DEBUG: ورود به route حذف پروژه با ID: {project_id}")
+    
+    success = delete_project_db(project_id)
+    
+    if success:
+        flash("پروژه با موفقیت حذف شد", "success")
+    else:
+        flash("خطا در حذف پروژه", "error")
+    
+    return redirect(url_for("index"))
+
+
+def fix_persian_text(text):
+    """تبدیل متن فارسی برای نمایش صحیح در PDF"""
+    if not text:
+        return ""
+    reshaped_text = arabic_reshaper.reshape(str(text))
+    return get_display(reshaped_text)
+
+
+@app.route("/project/<int:project_id>/export_pdf", methods=["GET"])
+def export_table_to_pdf_web(project_id):
+    """خروجی PDF از داده‌های پروژه"""
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
+        return redirect(url_for("index"))
+
+    doors = get_doors_for_project_db(project_id)
+    if not doors:
+        flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+        return redirect(url_for("project_treeview", project_id=project_id))
+
+    # دریافت ستون‌های فعال
+    visible_columns = session.get(f"visible_columns_{project_id}", [])
+    
+    try:
+        # اطمینان از وجود پوشه خروجی
+        os.makedirs("static/exports", exist_ok=True)
+        
+        # ایجاد PDF جدید (افقی)
+        pdf = FPDF(orientation='L', unit='mm', format='A4')
+        pdf.add_page()
+        
+        # افزودن فونت فارسی
+        pdf.add_font('Vazir', '', './static/Vazir.ttf', uni=True)
+        pdf.set_font('Vazir', '', 10)
+        
+        # عنوان
+        title_txt = fix_persian_text("لیست سفارشات درب")
+        pdf.cell(0, 10, txt=title_txt, border=0, ln=1, align="C")
+        
+        # اطلاعات مشتری
+        pdf.set_font('Vazir', '', 9)
+        pdf.ln(2)
+        
+        # اطلاعات مشتری
+        customer_name = project_info.get("customer_name", "")
+        order_ref = project_info.get("order_ref", "")
+        date_shamsi = project_info.get("date_shamsi", "")
+        
+        # جدول اطلاعات مشتری
+        info_cell_width = 45
+        info_cell_height = 7
+        pdf.set_fill_color(240, 248, 255)  # رنگ پس‌زمینه آبی روشن
+        
+        # ردیف اول
+        pdf.set_font('Vazir', '', 8)
+        pdf.set_text_color(80, 80, 80)
+        pdf.cell(25, info_cell_height, fix_persian_text("نام مشتری:"), 1, 0, "R", 1)
+        pdf.set_font('Vazir', '', 10)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(info_cell_width, info_cell_height, fix_persian_text(customer_name), 1, 0, "R", 1)
+        
+        pdf.set_font('Vazir', '', 8)
+        pdf.set_text_color(80, 80, 80)
+        pdf.cell(25, info_cell_height, fix_persian_text("شماره سفارش:"), 1, 0, "R", 1)
+        pdf.set_font('Vazir', '', 10)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(info_cell_width, info_cell_height, fix_persian_text(order_ref), 1, 1, "R", 1)
+        
+        # ردیف دوم
+        pdf.set_font('Vazir', '', 8)
+        pdf.set_text_color(80, 80, 80)
+        pdf.cell(25, info_cell_height, fix_persian_text("تاریخ:"), 1, 0, "R", 1)
+        pdf.set_font('Vazir', '', 10)
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(info_cell_width, info_cell_height, fix_persian_text(date_shamsi), 1, 0, "R", 1)
+        
+        # فضای خالی برای تکمیل ردیف
+        remaining_width = pdf.w - pdf.get_x() - pdf.r_margin
+        pdf.cell(remaining_width, info_cell_height, "", 1, 1, "C", 1)
+        
+        pdf.ln(5)
+        pdf.set_font('Vazir', '', 10)
+        pdf.set_text_color(0, 0, 0)
+        
+        # تعیین ستون‌های جدول اصلی
+        headers = ["مکان نصب", "عرض", "ارتفاع", "تعداد", "جهت"]
+        keys_for_columns = ["location", "width", "height", "quantity", "direction"]
+        
+        # افزودن ستون‌های سفارشی فعال
+        for col_key in visible_columns:
+            if col_key in ["rang", "noe_profile", "vaziat", "lola", "ghofl", "accessory", "kolaft", "dastgire"]:
+                # یافتن نام نمایشی
+                for col in get_active_custom_columns():
+                    if col['key'] == col_key:
+                        headers.append(col['display'])
+                        keys_for_columns.append(col_key)
+                        break
+        
+        # افزودن ستون توضیحات در انتها (اگر فعال باشد)
+        if "tozihat" in visible_columns:
+            headers.append("توضیحات")
+            keys_for_columns.append("tozihat")
+        
+        # محاسبه عرض ستون‌ها
+        page_width = pdf.w - 2 * pdf.l_margin
+        col_widths = []
+        total_width = 0
+        
+        # تعیین عرض هر ستون براساس طول عنوان و محتوا
+        for i, header in enumerate(headers):
+            key = keys_for_columns[i]
+            # محاسبه حداکثر طول برای عنوان و محتوا
+    except Exception as e:
+        flash(f"خطا در ایجاد فایل PDF: {str(e)}", "error")
+        return redirect(url_for("view_project", project_id=project_id))
+
+@app.route("/project/<int:project_id>/export_pdf_html", methods=["GET"])
+def export_table_to_pdf_html(project_id):
+    """خروجی HTML از داده‌های پروژه به‌صورت PDF"""
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
+        return redirect(url_for("index"))
+
+    doors = get_doors_for_project_db(project_id)
+    if not doors:
+        flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+        return redirect(url_for("project_treeview", project_id=project_id))
+
+    # دریافت ستون‌های فعال
+    visible_columns = session.get(f"visible_columns_{project_id}", [])
+    
+    # آماده‌سازی لیست هدرهای ستون‌ها و کلیدهای مربوط به آن‌ها
+    custom_headers = []
+    custom_keys = []
+    
+    # افزودن ستون‌های سفارشی فعال
+    for col_key in visible_columns:
+        if col_key in ["rang", "noe_profile", "vaziat", "lola", "ghofl", "accessory", "kolaft", "dastgire"]:
+            # یافتن نام نمایشی
+            for col in get_active_custom_columns():
+                if col['key'] == col_key:
+                    custom_headers.append(col['display'])
+                    custom_keys.append(col_key)
+                    break
+    
+    # آیا ستون توضیحات نمایش داده شود
+    show_notes = "tozihat" in visible_columns
+    
+    # تاریخ امروز
+    today_date = jdatetime.datetime.now().strftime("%Y/%m/%d")
+    
+    # مسیر فونت وزیر
+    font_path = os.path.abspath("static/Vazir.ttf")
+    
+    # ایجاد یک کپی از قالب اصلی اما با تغییرات CSS بهینه‌سازی شده
+    optimized_template = """<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>جدول درب‌ها - {{ project.customer_name }}</title>
+    <style>
+        @font-face {
+            font-family: 'Vazir';
+            src: url('file:///{{ font_path }}') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        body {
+            font-family: 'Vazir', sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        
+        .customer-info {
+            display: table;
+            width: 100%;
+            margin-bottom: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        
+        .info-row {
+            display: table-row;
+        }
+        
+        .info-cell {
+            display: table-cell;
+            padding: 5px 10px;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+        
+        table.doors-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            table-layout: fixed;
+        }
+        
+        table.doors-table th {
+            background-color: #3498db;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        
+        table.doors-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        table.doors-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        
+        /* رنگ‌های سفارشی */
+        .yellow {
+            background-color: #fff9c4 !important;
+        }
+        
+        .lightgreen {
+            background-color: #c8e6c9 !important;
+        }
+        
+        .lightblue {
+            background-color: #bbdefb !important;
+        }
+        
+        .footer {
+            text-align: center;
+        }
+        
+        /* استایل‌های موجود */
+        
+        /* اضافه کردن این استایل */
+        .row-number-column {
+            width: 40px;
+            min-width: 40px;
+            max-width: 40px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>لیست درب‌های پروژه {{ project.customer_name }}</h1>
+    </div>
+    
+    <div class="customer-info">
+        <div class="info-row">
+            <div class="info-cell"><span class="info-label">نام مشتری:</span> {{ project.customer_name }}</div>
+            <div class="info-cell"><span class="info-label">شماره تماس:</span> {{ project.phone_number }}</div>
+            <div class="info-cell"><span class="info-label">تاریخ:</span> {{ today_date }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-cell"><span class="info-label">آدرس:</span> {{ project.address }}</div>
+        </div>
+    </div>
+    
+    <table class="doors-table">
+        <thead>
+            <tr>
+                <th class="row-number-column">ردیف</th>
+                <th>کد</th>
+                <th>عرض</th>
+                <th>ارتفاع</th>
+                {% for header in custom_headers %}
+                <th>{{ header }}</th>
+                {% endfor %}
+                {% if show_notes %}
+                <th>توضیحات</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for door in doors %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ door.code }}</td>
+                <td>{{ door.width }}</td>
+                <td>{{ door.height }}</td>
+                {% for key in custom_keys %}
+                <td>{{ door[key] }}</td>
+                {% endfor %}
+                {% if show_notes %}
+                <td>{{ door.notes }}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>تولید شده توسط نرم‌افزار مدیریت برش</p>
+    </div>
+</body>
+</html>"""
+
+    return render_template_string(
+        optimized_template,
+        project=project_info,
+        doors=doors,
+        custom_headers=custom_headers,
+        custom_keys=custom_keys,
+        show_notes=show_notes,
+        today_date=today_date,
+        font_path=font_path
+    )
+
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    import os
+    if os.environ.get("RAILWAY_ENVIRONMENT") is None:
+        print("INFO: Starting Flask application locally...")
+        app.run(debug=True, host="0.0.0.0", port=8080)
+
+
