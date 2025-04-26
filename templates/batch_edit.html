@@ -8,6 +8,8 @@
     <meta http-equiv="pragma" content="no-cache">
     <meta http-equiv="expires" content="0">
     <title>ویرایش گروهی - {{ project.customer_name }}</title>
+    <!-- افزودن jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- افزودن Font Awesome از CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -198,6 +200,29 @@
             background-color: #fff3cd;
             color: #856404;
             border: 1px solid #ffeeba;
+        }
+
+        /* استایل برای فیلدهای مخفی */
+        .hidden-field {
+            opacity: 0.6;
+            background-color: #f0f0f0;
+            border-left: 4px solid #ccc !important;
+        }
+
+        .hidden-field .field-label {
+            color: #888;
+        }
+
+        .hidden-field::after {
+            content: "غیرفعال";
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background-color: #aaa;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
         }
 
         /* مدال تأیید */
@@ -399,31 +424,31 @@
 
                     <!-- فیلدهای سفارشی -->
                     {% for key, field in column_options.items() %}
-                        {% if field.visible and key not in ["location", "width", "height", "quantity", "direction"] %}
-                        <div class="field-row">
-                <div class="field-input">
+                        {% if key not in ["location", "width", "height", "quantity", "direction"] %}
+                        <div class="field-row {% if not field.visible %}hidden-field{% endif %}">
+                            <div class="field-input">
                                 {% if field.options and field.options|length > 0 %}
                                     <!-- لیست کشویی برای فیلدهای با گزینه‌های از پیش تعریف شده -->
                                     <select id="value_{{ key }}" name="value_{{ key }}">
-                        <option value="">انتخاب کنید</option>
+                                        <option value="">انتخاب کنید</option>
                                         {% for option in field.options %}
-                        <option value="{{ option }}">{{ option }}</option>
-                        {% endfor %}
-                    </select>
-                    {% else %}
+                                        <option value="{{ option }}">{{ option }}</option>
+                                        {% endfor %}
+                                    </select>
+                                {% else %}
                                     <!-- فیلد متنی برای سایر فیلدها -->
                                     <input type="text" id="value_{{ key }}" name="value_{{ key }}" placeholder="انتخاب کنید">
-                    {% endif %}
-                </div>
+                                {% endif %}
+                            </div>
                             <div class="field-label-container">
                                 <div class="field-checkbox">
-                                    <input type="checkbox" id="update_{{ key }}" name="update_{{ key }}">
+                                    <input type="checkbox" id="update_{{ key }}" name="update_{{ key }}" {% if field.visible %}checked{% endif %}>
                                 </div>
                                 <label for="update_{{ key }}" class="field-label">{{ field.display }}:</label>
-                </div>
-            </div>
+                            </div>
+                        </div>
                         {% endif %}
-            {% endfor %}
+                    {% endfor %}
                 {% else %}
                     <div class="no-fields-message">
                         هیچ فیلدی برای ویرایش وجود ندارد. لطفا از بخش تنظیمات ستون‌ها، ستون‌های مورد نیاز را فعال کنید.
@@ -633,6 +658,39 @@
             // برجسته کردن سطرهای انتخاب شده در بارگذاری صفحه
             highlightSelectedRows();
         });
+    </script>
+
+    <!-- اسکریپت مدیریت نمایش ستون‌ها به صورت پویا -->
+    <script>
+    // وقتی چک‌باکس یک ستون تغییر کرد
+    $('input[type="checkbox"][id^="update_"]').on('change', function() {
+        const columnKey = this.id.replace('update_', '');
+        const isChecked = this.checked;
+        
+        // ارسال درخواست AJAX برای تغییر وضعیت نمایش ستون
+        fetch(`/project/{{ project.id }}/toggle_column_display`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `column_key=${columnKey}&is_visible=${isChecked ? '1' : '0'}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log(`ستون ${columnKey} ${isChecked ? 'فعال' : 'غیرفعال'} شد`);
+            } else {
+                console.error('خطا در تغییر وضعیت ستون:', data.error);
+                // اگر خطا داشت، چک‌باکس را به حالت قبلی برگردان
+                this.checked = !isChecked;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            // اگر خطا داشت، چک‌باکس را به حالت قبلی برگردان
+            this.checked = !isChecked;
+        });
+    });
     </script>
 </body>
 

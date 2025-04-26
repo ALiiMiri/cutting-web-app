@@ -572,69 +572,15 @@
                                 جهت
                             </th>
                             
-                            <!-- ستون‌های پویا بر اساس وضعیت نمایش -->
-                            {% if 'rang' in visible_columns %}
-                            <th data-column="rang" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                رنگ پروفیل
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'noe_profile' in visible_columns %}
-                            <th data-column="noe_profile" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                نوع پروفیل
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'vaziat' in visible_columns %}
-                            <th data-column="vaziat" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                وضعیت تولید
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'lola' in visible_columns %}
-                            <th data-column="lola" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                لولا
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'ghofl' in visible_columns %}
-                            <th data-column="ghofl" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                قفل
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'accessory' in visible_columns %}
-                            <th data-column="accessory" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                اکسسوری
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'kolaft' in visible_columns %}
-                            <th data-column="kolaft" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                کلاف
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'dastgire' in visible_columns %}
-                            <th data-column="dastgire" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                دستگیره
-                            </th>
-                            {% endif %}
-                            
-                            {% if 'tozihat' in visible_columns %}
-                            <th data-column="tozihat" onclick="sortTable(this)">
-                                <span class="sort-icon">▼</span>
-                                توضیحات
-                            </th>
-                            {% endif %}
+                            <!-- ستون‌های سفارشی فعال -->
+                            {% for column in active_custom_columns %}
+                                {% if column.key in visible_columns %}
+                                <th data-column="{{ column.key }}" onclick="sortTable(this)">
+                                    <span class="sort-icon">▼</span>
+                                    {{ column.display }}
+                                </th>
+                                {% endif %}
+                            {% endfor %}
                         </tr>
                     </thead>
                     <tbody>
@@ -649,41 +595,12 @@
                             <td>{{ door.quantity }}</td>
                             <td>{{ door.direction or "" }}</td>
                             
-                            {% if 'rang' in visible_columns %}
-                            <td>{{ door.rang or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'noe_profile' in visible_columns %}
-                            <td>{{ door.noe_profile or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'vaziat' in visible_columns %}
-                            <td>{{ door.vaziat or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'lola' in visible_columns %}
-                            <td>{{ door.lola or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'ghofl' in visible_columns %}
-                            <td>{{ door.ghofl or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'accessory' in visible_columns %}
-                            <td>{{ door.accessory or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'kolaft' in visible_columns %}
-                            <td>{{ door.kolaft or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'dastgire' in visible_columns %}
-                            <td>{{ door.dastgire or "" }}</td>
-                            {% endif %}
-                            
-                            {% if 'tozihat' in visible_columns %}
-                            <td class="note-cell">{{ door.tozihat or "" }}</td>
-                            {% endif %}
+                            <!-- مقادیر ستون‌های سفارشی -->
+                            {% for column in active_custom_columns %}
+                                {% if column.key in visible_columns %}
+                                <td>{{ door.get(column.key, "") }}</td>
+                                {% endif %}
+                            {% endfor %}
                         </tr>
                         {% endfor %}
                     </tbody>

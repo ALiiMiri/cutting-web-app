@@ -384,16 +384,6 @@ def get_doors_for_project_db(project_id):
                 "quantity": row[4],
                 "direction": row[5],
                 "row_color_tag": row[6] if row[6] else "white",
-                # پر کردن مقادیر پیش‌فرض برای سایر ستون‌ها
-                "rang": "",
-                "noe_profile": "",
-                "vaziat": "",
-                "lola": "",
-                "ghofl": "",
-                "accessory": "",
-                "kolaft": "",
-                "dastgire": "",
-                "tozihat": ""
             }
 
             # مقادیر ستون‌های سفارشی را برای این درب دریافت می‌کنیم
@@ -409,7 +399,7 @@ def get_doors_for_project_db(project_id):
                 col_value = custom_col[1]
                 door_data[col_name] = col_value
                 
-            print(f"DEBUG: مقادیر سفارشی درب {door_id}: ghofl={door_data.get('ghofl')}, rang={door_data.get('rang')}")
+            print(f"DEBUG: مقادیر سفارشی درب {door_id}: {door_data}")
 
             doors.append(door_data)
 
@@ -1097,16 +1087,20 @@ def project_treeview(project_id):
     visible_columns = session.get(f"visible_columns_{project_id}", [])
     print(f"DEBUG: ستون‌های نمایشی از جلسه: {visible_columns}")
     
+    # دریافت ستون‌های سفارشی فعال
+    active_custom_columns = get_active_custom_columns()
+    
     # بررسی سریع مقادیر سفارشی
     for door in doors[:5]:  # فقط 5 درب اول را برای دیباگ بررسی می‌کنیم
-        print(f"DEBUG: درب {door['id']} - رنگ: {door.get('rang', 'ندارد')}, نوع پروفیل: {door.get('noe_profile', 'ندارد')}")
+        print(f"DEBUG: درب {door['id']} - مقادیر سفارشی: {door}")
     
     return render_template(
         "project_treeview.html", 
         project=project_info, 
         doors=doors, 
         refresh_param=refresh_param,
-        visible_columns=visible_columns
+        visible_columns=visible_columns,
+        active_custom_columns=active_custom_columns
     )
 
 
@@ -1470,21 +1464,12 @@ def batch_edit_form(project_id):
         "direction": ["راست", "چپ"],
     }
 
-    # اضافه کردن فیلدهای پایه فقط اگر در ستون‌های نمایشی باشند
-    if "location" in visible_columns:
-        column_options["location"] = {"display": "موقعیت", "options": [], "visible": True}
-    
-    if "width" in visible_columns:
-        column_options["width"] = {"display": "عرض", "options": [], "visible": True}
-    
-    if "height" in visible_columns:
-        column_options["height"] = {"display": "ارتفاع", "options": [], "visible": True}
-    
-    if "quantity" in visible_columns:
-        column_options["quantity"] = {"display": "تعداد", "options": [], "visible": True}
-    
-    if "direction" in visible_columns:
-        column_options["direction"] = {"display": "جهت", "options": default_options.get("direction", []), "visible": True}
+    # اضافه کردن فیلدهای پایه
+    column_options["location"] = {"display": "موقعیت", "options": [], "visible": "location" in visible_columns}
+    column_options["width"] = {"display": "عرض", "options": [], "visible": "width" in visible_columns}
+    column_options["height"] = {"display": "ارتفاع", "options": [], "visible": "height" in visible_columns}
+    column_options["quantity"] = {"display": "تعداد", "options": [], "visible": "quantity" in visible_columns}
+    column_options["direction"] = {"display": "جهت", "options": default_options.get("direction", []), "visible": "direction" in visible_columns}
 
     # برای هر ستون سفارشی، گزینه‌های آن را دریافت کنیم
     for column in columns_info:
@@ -1492,10 +1477,6 @@ def batch_edit_form(project_id):
         # بررسی وضعیت نمایش ستون
         is_visible = column_key in visible_columns
         
-        # اگر ستون قابل نمایش نیست، آن را اضافه نکن
-        if not is_visible:
-            continue
-            
         # ترکیب گزینه‌های پیش‌فرض با گزینه‌های دیتابیس
         options = []
         
@@ -1511,7 +1492,7 @@ def batch_edit_form(project_id):
         column_options[column_key] = {
             "display": column["display"],
             "options": options,
-            "visible": True  # چون فقط ستون‌های قابل نمایش را اضافه می‌کنیم، همه visible هستند
+            "visible": is_visible
         }
     
     print(f"DEBUG: column_options={column_options}")
@@ -2065,6 +2046,32 @@ def settings_columns(project_id):
         return redirect(url_for("project_treeview", project_id=project_id))
 
 
+@app.route("/project/<int:project_id>/add_column", methods=["POST"])
+def add_column_route(project_id):
+    """افزودن ستون جدید سفارشی"""
+    display_name = request.form.get("display_name")
+    column_key = request.form.get("column_key")
+    
+    if not display_name or not column_key:
+        flash("لطفاً نام نمایشی و کلید ستون را وارد کنید.", "error")
+        return redirect(url_for("settings_columns", project_id=project_id))
+    
+    # چک کردن اینکه آیا ستون با این کلید قبلاً وجود دارد
+    existing_column_id = get_column_id_by_key(column_key)
+    if existing_column_id:
+        flash("ستونی با این کلید قبلاً وجود دارد.", "error")
+        return redirect(url_for("settings_columns", project_id=project_id))
+    
+    # افزودن ستون جدید
+    new_column_id = add_custom_column(column_key, display_name)
+    if new_column_id:
+        flash(f"ستون '{display_name}' با موفقیت اضافه شد.", "success")
+    else:
+        flash("خطا در افزودن ستون جدید.", "error")
+    
+    return redirect(url_for("settings_columns", project_id=project_id))
+
+
 @app.route("/project/<int:project_id>/update_column_display", methods=["POST"])
 def update_column_display(project_id):
     """به‌روزرسانی تنظیمات نمایش ستون‌ها"""
@@ -2127,6 +2134,32 @@ def get_columns_with_data(project_id):
         print(f"خطای غیرمنتظره در get_columns_with_data: {e}")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/column/<int:column_id>/delete/<int:project_id>", methods=["GET"])
+def delete_column_route(column_id, project_id):
+    """حذف ستون سفارشی"""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        # حذف مقادیر مربوط به این ستون
+        cursor.execute("DELETE FROM door_custom_values WHERE column_id = ?", (column_id,))
+        
+        # حذف ستون
+        cursor.execute("DELETE FROM custom_columns WHERE id = ?", (column_id,))
+        
+        conn.commit()
+        flash("ستون با موفقیت حذف شد.", "success")
+    except Exception as e:
+        print(f"خطا در حذف ستون: {e}")
+        flash("خطا در حذف ستون.", "error")
+    finally:
+        if conn:
+            conn.close()
+    
+    return redirect(url_for("settings_columns", project_id=project_id))
 
 
 # افزودن کد راه‌اندازی Flask در انتهای فایل
