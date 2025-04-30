@@ -79,13 +79,9 @@
             transition: all 0.3s ease;
         }
 
-        .field-row:hover, .field-row.active {
+        .field-row:hover {
             background-color: #e3f2fd;
             border-right-color: #2196F3;
-        }
-
-        .field-row.active {
-            background-color: #e3f2fd;
         }
 
         .field-label-container {
@@ -345,120 +341,28 @@
             </div>
 
             <!-- فیلدها -->
-            {% if column_options %}
-                {% if column_options|length > 0 %}
-                    <!-- فیلدهای پایه -->
-                    {% if 'location' in visible_columns %}
-                    <div class="field-row">
-                        <div class="field-input">
-                            <input type="text" id="value_location" name="value_location" placeholder="انتخاب کنید">
-                        </div>
-                        <div class="field-label-container">
-                            <div class="field-checkbox">
-                                <input type="checkbox" id="update_location" name="update_location">
-                            </div>
-                            <label for="update_location" class="field-label">موقعیت:</label>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    {% if 'width' in visible_columns %}
-                    <div class="field-row">
-                        <div class="field-input">
-                            <input type="number" id="value_width" name="value_width" step="0.1" placeholder="انتخاب کنید">
-                        </div>
-                        <div class="field-label-container">
-                            <div class="field-checkbox">
-                                <input type="checkbox" id="update_width" name="update_width">
-                            </div>
-                            <label for="update_width" class="field-label">عرض:</label>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    {% if 'height' in visible_columns %}
-                    <div class="field-row">
-                        <div class="field-input">
-                            <input type="number" id="value_height" name="value_height" step="0.1" placeholder="انتخاب کنید">
-                        </div>
-                        <div class="field-label-container">
-                            <div class="field-checkbox">
-                                <input type="checkbox" id="update_height" name="update_height">
-                            </div>
-                            <label for="update_height" class="field-label">ارتفاع:</label>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    {% if 'quantity' in visible_columns %}
-                    <div class="field-row">
-                        <div class="field-input">
-                            <input type="number" id="value_quantity" name="value_quantity" min="1" placeholder="انتخاب کنید">
-                        </div>
-                        <div class="field-label-container">
-                            <div class="field-checkbox">
-                                <input type="checkbox" id="update_quantity" name="update_quantity">
-                            </div>
-                            <label for="update_quantity" class="field-label">تعداد:</label>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    {% if 'direction' in visible_columns %}
+            {% for key, field in column_options.items() %}
             <div class="field-row">
-                        <div class="field-input">
-                            <select id="value_direction" name="value_direction">
-                                <option value="">انتخاب کنید</option>
-                                <option value="راست">راست</option>
-                                <option value="چپ">چپ</option>
-                            </select>
-                        </div>
-                        <div class="field-label-container">
-                            <div class="field-checkbox">
-                                <input type="checkbox" id="update_direction" name="update_direction">
-                            </div>
-                            <label for="update_direction" class="field-label">جهت:</label>
-                        </div>
+                <div class="field-label-container">
+                    <label for="update_{{ key }}" class="field-label">{{ field.display }}:</label>
+                    <input type="checkbox" id="update_{{ key }}" name="update_{{ key }}" class="field-checkbox">
                 </div>
+                <div class="field-input">
+                    {% if field.options and field.options|length > 0 %}
+                        <!-- لیست کشویی برای فیلدهای با گزینه‌های از پیش تعریف شده -->
+                        <select id="value_{{ key }}" name="value_{{ key }}">
+                            <option value="">انتخاب کنید</option>
+                            {% for option in field.options %}
+                            <option value="{{ option }}">{{ option }}</option>
+                            {% endfor %}
+                        </select>
+                    {% else %}
+                        <!-- فیلد متنی برای سایر فیلدها -->
+                        <input type="text" id="value_{{ key }}" name="value_{{ key }}" placeholder="انتخاب کنید">
                     {% endif %}
-
-                    <!-- فیلدهای سفارشی -->
-                    {% for key, field in column_options.items() %}
-                        {% if key not in ["location", "width", "height", "quantity", "direction"] %}
-                        <div class="field-row {% if not field.visible %}hidden-field{% endif %}">
-                            <div class="field-input">
-                                {% if field.options and field.options|length > 0 %}
-                                    <!-- لیست کشویی برای فیلدهای با گزینه‌های از پیش تعریف شده -->
-                                    <select id="value_{{ key }}" name="value_{{ key }}">
-                                        <option value="">انتخاب کنید</option>
-                                        {% for option in field.options %}
-                                        <option value="{{ option }}">{{ option }}</option>
-                                        {% endfor %}
-                                    </select>
-                                {% else %}
-                                    <!-- فیلد متنی برای سایر فیلدها -->
-                                    <input type="text" id="value_{{ key }}" name="value_{{ key }}" placeholder="انتخاب کنید">
-                                {% endif %}
-                            </div>
-                            <div class="field-label-container">
-                                <div class="field-checkbox">
-                                    <input type="checkbox" id="update_{{ key }}" name="update_{{ key }}" {% if field.visible %}checked{% endif %}>
-                                </div>
-                                <label for="update_{{ key }}" class="field-label">{{ field.display }}:</label>
-                            </div>
-                        </div>
-                        {% endif %}
-                    {% endfor %}
-                {% else %}
-                    <div class="no-fields-message">
-                        هیچ فیلدی برای ویرایش وجود ندارد. لطفا از بخش تنظیمات ستون‌ها، ستون‌های مورد نیاز را فعال کنید.
-                    </div>
-                {% endif %}
-            {% else %}
-                <div class="no-fields-message">
-                    هیچ فیلدی برای ویرایش وجود ندارد. لطفا از بخش تنظیمات ستون‌ها، ستون‌های مورد نیاز را فعال کنید.
+                </div>
             </div>
-            {% endif %}
+            {% endfor %}
 
             <!-- دکمه‌های اقدام -->
             <div class="action-buttons">
@@ -546,6 +450,12 @@
                 if (checkbox) {
                     checkbox.addEventListener('change', function() {
                         toggleRowHighlight(row, this.checked);
+                        
+                        // Call the function to save checkbox state
+                        if (this.id.startsWith('update_')) {
+                            const columnKey = this.id.replace('update_', '');
+                            saveBatchEditCheckboxState(columnKey, this.checked);
+                        }
                     });
                 }
             });
@@ -662,35 +572,49 @@
 
     <!-- اسکریپت مدیریت نمایش ستون‌ها به صورت پویا -->
     <script>
-    // وقتی چک‌باکس یک ستون تغییر کرد
-    $('input[type="checkbox"][id^="update_"]').on('change', function() {
-        const columnKey = this.id.replace('update_', '');
-        const isChecked = this.checked;
-        
-        // ارسال درخواست AJAX برای تغییر وضعیت نمایش ستون
-        fetch(`/project/{{ project.id }}/toggle_column_display`, {
+    function saveBatchEditCheckboxState(column, checked) {
+        console.log(`ذخیره وضعیت ${column}: ${checked}`);
+        fetch('/project/{{ project.id }}/save_batch_edit_checkbox_state', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': getCsrfToken()
             },
-            body: `column_key=${columnKey}&is_visible=${isChecked ? '1' : '0'}`
+            body: new URLSearchParams({
+                'column_key': column,
+                'is_checked': checked ? '1' : '0'
+            })
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                console.log(`ستون ${columnKey} ${isChecked ? 'فعال' : 'غیرفعال'} شد`);
+                updateColumnVisibility(column, checked);
             } else {
-                console.error('خطا در تغییر وضعیت ستون:', data.error);
-                // اگر خطا داشت، چک‌باکس را به حالت قبلی برگردان
-                this.checked = !isChecked;
+                console.error('Error saving checkbox state:', data.error);
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            // اگر خطا داشت، چک‌باکس را به حالت قبلی برگردان
-            this.checked = !isChecked;
+            console.error('Error saving checkbox state:', error);
         });
-    });
+    }
+
+    function updateColumnVisibility(column, checked) {
+        // If there's a treeview or other UI element to update, do it here
+        console.log(`Column ${column} is now ${checked ? 'checked' : 'unchecked'}`);
+    }
+
+    function getCsrfToken() {
+        // Try to get the CSRF token from the meta tag
+        const metaToken = document.querySelector('meta[name="csrf-token"]');
+        if (metaToken) return metaToken.getAttribute('content');
+        
+        // Try to get from a hidden input
+        const inputToken = document.querySelector('input[name="csrf_token"]');
+        if (inputToken) return inputToken.value;
+        
+        // If no token found, return empty string
+        return '';
+    }
     </script>
 </body>
 
