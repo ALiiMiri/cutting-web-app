@@ -196,6 +196,21 @@ class CuttingApp:
         try:
             self.db_logger.info("شروع مقداردهی اولیه پایگاه داده...")
             initialize_database()
+            
+            # Create hidden_columns table if it doesn't exist
+            conn = sqlite3.connect('cutting.db')
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS hidden_columns (
+                    column_key TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    is_hidden INTEGER DEFAULT 1,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.commit()
+            conn.close()
+            
             self.db_logger.info("مقداردهی اولیه پایگاه داده با موفقیت انجام شد")
         except Exception as e:
             self.db_logger.error(f"خطا در مقداردهی اولیه پایگاه داده: {e}")
@@ -1878,10 +1893,6 @@ class CuttingApp:
         dialog.resizable(True, True)
 
         # --- Prepare Data & Mappings ---
-        # --- START OF REPLACEMENT for Data Preparation block (AGAIN) ---
-        # --- Prepare Data & Mappings ---
-        # --- START OF REPLACEMENT for Data Preparation block (FINAL ATTEMPT) ---
-        # --- Prepare Data & Mappings ---
         try:
             active_custom_cols_data = get_active_custom_columns_data()
             self.display_to_key_map = {text: key for key, text in BASE_COLUMNS_DATA}
@@ -1898,7 +1909,6 @@ class CuttingApp:
             for key, text in BASE_COLUMNS_DATA:
                 if key not in CRITICAL_BASE_KEYS:
                     editable_base_labels.append(text)
-            # print(f"DEBUG: Editable base labels: {editable_base_labels}")
 
             # --- Get display names of ONLY NON-CRITICAL custom columns ---
             editable_custom_display_names = []
@@ -1906,7 +1916,6 @@ class CuttingApp:
                 # Check if the custom column's key is NOT a critical base key
                 if col_data["key"] not in CRITICAL_BASE_KEYS:
                     editable_custom_display_names.append(col_data["display"])
-            # print(f"DEBUG: Editable custom display names: {editable_custom_display_names}")
 
             # --- Create final ordered list with 'tozihat' last ---
             last_label_text = "توضیحات"
@@ -1930,8 +1939,21 @@ class CuttingApp:
             final_ordered_labels = sorted_labels_without_last
             if tozihat_present:
                 final_ordered_labels.append(last_label_text)
-            # Check this output
-            print(f"DEBUG - FINAL LABELS TO CREATE WIDGETS FOR: {final_ordered_labels}")
+
+            # Get hidden columns from database
+            try:
+                conn = sqlite3.connect('cutting.db')
+                cursor = conn.cursor()
+                cursor.execute('SELECT display_name FROM hidden_columns WHERE is_hidden = 1')
+                hidden_columns = [row[0] for row in cursor.fetchall()]
+                conn.close()
+                
+                # Add hidden columns to final_ordered_labels if they're not already there
+                for col in hidden_columns:
+                    if col not in final_ordered_labels:
+                        final_ordered_labels.append(col)
+            except Exception as e:
+                print(f"Error loading hidden columns: {e}")
 
             if not final_ordered_labels:
                 print("ERROR: No editable labels found!")
@@ -1947,8 +1969,6 @@ class CuttingApp:
             messagebox.showerror("...", f"خطا:\n{e}", parent=dialog)
             dialog.destroy()
             return
-        # --- END OF Data Preparation block replacement ---
-        # --- END OF Data Preparation block replacement ---
 
         # --- UI Structure & Variables ---
         check_vars = {}
@@ -2030,6 +2050,30 @@ class CuttingApp:
                     var.set(True)
                     toggle_widget_state(display_name)
                     return
+                
+                # Save hidden state to database
+                try:
+                    conn = sqlite3.connect('cutting.db')
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO hidden_columns (column_key, display_name, is_hidden, last_updated)
+                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (column_key, display_name, 1))
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    print(f"Error saving hidden column state: {e}")
+            elif is_checked_after_click and column_key:
+                # Remove from hidden columns if it was hidden
+                try:
+                    conn = sqlite3.connect('cutting.db')
+                    cursor = conn.cursor()
+                    cursor.execute('DELETE FROM hidden_columns WHERE column_key = ?', (column_key,))
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    print(f"Error removing hidden column state: {e}")
+                    
             toggle_widget_state(display_name)
             _update_tree_display()
 
@@ -2064,7 +2108,21 @@ class CuttingApp:
         for i, display_name in enumerate(final_ordered_labels):
             row_frame = tk.Frame(scrollable_frame)
             row_frame.pack(fill="x", pady=2, padx=5)
-            is_checked = display_name in self.previous_checked_labels_batch_edit
+            
+            # Check if column is hidden in database
+            is_hidden = False
+            try:
+                conn = sqlite3.connect('cutting.db')
+                cursor = conn.cursor()
+                cursor.execute('SELECT is_hidden FROM hidden_columns WHERE display_name = ?', (display_name,))
+                result = cursor.fetchone()
+                if result:
+                    is_hidden = bool(result[0])
+                conn.close()
+            except Exception as e:
+                print(f"Error checking hidden status: {e}")
+            
+            is_checked = display_name in self.previous_checked_labels_batch_edit and not is_hidden
             var = tk.BooleanVar(value=is_checked)
             check_vars[display_name] = var
             cb = tk.Checkbutton(

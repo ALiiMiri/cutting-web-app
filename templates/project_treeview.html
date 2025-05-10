@@ -1057,6 +1057,68 @@
             
             return true;
         }
+
+        function updateColumnCheckbox(columnKey, isChecked, doorId) {
+            fetch(`/project/${projectId}/save_batch_edit_checkbox_state`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'column_key': columnKey,
+                    'is_checked': isChecked ? '1' : '0',
+                    'door_id': doorId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // به‌روزرسانی رابط کاربری با استفاده از داده‌های برگشتی
+                    updateUI(data.checked_columns, data.visible_columns);
+                } else {
+                    console.error('Error:', data.error);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function updateUI(checkedColumns, visibleColumns) {
+            // به‌روزرسانی وضعیت نمایش ستون‌ها
+            // ابتدا همه ستون‌های سفارشی را مخفی می‌کنیم
+            $('.column-custom').hide();
+            
+            // سپس فقط ستون‌هایی را که در لیست visible_columns هستند نمایش می‌دهیم
+            if (visibleColumns) {
+                visibleColumns.forEach(function(columnKey) {
+                    $('.column-' + columnKey).show();
+                });
+            }
+            
+            // به‌روزرسانی وضعیت چک‌باکس‌ها
+            if (checkedColumns) {
+                // ابتدا همه چک‌باکس‌ها را غیرفعال می‌کنیم
+                $('input[data-column]').prop('checked', false);
+                
+                // سپس چک‌باکس‌هایی که باید فعال باشند را فعال می‌کنیم
+                checkedColumns.forEach(function(columnKey) {
+                    $('input[data-column="' + columnKey + '"]').prop('checked', true);
+                });
+            }
+        }
+
+        // اجرای اولیه برای اطمینان از نمایش صحیح ستون‌ها
+        $(document).ready(function() {
+            // دریافت وضعیت ستون‌های نمایشی از سرور
+            $.ajax({
+                url: '/project/{{ project.id }}/get_visible_columns',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        updateUI([], response.visible_columns);
+                    }
+                }
+            });
+        });
     </script>
 </body>
 

@@ -1499,17 +1499,9 @@ def batch_edit_form(project_id):
         if col not in visible_columns:
             visible_columns.append(col)
     
-    # حذف ستون‌های پایه از لیست نمایش ویرایش گروهی
+    # ستون‌های پایه که همیشه نمایش داده می‌شوند
     basic_columns = ["location", "width", "height", "quantity", "direction"]
     
-    # دریافت وضعیت چک‌باکس‌های ویرایش گروهی از جلسه
-    batch_edit_checked_key = f"batch_edit_checked_{project_id}"
-    previously_checked_columns = session.get(batch_edit_checked_key, [])
-    
-    # اگر هیچ ستونی برای ویرایش گروهی انتخاب نشده، از ستون‌های نمایشی استفاده کن
-    if not previously_checked_columns:
-        previously_checked_columns = visible_columns.copy()
-        
     # دریافت گزینه‌های ستون‌های قابل ویرایش
     columns_info = get_active_custom_columns()
     print(f"DEBUG: تعداد ستون‌های سفارشی فعال: {len(columns_info)}")  # برای دیباگ
@@ -1531,10 +1523,10 @@ def batch_edit_form(project_id):
     # برای هر ستون سفارشی، گزینه‌های آن را دریافت کنیم
     for column in columns_info:
         column_key = column["key"]
-        # بررسی وضعیت نمایش ستون در صفحه ویرایش گروهی
-        # تغییر کلیدی: همه ستون‌های سفارشی را قابل مشاهده کنیم
-        is_visible = column_key in default_visible_columns or column_key in visible_columns
-        is_checked = column_key in previously_checked_columns
+        
+        # تغییر منطق: یک ستون باید تیک بخورد اگر در لیست ستون‌های نمایشی نباشد
+        is_visible = column_key in visible_columns
+        is_checked = not is_visible  # منطق معکوس: اگر ستون نمایش داده نمی‌شود، باید تیک بخورد
         
         # ترکیب گزینه‌های پیش‌فرض با گزینه‌های دیتابیس
         options = []
@@ -1551,14 +1543,15 @@ def batch_edit_form(project_id):
         column_options[column_key] = {
             "display": column["display"],
             "options": options,
-            "visible": is_visible,  # تغییر کلیدی: تمام ستون‌های سفارشی را نمایش می‌دهیم
-            "checked": is_checked
+            "visible": column_key not in basic_columns,  # ستون‌های پایه همیشه باید نمایش داده شوند
+            "checked": is_checked  # وضعیت چک‌باکس بر اساس عدم وجود در لیست نمایش
         }
 
     # افزودن پارامتر زمانی برای جلوگیری از کش شدن صفحه
     timestamp = int(time.time())
 
     # برای دیباگ
+    print("DEBUG visible_columns:", visible_columns)
     print("DEBUG column_options:", column_options)
 
     return render_template(
@@ -2245,28 +2238,26 @@ def save_batch_edit_checkbox_state_project(project_id):
     """ذخیره وضعیت چک‌باکس‌های ویرایش گروهی"""
     column_key = request.form.get("column_key")
     is_checked = request.form.get("is_checked", "0") == "1"
+    door_id = request.form.get("door_id")  # اضافه کردن شناسه درب
     
     if not column_key:
         return jsonify({"success": False, "error": "کلید ستون ارسال نشده است"})
     
     try:
-        # ۱. ذخیره وضعیت چک‌باکس‌های ویرایش گروهی
-        batch_edit_checked_key = f"batch_edit_checked_{project_id}"
+        # ۱. ذخیره وضعیت چک‌باکس‌های ویرایش گروهی برای هر درب
+        batch_edit_checked_key = f"batch_edit_checked_{project_id}_{door_id}"
         checked_columns = session.get(batch_edit_checked_key, [])
         
-        # اگر چک‌باکس فعال شده و در لیست نیست، اضافه کن
+        # به‌روزرسانی لیست ستون‌های تیک خورده برای این درب
         if is_checked and column_key not in checked_columns:
             checked_columns.append(column_key)
-            session[batch_edit_checked_key] = checked_columns
-            session.modified = True
-        
-        # اگر چک‌باکس غیرفعال شده و در لیست هست، حذف کن
         elif not is_checked and column_key in checked_columns:
             checked_columns.remove(column_key)
-            session[batch_edit_checked_key] = checked_columns
-            session.modified = True
         
-        # ۲. به‌روزرسانی وضعیت نمایش ستون‌ها در نمای درختی
+        session[batch_edit_checked_key] = checked_columns
+        session.modified = True
+        
+        # ۲. به‌روزرسانی وضعیت نمایش ستون‌ها
         session_key = f"visible_columns_{project_id}"
         visible_columns = session.get(session_key, [])
         
@@ -2278,21 +2269,52 @@ def save_batch_edit_checkbox_state_project(project_id):
             # منطق معکوس: اگر چک‌باکس فعال شده، ستون را از لیست نمایش حذف کن
             if is_checked and column_key in visible_columns:
                 visible_columns.remove(column_key)
-                session[session_key] = visible_columns
-                session.modified = True
-            
             # منطق معکوس: اگر چک‌باکس غیرفعال شده، ستون را به لیست نمایش اضافه کن
             elif not is_checked and column_key not in visible_columns:
                 visible_columns.append(column_key)
-                session[session_key] = visible_columns
-                session.modified = True
+            
+            session[session_key] = visible_columns
+            session.modified = True
         
-        print(f"DEBUG: ستون '{column_key}' به وضعیت {is_checked} تغییر یافت. ستون‌های نمایشی: {visible_columns}")
+        print(f"DEBUG: درب {door_id} - ستون '{column_key}' به وضعیت {is_checked} تغییر یافت.")
+        print(f"DEBUG: ستون‌های تیک خورده برای درب {door_id}: {checked_columns}")
+        print(f"DEBUG: ستون‌های نمایشی: {visible_columns}")
         
-        return jsonify({"success": True})
+        return jsonify({
+            "success": True,
+            "checked_columns": checked_columns,
+            "visible_columns": visible_columns
+        })
         
     except Exception as e:
-        print(f"ERROR: خطا در ذخیره وضعیت چک‌باکس {column_key}: {e}")
+        print(f"ERROR: خطا در ذخیره وضعیت چک‌باکس {column_key} برای درب {door_id}: {e}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/project/<int:project_id>/get_visible_columns", methods=["GET"])
+def get_visible_columns(project_id):
+    """دریافت لیست ستون‌های نمایشی"""
+    try:
+        session_key = f"visible_columns_{project_id}"
+        visible_columns = session.get(session_key, [])
+        
+        # اگر لیست ستون‌های نمایشی خالی است، آن را با مقادیر پیش‌فرض پر کنیم
+        if not visible_columns:
+            initialize_visible_columns(project_id)
+            visible_columns = session.get(session_key, [])
+        
+        # اضافه کردن ستون‌های پایه که همیشه باید نمایش داده شوند
+        basic_columns = ["location", "width", "height", "quantity", "direction"]
+        for col in basic_columns:
+            if col not in visible_columns:
+                visible_columns.append(col)
+        
+        print(f"DEBUG: ستون‌های نمایشی پروژه {project_id}: {visible_columns}")
+        
+        return jsonify({"success": True, "visible_columns": visible_columns})
+    except Exception as e:
+        print(f"ERROR: خطا در دریافت لیست ستون‌های نمایشی: {e}")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)})
 

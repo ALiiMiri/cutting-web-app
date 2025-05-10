@@ -442,6 +442,10 @@
                         
                         // برجسته کردن سطر اگر انتخاب شده باشد
                         toggleRowHighlight(row, checkbox.checked);
+                        
+                        // ایجاد رویداد change برای چک‌باکس
+                        const changeEvent = new Event('change', { bubbles: true });
+                        checkbox.dispatchEvent(changeEvent);
                     }
                 });
                 
@@ -450,12 +454,6 @@
                 if (checkbox) {
                     checkbox.addEventListener('change', function() {
                         toggleRowHighlight(row, this.checked);
-                        
-                        // Call the function to save checkbox state
-                        if (this.id.startsWith('update_')) {
-                            const columnKey = this.id.replace('update_', '');
-                            saveBatchEditCheckboxState(columnKey, this.checked);
-                        }
                     });
                 }
             });
@@ -570,51 +568,103 @@
         });
     </script>
 
-    <!-- اسکریپت مدیریت نمایش ستون‌ها به صورت پویا -->
     <script>
-    function saveBatchEditCheckboxState(column, checked) {
-        console.log(`ذخیره وضعیت ${column}: ${checked}`);
-        fetch('/project/{{ project.id }}/save_batch_edit_checkbox_state', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRFToken': getCsrfToken()
-            },
-            body: new URLSearchParams({
-                'column_key': column,
-                'is_checked': checked ? '1' : '0'
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateColumnVisibility(column, checked);
+    $(document).ready(function() {
+        // اتصال رویداد change به تمام چک‌باکس‌ها
+        $('input[type="checkbox"]').on('change', function() {
+            // نادیده گرفتن چک‌باکس "انتخاب همه"
+            if (this.id === 'select-all') return;
+            
+            var columnKey = $(this).attr('id').replace('update_', '');
+            var isChecked = $(this).prop('checked');
+            var doorIds = '{{ door_ids }}';
+            
+            console.log(`تغییر وضعیت چک‌باکس ${columnKey} به ${isChecked ? 'فعال' : 'غیرفعال'}`);
+            
+            // برجسته کردن سطر
+            var row = $(this).closest('.field-row');
+            if (isChecked) {
+                row.addClass('active');
             } else {
-                console.error('Error saving checkbox state:', data.error);
+                row.removeClass('active');
             }
-        })
-        .catch(error => {
-            console.error('Error saving checkbox state:', error);
+            
+            // ارسال درخواست به سرور برای به‌روزرسانی وضعیت چک‌باکس
+            $.ajax({
+                url: '/project/{{ project.id }}/save_batch_edit_checkbox_state',
+                method: 'POST',
+                data: {
+                    'column_key': columnKey,
+                    'is_checked': isChecked ? '1' : '0',
+                    'door_id': doorIds // فعلاً از همه door_id ها استفاده می‌کنیم
+                },
+                success: function(response) {
+                    if (response.success) {
+                        console.log('وضعیت چک‌باکس با موفقیت ذخیره شد');
+                        console.log('ستون‌های نمایشی جدید:', response.visible_columns);
+                        console.log('ستون‌های انتخاب شده جدید:', response.checked_columns);
+                    } else {
+                        console.error('خطا در ذخیره وضعیت چک‌باکس:', response.error);
+                        alert('خطا در ذخیره وضعیت چک‌باکس: ' + response.error);
+                        
+                        // برگرداندن وضعیت چک‌باکس به حالت قبل در صورت خطا
+                        $(this).prop('checked', !isChecked);
+                    }
+                }.bind(this),
+                error: function(xhr, status, error) {
+                    console.error('خطا در ارسال درخواست:', error);
+                    alert('خطا در ارسال درخواست: ' + error);
+                    
+                    // برگرداندن وضعیت چک‌باکس به حالت قبل در صورت خطا
+                    $(this).prop('checked', !isChecked);
+                }.bind(this)
+            });
         });
-    }
+    });
+    </script>
 
-    function updateColumnVisibility(column, checked) {
-        // If there's a treeview or other UI element to update, do it here
-        console.log(`Column ${column} is now ${checked ? 'checked' : 'unchecked'}`);
-    }
-
-    function getCsrfToken() {
-        // Try to get the CSRF token from the meta tag
-        const metaToken = document.querySelector('meta[name="csrf-token"]');
-        if (metaToken) return metaToken.getAttribute('content');
-        
-        // Try to get from a hidden input
-        const inputToken = document.querySelector('input[name="csrf_token"]');
-        if (inputToken) return inputToken.value;
-        
-        // If no token found, return empty string
-        return '';
-    }
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // دریافت وضعیت ستون‌های نمایشی از سرور
+        fetch('/project/{{ project.id }}/get_visible_columns')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const visibleColumns = data.visible_columns;
+                    console.log('ستون‌های نمایشی موجود:', visibleColumns);
+                    
+                    // تنظیم وضعیت اولیه چک‌باکس‌ها
+                    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+                    checkboxes.forEach(checkbox => {
+                        if (checkbox.id && checkbox.id.startsWith('update_')) {
+                            const columnKey = checkbox.id.replace('update_', '');
+                            
+                            // استثنا: ستون‌های پایه همیشه نمایش داده می‌شوند
+                            const isBasicColumn = ['location', 'width', 'height', 'quantity', 'direction'].includes(columnKey);
+                            
+                            if (!isBasicColumn) {
+                                // اگر ستون در لیست نمایشی نباشد، تیک بزن (منطق معکوس)
+                                const isVisible = visibleColumns.includes(columnKey);
+                                checkbox.checked = !isVisible;
+                                
+                                // برجسته کردن سطر اگر انتخاب شده باشد
+                                const row = checkbox.closest('.field-row');
+                                if (row) {
+                                    if (checkbox.checked) {
+                                        row.classList.add('active');
+                                    } else {
+                                        row.classList.remove('active');
+                                    }
+                                }
+                                
+                                console.log(`ستون ${columnKey}: نمایش=${isVisible}, تیک=${!isVisible}`);
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(error => console.error('خطا در دریافت ستون‌های نمایشی:', error));
+    });
     </script>
 </body>
 
