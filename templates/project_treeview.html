@@ -497,10 +497,10 @@
                     <i class="fas fa-plus"></i>
                     افزودن درب
                 </a>
-                <button class="action-button excel-button" onclick="exportToExcel()">
+                <a href="{{ url_for('export_to_excel', project_id=project.id) }}" class="action-button excel-button">
                     <i class="fas fa-file-excel"></i>
                     خروجی Excel
-                </button>
+                </a>
                 <a href="{{ url_for('export_table_to_pdf_html', project_id=project.id) }}" class="action-button pdf-button">
                     <i class="fas fa-file-pdf"></i>
                     PDF جدول (HTML)

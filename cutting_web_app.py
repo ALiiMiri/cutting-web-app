@@ -1178,38 +1178,59 @@ def delete_door(project_id, door_id):
 @app.route("/project/<int:project_id>/export/excel", methods=["GET"])
 def export_to_excel(project_id):
     """خروجی اکسل از داده‌های پروژه"""
-    import pandas as pd
-    import os
-    from datetime import datetime
+    try:
+        import pandas as pd
+        import os
+        from datetime import datetime
+        from flask import make_response
+        
+        print(f"DEBUG: شروع صدور اکسل برای پروژه {project_id}")
 
-    project_info = get_project_details_db(project_id)
-    if not project_info:
-        flash("پروژه مورد نظر یافت نشد.", "error")
-        return redirect(url_for("index"))
+        project_info = get_project_details_db(project_id)
+        if not project_info:
+            print("DEBUG: پروژه یافت نشد")
+            flash("پروژه مورد نظر یافت نشد.", "error")
+            return redirect(url_for("index"))
 
-    doors = get_doors_for_project_db(project_id)
-    if not doors:
-        flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+        doors = get_doors_for_project_db(project_id)
+        if not doors:
+            print("DEBUG: هیچ دربی یافت نشد")
+            flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+            return redirect(url_for("project_treeview", project_id=project_id))
+        
+        print(f"DEBUG: {len(doors)} درب برای تبدیل به اکسل یافت شد")
+
+        # تبدیل به دیتافریم پانداس
+        df = pd.DataFrame(doors)
+        print(f"DEBUG: DataFrame با {len(df)} سطر و {len(df.columns)} ستون ایجاد شد")
+
+        # تنظیم مسیر فایل خروجی
+        export_dir = "static/exports"
+        print(f"DEBUG: مسیر خروجی: {export_dir}")
+        if not os.path.exists(export_dir):
+            os.makedirs(export_dir)
+            print(f"DEBUG: پوشه {export_dir} ایجاد شد")
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        customer_name = project_info.get("customer_name", "unknown")
+        excel_filename = f"{customer_name}_{timestamp}.xlsx"
+        excel_path = os.path.join(export_dir, excel_filename)
+        print(f"DEBUG: مسیر کامل فایل: {excel_path}")
+
+        # ذخیره به فایل اکسل
+        df.to_excel(excel_path, index=False)
+        print(f"DEBUG: فایل اکسل با موفقیت ذخیره شد")
+
+        # ارسال فایل به کاربر با هدرهای مناسب برای نمایش دیالوگ "ذخیره به عنوان"
+        print(f"DEBUG: ارسال فایل به کاربر با دیالوگ ذخیره")
+        response = make_response(send_file(excel_path, as_attachment=True))
+        response.headers["Content-Disposition"] = f"attachment; filename={excel_filename}"
+        return response
+    except Exception as e:
+        print(f"ERROR در صدور اکسل: {e}")
+        traceback.print_exc()
+        flash(f"خطا در ایجاد فایل اکسل: {str(e)}", "error")
         return redirect(url_for("project_treeview", project_id=project_id))
-
-    # تبدیل به دیتافریم پانداس
-    df = pd.DataFrame(doors)
-
-    # تنظیم مسیر فایل خروجی
-    export_dir = "static/exports"
-    if not os.path.exists(export_dir):
-        os.makedirs(export_dir)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    customer_name = project_info.get("customer_name", "unknown")
-    excel_filename = f"{customer_name}_{timestamp}.xlsx"
-    excel_path = os.path.join(export_dir, excel_filename)
-
-    # ذخیره به فایل اکسل
-    df.to_excel(excel_path, index=False)
-
-    # ارسال فایل به کاربر
-    return send_file(excel_path, as_attachment=True)
 
 
 @app.route("/project/<int:project_id>/calculate_cutting", methods=["GET"])
