@@ -1183,6 +1183,7 @@ def export_to_excel(project_id):
         import os
         from datetime import datetime
         from flask import make_response
+        import re
         
         print(f"DEBUG: شروع صدور اکسل برای پروژه {project_id}")
 
@@ -1213,8 +1214,10 @@ def export_to_excel(project_id):
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         customer_name = project_info.get("customer_name", "unknown")
-        excel_filename = f"{customer_name}_{timestamp}.xlsx"
-        excel_path = os.path.join(export_dir, excel_filename)
+        
+        # ایجاد نام فایل با حروف انگلیسی برای ذخیره سازی
+        safe_filename = f"project_{project_id}_{timestamp}.xlsx"
+        excel_path = os.path.join(export_dir, safe_filename)
         print(f"DEBUG: مسیر کامل فایل: {excel_path}")
 
         # ذخیره به فایل اکسل
@@ -1224,7 +1227,10 @@ def export_to_excel(project_id):
         # ارسال فایل به کاربر با هدرهای مناسب برای نمایش دیالوگ "ذخیره به عنوان"
         print(f"DEBUG: ارسال فایل به کاربر با دیالوگ ذخیره")
         response = make_response(send_file(excel_path, as_attachment=True))
-        response.headers["Content-Disposition"] = f"attachment; filename={excel_filename}"
+        
+        # استفاده از نام فایل ایمن برای هدر Content-Disposition
+        display_filename = f"project_{project_id}_{timestamp}.xlsx"
+        response.headers["Content-Disposition"] = f"attachment; filename={display_filename}"
         return response
     except Exception as e:
         print(f"ERROR در صدور اکسل: {e}")
