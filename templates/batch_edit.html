@@ -83,6 +83,11 @@
             background-color: #e3f2fd;
             border-right-color: #2196F3;
         }
+        
+        .field-row.active {
+            background-color: #e3f2fd; /* یا هر رنگ دیگری که برای برجسته‌سازی مناسب می‌دانید */
+            border-right-color: #2196F3; /* تطبیق با :hover */
+        }
 
         .field-label-container {
             display: flex;
@@ -342,15 +347,18 @@
 
             <!-- فیلدها -->
             {% for key, field in column_options.items() %}
-            <div class="field-row">
+            <div class="field-row" id="row_{{ key }}">
                 <div class="field-label-container">
                     <label for="update_{{ key }}" class="field-label">{{ field.display }}:</label>
                     <input type="checkbox" id="update_{{ key }}" name="update_{{ key }}" class="field-checkbox">
+                    <button type="button" class="btn-delete-value" data-column-key="{{ key }}" data-column-display="{{ field.display }}" title="حذف مقدار این ستون برای درب‌های انتخاب شده" style="background:none; border:none; color:red; cursor:pointer; margin-right: 10px; padding: 0 5px; font-size: 0.9em;">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
                 </div>
                 <div class="field-input">
                     {% if field.options and field.options|length > 0 %}
                         <!-- لیست کشویی برای فیلدهای با گزینه‌های از پیش تعریف شده -->
-                        <select id="value_{{ key }}" name="value_{{ key }}">
+                        <select id="value_{{ key }}" name="value_{{ key }}" disabled>
                             <option value="">انتخاب کنید</option>
                             {% for option in field.options %}
                             <option value="{{ option }}">{{ option }}</option>
@@ -358,7 +366,7 @@
                         </select>
                     {% else %}
                         <!-- فیلد متنی برای سایر فیلدها -->
-                        <input type="text" id="value_{{ key }}" name="value_{{ key }}" placeholder="انتخاب کنید">
+                        <input type="text" id="value_{{ key }}" name="value_{{ key }}" placeholder="انتخاب کنید" disabled>
                     {% endif %}
                 </div>
             </div>
@@ -393,6 +401,28 @@
             <div class="modal-footer">
                 <button id="confirm-btn" class="btn btn-success" style="margin-left: 10px;">تأیید و اعمال تغییرات</button>
                 <button id="cancel-btn" class="btn btn-secondary">انصراف</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- مدال تأیید حذف مقدار ستون (جدید) -->
+    <div class="modal" id="deleteColumnValueConfirmModal" style="display: none;">
+        <div class="modal-overlay" onclick="document.getElementById('deleteColumnValueConfirmModal').style.display = 'none';"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="deleteColumnValueModalTitle" style="margin: 0; color: #333;">تأیید حذف مقدار</h3>
+            </div>
+            <div class="modal-body">
+                <p id="deleteColumnValueModalMessage"></p>
+                <p style="color:red; font-weight:bold;">این عمل غیرقابل بازگشت است و باعث می‌شود این ستون دیگر مقداری برای درب‌های انتخاب شده نداشته باشد.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirmDeleteColumnValueBtn" class="btn btn-danger" style="margin-left: 10px;">
+                    <i class="fas fa-trash-alt"></i> بله، حذف کن
+                </button>
+                <button id="cancelDeleteColumnValueBtn" class="btn btn-secondary" onclick="document.getElementById('deleteColumnValueConfirmModal').style.display = 'none';">
+                    انصراف
+                </button>
             </div>
         </div>
     </div>
@@ -565,106 +595,268 @@
             
             // برجسته کردن سطرهای انتخاب شده در بارگذاری صفحه
             highlightSelectedRows();
-        });
-    </script>
+            
+            // --- مدیریت دکمه‌های سطل آشغال با مدال جدید ---
+            document.querySelectorAll('.btn-delete-value').forEach(button => {
+                button.addEventListener('click', function() {
+                    const currentColumnKey = this.dataset.columnKey;
+                    const currentColumnDisplay = this.dataset.columnDisplay;
+                    const doorIdsInput = document.querySelector('input[name="door_ids"]');
 
-    <script>
-    $(document).ready(function() {
-        // اتصال رویداد change به تمام چک‌باکس‌ها
-        $('input[type="checkbox"]').on('change', function() {
-            // نادیده گرفتن چک‌باکس "انتخاب همه"
-            if (this.id === 'select-all') return;
-            
-            var columnKey = $(this).attr('id').replace('update_', '');
-            var isChecked = $(this).prop('checked');
-            var doorIds = '{{ door_ids }}';
-            
-            console.log(`تغییر وضعیت چک‌باکس ${columnKey} به ${isChecked ? 'فعال' : 'غیرفعال'}`);
-            
-            // برجسته کردن سطر
-            var row = $(this).closest('.field-row');
-            if (isChecked) {
-                row.addClass('active');
-            } else {
-                row.removeClass('active');
-            }
-            
-            // ارسال درخواست به سرور برای به‌روزرسانی وضعیت چک‌باکس
-            $.ajax({
-                url: '/project/{{ project.id }}/save_batch_edit_checkbox_state',
-                method: 'POST',
-                data: {
-                    'column_key': columnKey,
-                    'is_checked': isChecked ? '1' : '0',
-                    'door_id': doorIds // فعلاً از همه door_id ها استفاده می‌کنیم
-                },
-                success: function(response) {
-                    if (response.success) {
-                        console.log('وضعیت چک‌باکس با موفقیت ذخیره شد');
-                        console.log('ستون‌های نمایشی جدید:', response.visible_columns);
-                        console.log('ستون‌های انتخاب شده جدید:', response.checked_columns);
-                    } else {
-                        console.error('خطا در ذخیره وضعیت چک‌باکس:', response.error);
-                        alert('خطا در ذخیره وضعیت چک‌باکس: ' + response.error);
-                        
-                        // برگرداندن وضعیت چک‌باکس به حالت قبل در صورت خطا
-                        $(this).prop('checked', !isChecked);
+                    if (!doorIdsInput || !doorIdsInput.value) {
+                        showError("ابتدا باید درب‌هایی برای ویرایش انتخاب شده باشند.");
+                        return;
                     }
-                }.bind(this),
-                error: function(xhr, status, error) {
-                    console.error('خطا در ارسال درخواست:', error);
-                    alert('خطا در ارسال درخواست: ' + error);
-                    
-                    // برگرداندن وضعیت چک‌باکس به حالت قبل در صورت خطا
-                    $(this).prop('checked', !isChecked);
-                }.bind(this)
-            });
-        });
-    });
-    </script>
+                    const doorIds = doorIdsInput.value.split(',');
+                    const numDoors = doorIds.length;
 
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // دریافت وضعیت ستون‌های نمایشی از سرور
-        fetch('/project/{{ project.id }}/get_visible_columns')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const visibleColumns = data.visible_columns;
-                    console.log('ستون‌های نمایشی موجود:', visibleColumns);
+                    // ارجاع به المان‌های مدال جدید
+                    const deleteModal = document.getElementById('deleteColumnValueConfirmModal');
+                    const modalTitle = document.getElementById('deleteColumnValueModalTitle');
+                    const modalMessage = document.getElementById('deleteColumnValueModalMessage');
+                    const confirmDeleteBtn = document.getElementById('confirmDeleteColumnValueBtn');
+                    // دکمه انصراف از طریق onclick در HTML بسته می‌شود
+
+                    // تنظیم محتوای مدال جدید
+                    modalTitle.textContent = `تأیید حذف مقدار ستون «${currentColumnDisplay}»`;
+                    modalMessage.textContent = `آیا مطمئن هستید که می‌خواهید مقادیر ستون «${currentColumnDisplay}» را برای ${numDoors} درب انتخاب شده حذف کنید؟`;
                     
-                    // تنظیم وضعیت اولیه چک‌باکس‌ها
-                    const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-                    checkboxes.forEach(checkbox => {
-                        if (checkbox.id && checkbox.id.startsWith('update_')) {
-                            const columnKey = checkbox.id.replace('update_', '');
-                            
-                            // استثنا: ستون‌های پایه همیشه نمایش داده می‌شوند
-                            const isBasicColumn = ['location', 'width', 'height', 'quantity', 'direction'].includes(columnKey);
-                            
-                            if (!isBasicColumn) {
-                                // اگر ستون در لیست نمایشی نباشد، تیک بزن (منطق معکوس)
-                                const isVisible = visibleColumns.includes(columnKey);
-                                checkbox.checked = !isVisible;
-                                
-                                // برجسته کردن سطر اگر انتخاب شده باشد
-                                const row = checkbox.closest('.field-row');
-                                if (row) {
-                                    if (checkbox.checked) {
-                                        row.classList.add('active');
+                    deleteModal.style.display = 'block';
+
+                    // مدیریت کلیک روی دکمه "بله، حذف کن" مدال جدید
+                    // Event listener یکبار مصرف برای جلوگیری از ثبت چندباره
+                    const handleConfirmDelete = function() {
+                        deleteModal.style.display = 'none'; // بستن مدال
+
+                        fetch(`/project/{{ project.id }}/batch_remove_column_value`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                door_ids: doorIds,
+                                column_key_to_remove: currentColumnKey
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                const successDiv = document.createElement('div');
+                                successDiv.className = 'flash success';
+                                successDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message || 'عملیات با موفقیت انجام شد.'}`;
+                                document.querySelector('.container').insertBefore(successDiv, document.querySelector('.selection-info'));
+                                setTimeout(() => successDiv.remove(), 4000); // زمان بیشتر برای نمایش پیام
+
+                                // به‌روزرسانی UI برای ستون حذف شده
+                                const columnKey = currentColumnKey;
+                                const valueField = document.getElementById(`value_${columnKey}`);
+                                const updateCheckbox = document.getElementById(`update_${columnKey}`);
+                                const fieldRow = updateCheckbox ? updateCheckbox.closest('.field-row') : null;
+
+                                if (valueField) {
+                                    if (valueField.tagName === 'SELECT') {
+                                        valueField.selectedIndex = 0; // انتخاب گزینه پیش‌فرض
                                     } else {
-                                        row.classList.remove('active');
+                                        valueField.value = ''; // خالی کردن فیلد متنی
                                     }
+                                    valueField.disabled = true;
+                                    valueField.style.opacity = '0.5'; // سبک غیرفعال بودن
                                 }
-                                
-                                console.log(`ستون ${columnKey}: نمایش=${isVisible}, تیک=${!isVisible}`);
+                                if (updateCheckbox) {
+                                    updateCheckbox.checked = false;
+                                }
+                                if (fieldRow) {
+                                    fieldRow.classList.remove('active'); // حذف کلاس برجستگی
+                                }
+
+                                // حذف خط ریدایرکت - کاربر در همین صفحه می‌ماند
+                                // window.location.href = `/project/{{ project.id }}/treeview?force_refresh=1&source=batch_delete&t=${new Date().getTime()}`;
+
+                            } else {
+                                showError('خطا در حذف مقادیر ستون «' + currentColumnDisplay + '»: ' + (data.error || 'خطای نامشخص از سرور'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showError('خطای شبکه در هنگام حذف مقادیر. لطفاً کنسول را بررسی کنید.');
+                        })
+                        .finally(() => {
+                            // حذف event listener پس از یکبار اجرا برای جلوگیری از تداخل در آینده
+                            confirmDeleteBtn.removeEventListener('click', handleConfirmDelete);
+                        });
+                    };
+                    
+                    // قبل از افزودن listener جدید، listener قبلی (اگر وجود دارد) را حذف می‌کنیم
+                    // این کار برای جلوگیری از ثبت چندباره listener در صورت کلیک‌های متعدد روی دکمه سطل آشغال است
+                    // اما با once: true این مشکل کمتر پیش می‌آید. 
+                    // راه ساده‌تر: listener را فقط یکبار اضافه کنیم.
+                    // یک راه مطمئن‌تر: clone کردن دکمه و جایگزینی آن برای حذف همه listener های قبلی
+                    const newConfirmDeleteBtn = confirmDeleteBtn.cloneNode(true);
+                    confirmDeleteBtn.parentNode.replaceChild(newConfirmDeleteBtn, confirmDeleteBtn);
+                    newConfirmDeleteBtn.addEventListener('click', handleConfirmDelete);
+
+                });
+            });
+            
+            // --- مدیریت فعال/غیرفعال کردن فیلدهای ورودی توسط تیک‌باکس‌ها ---
+            document.querySelectorAll('input.field-checkbox[id^="update_"]').forEach(checkbox => {
+                // تابع برای اعمال تغییرات
+                function applyCheckboxChange(chk) {
+                    const key = chk.id.replace('update_', '');
+                    const valueField = document.getElementById(`value_${key}`);
+                    const row = chk.closest('.field-row'); // یا document.getElementById(`row_${key}`);
+
+                    if (valueField) {
+                        valueField.disabled = !chk.checked;
+                        valueField.style.opacity = chk.checked ? '1' : '0.5';
+                        if (!chk.checked) {
+                            // اگر تیک برداشته شد، مقدار فیلد ورودی را هم پاک کن (اختیاری، اما معمولاً رفتار خوبی است)
+                            if (valueField.tagName === 'SELECT') {
+                                valueField.selectedIndex = 0; // انتخاب گزینه اول (معمولاً "انتخاب کنید")
+                            } else {
+                                valueField.value = '';
                             }
                         }
-                    });
+                    }
+                    if (row) {
+                        if (chk.checked) {
+                            row.classList.add('active');
+                        } else {
+                            row.classList.remove('active');
+                        }
+                    }
                 }
-            })
-            .catch(error => console.error('خطا در دریافت ستون‌های نمایشی:', error));
-    });
+
+                // اعمال تغییرات در رویداد 'change'
+                checkbox.addEventListener('change', function() {
+                    applyCheckboxChange(this);
+                });
+
+                // اجرای اولیه برای تنظیم وضعیت فیلدها در بارگذاری صفحه
+                // (چون فیلدهای ورودی به طور پیش‌فرض disabled هستند و چک‌باکس‌ها تیک نخورده‌اند)
+                applyCheckboxChange(checkbox); 
+            });
+        });
+    </script>
+
+    <script>
+    // $(document).ready(function() {
+    //     // اتصال رویداد change به تمام چک‌باکس‌ها
+    //     $('input[type="checkbox"]').on('change', function() {
+    //         // نادیده گرفتن چک‌باکس "انتخاب همه"
+    //         if (this.id === 'select-all') return;
+    //         
+    //         var columnKey = $(this).attr('id').replace('update_', '');
+    //         var isChecked = $(this).prop('checked');
+    //         var doorIds = '{{ door_ids }}';
+    //         
+    //         console.log(`تغییر وضعیت چک‌باکس ${columnKey} به ${isChecked ? 'فعال' : 'غیرفعال'}`);
+    //         
+    //         // برجسته کردن سطر
+    //         var row = $(this).closest('.field-row');
+    //         if (isChecked) {
+    //             row.addClass('active');
+    //         } else {
+    //             row.removeClass('active');
+    //         }
+    //         
+    //         // ارسال درخواست به سرور برای به‌روزرسانی وضعیت چک‌باکس
+    //         $.ajax({
+    //             url: '/project/{{ project.id }}/save_batch_edit_checkbox_state',
+    //             method: 'POST',
+    //             data: {
+    //                 'column_key': columnKey,
+    //                 'is_checked': isChecked ? '1' : '0',
+    //                 'door_id': doorIds // فعلاً از همه door_id ها استفاده می‌کنیم
+    //             },
+    //             success: function(response) {
+    //                 if (response.success) {
+    //                     console.log('وضعیت چک‌باکس با موفقیت ذخیره شد');
+    //                     console.log('ستون‌های نمایشی جدید:', response.visible_columns);
+    //                     console.log('ستون‌های انتخاب شده جدید:', response.checked_columns);
+    //                 } else {
+    //                     console.error('خطا در ذخیره وضعیت چک‌باکس:', response.error);
+    //                     alert('خطا در ذخیره وضعیت چک‌باکس: ' + response.error);
+    //                     
+    //                     // برگرداندن وضعیت چک‌باکس به حالت قبل در صورت خطا
+    //                     $(this).prop('checked', !isChecked);
+    //                 }
+    //             }.bind(this),
+    //             error: function(xhr, status, error) {
+    //                 console.error('خطا در ارسال درخواست:', error);
+    //                 alert('خطا در ارسال درخواست: ' + error);
+    //                 
+    //                 // برگرداندن وضعیت چک‌باکس به حالت قبل در صورت خطا
+    //                 $(this).prop('checked', !isChecked);
+    //             }.bind(this)
+    //         });
+    //     });
+    // });
+    </script>
+
+    <script>
+    // document.addEventListener('DOMContentLoaded', function() {
+    //     // دریافت وضعیت ستون‌های نمایشی از سرور
+    //     fetch('/project/{{ project.id }}/get_visible_columns')
+    //         .then(response => response.json())
+    //         .then(data => {
+    //             if (data.success) {
+    //                 const visibleColumns = data.visible_columns;
+    //                 console.log('ستون‌های نمایشی موجود:', visibleColumns);
+    //                 
+    //                 // تنظیم وضعیت اولیه چک‌باکس‌ها
+    //                 const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    //                 checkboxes.forEach(checkbox => {
+    //                     if (checkbox.id && checkbox.id.startsWith('update_')) {
+    //                         const columnKey = checkbox.id.replace('update_', '');
+    //                         
+    //                         // استثنا: ستون‌های پایه همیشه نمایش داده می‌شوند
+    //                         const isBasicColumn = ['location', 'width', 'height', 'quantity', 'direction'].includes(columnKey);
+    //                         
+    //                         if (!isBasicColumn) {
+    //                             // اگر ستون در لیست نمایشی نباشد، تیک بزن (منطق معکوس)
+    //                             const isVisible = visibleColumns.includes(columnKey);
+    //                             checkbox.checked = !isVisible;
+    //                             
+    //                             // برجسته کردن سطر اگر انتخاب شده باشد
+    //                             const row = checkbox.closest('.field-row');
+    //                             if (row) {
+    //                                 if (checkbox.checked) {
+    //                                     row.classList.add('active');
+    //                                 } else {
+    //                                     row.classList.remove('active');
+    //                                 }
+    //                             }
+    //                             
+    //                             // غیرفعال کردن فیلدهای ورودی برای ستون‌های بدون تیک
+    //                             const inputField = document.getElementById(`value_${columnKey}`);
+    //                             if (inputField) {
+    //                                 inputField.disabled = !checkbox.checked;
+    //                                 inputField.style.opacity = checkbox.checked ? '1' : '0.5';
+    //                             }
+    //                             
+    //                             console.log(`ستون ${columnKey}: نمایش=${isVisible}, تیک=${!isVisible}, ورودی=${checkbox.checked ? 'فعال' : 'غیرفعال'}`);
+    //                         }
+    //                     }
+    //                 });
+    //                 
+    //                 // اضافه کردن رویداد change به چک‌باکس‌ها برای فعال/غیرفعال کردن فیلدهای ورودی
+    //                 checkboxes.forEach(checkbox => {
+    //                     if (checkbox.id && checkbox.id.startsWith('update_')) {
+    //                         checkbox.addEventListener('change', function() {
+    //                             const columnKey = this.id.replace('update_', '');
+    //                             const inputField = document.getElementById(`value_${columnKey}`);
+    //                             if (inputField) {
+    //                                 inputField.disabled = !this.checked;
+    //                                 inputField.style.opacity = this.checked ? '1' : '0.5';
+    //                             }
+    //                         });
+    //                     }
+    //                 });
+    //             }
+    //         })
+    //         .catch(error => console.error('خطا در دریافت ستون‌های نمایشی:', error));
+    // });
     </script>
 </body>
 

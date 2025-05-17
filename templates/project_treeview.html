@@ -598,7 +598,14 @@
                             <!-- مقادیر ستون‌های سفارشی -->
                             {% for column in active_custom_columns %}
                                 {% if column.key in visible_columns %}
-                                <td>{{ door.get(column.key, "") }}</td>
+                                <td>
+                                    {% set cell_value = door.get(column.key, "") %}
+                                    {% if cell_value is none or cell_value == "" %}
+                                        -
+                                    {% else %}
+                                        {{ cell_value }}
+                                    {% endif %}
+                                </td>
                                 {% endif %}
                             {% endfor %}
                         </tr>
@@ -671,11 +678,24 @@
                 document.getElementById('search-input').addEventListener('input', filterTable);
                 document.getElementById('filter-column').addEventListener('change', filterTable);
                 
+                // بررسی پارامترهای URL برای تازه‌سازی کامل
+                const urlParams = new URLSearchParams(window.location.search);
+                const forceRefresh = urlParams.get('force_refresh') === '1';
+                const refreshColumns = urlParams.get('refresh_columns') === '1';
+                
+                // اگر پارامتر force_refresh فعال است، صفحه را کاملاً تازه کنیم
+                if (forceRefresh) {
+                    console.log('تازه‌سازی کامل صفحه به دلیل force_refresh=1');
+                    refreshTableData(refreshColumns);
+                }
+                
                 // اگر URL حاوی پارامتر زمانی است، آن را از URL پاک کنیم
                 if (window.location.href.includes('?t=') || window.location.href.includes('&t=')) {
                     let cleanUrl = window.location.href.split('?')[0];
                     let params = new URLSearchParams(window.location.search);
                     params.delete('t');
+                    params.delete('force_refresh');
+                    params.delete('refresh_columns');
                     
                     if (params.toString()) {
                         cleanUrl += '?' + params.toString();
@@ -768,29 +788,44 @@
                 document.getElementById('selected-count').textContent = selectedBoxes.length;
             }
 
-            // اضافه کردن فرش به انتهای URL برای اطمینان از عدم کش
-            function generateCacheBuster() {
-                return Math.floor(Date.now() / 1000);
+            // تابع برای تازه‌سازی داده‌های جدول
+            function refreshTableData(refreshColumns) {
+                console.log("شروع تازه‌سازی داده‌های جدول");
+                
+                // دریافت وضعیت ستون‌های نمایشی از سرور
+                fetch('/project/{{ project.id }}/get_visible_columns')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log("ستون‌های قابل نمایش:", data.visible_columns);
+                        
+                        // به‌روزرسانی سرستون‌های جدول
+                        if (refreshColumns) {
+                            updateTableHeaders(data.visible_columns);
+                        }
+                        
+                        // تازه‌سازی داده‌های جدول (در صورت نیاز)
+                        updateTableRows(data.visible_columns);
+                    }
+                })
+                .catch(error => console.error("خطا در دریافت ستون‌های قابل نمایش:", error));
             }
-
-            // توابع برای عملیات‌های دکمه‌ها
-            function batchEdit() {
-                const selectedBoxes = document.querySelectorAll('.door-select:checked');
-                if (selectedBoxes.length === 0) {
-                    alert('لطفاً حداقل یک درب را انتخاب کنید.');
-                    return;
-                }
-
-                // جمع‌آوری شناسه‌های درب‌های انتخاب شده
-                const doorIds = Array.from(selectedBoxes).map(box => box.getAttribute('data-id')).join(',');
-
-                // هدایت به صفحه ویرایش گروهی با ارسال شناسه‌های درب‌ها
-                window.location.href = `/project/{{ project.id }}/batch_edit?door_ids=${doorIds}`;
+            
+            // به‌روزرسانی سرستون‌های جدول بر اساس ستون‌های قابل نمایش
+            function updateTableHeaders(visibleColumns) {
+                console.log("به‌روزرسانی سرستون‌های جدول");
+                // هیچ کاری انجام نده، چون هدرها در سمت سرور تولید می‌شوند
+                // در صورت نیاز به به‌روزرسانی پویا، می‌توان کد اینجا اضافه کرد
             }
-
-            function calculateCutting() {
-                // به جای نمایش آلرت، کاربر را به صفحه محاسبه برش هدایت کنید
-                window.location.href = `/project/{{ project.id }}/calculate_cutting`;
+            
+            // به‌روزرسانی سطرهای جدول بر اساس ستون‌های قابل نمایش
+            function updateTableRows(visibleColumns) {
+                console.log("به‌روزرسانی سطرهای جدول");
+                // در پیاده‌سازی فعلی، نیازی به به‌روزرسانی پویا نیست، چون داده‌ها در سمت سرور تولید می‌شوند
+                // در صورت نیاز به به‌روزرسانی پویا، می‌توان کد اینجا اضافه کرد
+                
+                // بازخوانی کامل صفحه
+                location.reload();
             }
 
             // تغییر رنگ سطر
@@ -1084,24 +1119,33 @@
 
         function updateUI(checkedColumns, visibleColumns) {
             // به‌روزرسانی وضعیت نمایش ستون‌ها
+            // ستون‌های پایه که همیشه باید نمایش داده شوند
+            const basicColumns = ["location", "width", "height", "quantity", "direction"];
+            
+            // ستون‌های سفارشی را بر اساس وضعیت نمایش مدیریت می‌کنیم
             // ابتدا همه ستون‌های سفارشی را مخفی می‌کنیم
             $('.column-custom').hide();
             
             // سپس فقط ستون‌هایی را که در لیست visible_columns هستند نمایش می‌دهیم
             if (visibleColumns) {
                 visibleColumns.forEach(function(columnKey) {
-                    $('.column-' + columnKey).show();
+                    // بررسی می‌کنیم که آیا ستون پایه است یا خیر
+                    if (!basicColumns.includes(columnKey)) {
+                        $('.column-' + columnKey).show();
+                        console.log("نمایش ستون:", columnKey);
+                    }
                 });
             }
             
             // به‌روزرسانی وضعیت چک‌باکس‌ها
-            if (checkedColumns) {
-                // ابتدا همه چک‌باکس‌ها را غیرفعال می‌کنیم
-                $('input[data-column]').prop('checked', false);
-                
-                // سپس چک‌باکس‌هایی که باید فعال باشند را فعال می‌کنیم
+            // ابتدا همه چک‌باکس‌ها را غیرفعال می‌کنیم
+            $('input[data-column]').prop('checked', false);
+            
+            // سپس چک‌باکس‌هایی که باید فعال باشند را فعال می‌کنیم
+            if (checkedColumns && checkedColumns.length > 0) {
                 checkedColumns.forEach(function(columnKey) {
                     $('input[data-column="' + columnKey + '"]').prop('checked', true);
+                    console.log("فعال کردن چک‌باکس:", columnKey);
                 });
             }
         }
@@ -1119,6 +1163,28 @@
                 }
             });
         });
+    </script>
+    
+    <!-- توابع برای عملیات‌های دکمه‌ها -->
+    <script>
+        function batchEdit() {
+            const selectedBoxes = document.querySelectorAll('.door-select:checked');
+            if (selectedBoxes.length === 0) {
+                alert('لطفاً حداقل یک درب را انتخاب کنید.');
+                return;
+            }
+            
+            // جمع‌آوری شناسه‌های درب‌های انتخاب شده
+            const doorIds = Array.from(selectedBoxes).map(box => box.getAttribute('data-id')).join(',');
+            
+            // هدایت به صفحه ویرایش گروهی با ارسال شناسه‌های درب‌ها
+            window.location.href = `/project/{{ project.id }}/batch_edit?door_ids=${doorIds}`;
+        }
+        
+        function calculateCutting() {
+            // هدایت به صفحه محاسبه برش
+            window.location.href = `/project/{{ project.id }}/calculate_cutting`;
+        }
     </script>
 </body>
 
