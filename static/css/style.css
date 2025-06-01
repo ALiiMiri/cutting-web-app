@@ -1,0 +1,306 @@
+/* فایل CSS برای برنامه محاسبه‌گر قیمت */
+
+/* فونت فارسی */
+@import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css');
+
+* {
+    font-family: 'Vazirmatn', sans-serif;
+}
+
+body {
+    direction: rtl;
+    text-align: right;
+    background-color: #f8f9fa;
+    padding-top: 20px;
+}
+
+.container {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+/* استایل‌های مودال */
+.modal-content {
+    direction: rtl;
+    text-align: right;
+}
+
+.modal-header {
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 15px;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+.modal-footer {
+    border-top: 1px solid #dee2e6;
+    padding-top: 15px;
+}
+
+/* استایل‌های جدول */
+.table {
+    font-size: 0.9em;
+    margin-bottom: 0;
+}
+
+.table th,
+.table td {
+    vertical-align: middle;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+}
+
+.table thead th {
+    background-color: #007bff;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+}
+
+.table-bordered th,
+.table-bordered td {
+    border: 1px solid #dee2e6;
+}
+
+.table-sm th,
+.table-sm td {
+    padding: 5px 8px;
+}
+
+/* رنگ‌های مخصوص */
+.price-cell {
+    font-weight: bold;
+    color: #28a745;
+    text-align: center;
+}
+
+.badge {
+    font-size: 0.8em;
+    padding: 4px 8px;
+}
+
+.bg-success {
+    background-color: #28a745 !important;
+}
+
+/* دکمه‌ها */
+.btn {
+    border-radius: 5px;
+    padding: 6px 12px;
+    margin: 2px;
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 0.875em;
+}
+
+.btn-info {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    border-color: #007bff;
+    color: white;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+}
+
+/* استایل‌های چک باکس */
+.form-check-input {
+    margin-top: 0.25rem;
+}
+
+.checkbox-column {
+    width: 40px;
+    text-align: center;
+    padding: 8px 4px;
+}
+
+.actions-column {
+    width: 120px;
+    text-align: center;
+    padding: 8px 4px;
+}
+
+/* عملیات گروهی */
+.bulk-actions {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+/* پیام‌های Flash */
+.alert {
+    border-radius: 5px;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.alert-error, .alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffeaa7;
+    color: #856404;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+
+/* ناوبری */
+.nav-buttons {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #dee2e6;
+}
+
+.nav-buttons .btn {
+    margin: 0 10px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+        margin: 10px;
+    }
+    
+    .table {
+        font-size: 0.8em;
+    }
+    
+    .btn-sm {
+        padding: 2px 6px;
+        font-size: 0.75em;
+    }
+    
+    .nav-buttons .btn {
+        margin: 5px;
+        display: block;
+        width: 100%;
+    }
+}
+
+/* اصلاح نمایش متن فارسی */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: bold;
+    color: #333;
+}
+
+.fw-bold {
+    font-weight: bold;
+}
+
+/* انیمیشن‌ها */
+.table-hover tbody tr:hover {
+    background-color: rgba(0,0,0,.075);
+}
+
+.btn {
+    transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* مخفی کردن دکمه bulk delete به صورت اولیه */
+#bulkDeleteBtn {
+    display: none;
+}
+
+/* استایل برای نمایش بهتر جزئیات */
+.list-unstyled {
+    margin-bottom: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.list-unstyled li {
+    margin-bottom: 8px;
+    padding: 4px 0;
+}
+
+/* بهبود نمایش مودال */
+.modal-lg {
+    max-width: 900px;
+}
+
+/* اصلاح مشکل direction در Bootstrap */
+.modal-header .btn-close {
+    margin: 0;
+    padding: 0.5rem 0.5rem;
+}
+
+/* نمایش بهتر اعداد و قیمت‌ها */
+.text-center {
+    text-align: center !important;
+}
+
+.text-end {
+    text-align: left !important;
+}
+
+.text-start {
+    text-align: right !important;
+}
+
+/* رنگ‌بندی بهتر */
+.table-light {
+    background-color: #f8f9fa;
+}
+
+.table-primary {
+    background-color: #cfe2ff;
+}
+
+.table-primary th {
+    background-color: #0d6efd;
+    color: white;
+} 

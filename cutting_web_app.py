@@ -1,5 +1,5 @@
 import sqlite3
-from flask import Flask, render_template, request, redirect, url_for, flash, session, render_template_string
+from flask import Flask, render_template, request, redirect, url_for, flash, session, render_template_string, get_flashed_messages
 import os
 import traceback  # برای نمایش خطای کامل
 from flask import send_file, jsonify
@@ -11,11 +11,20 @@ from weasyprint import HTML, CSS
 from datetime import datetime, date
 import jdatetime
 from inventory_init import initialize_inventory_database
+from math import ceil # Ensure ceil is imported
+import json
+from collections import defaultdict # Add this import
 
 # --- تنظیمات اولیه ---
 DB_NAME = "cutting_web_data.db"
 
 # --- توابع کار با دیتابیس (مستقیم در همین فایل) ---
+
+def get_db_connection():
+    """ایجاد و بازگرداندن یک اتصال به دیتابیس"""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row  # برای دسترسی به ستون‌ها با نام
+    return conn
 
 # --- تابع کمکی برای بررسی وجود جدول ---
 
@@ -119,211 +128,156 @@ def add_default_options_if_needed(cursor):
 
 
 def initialize_database():
-    """جدول پروژه‌ها، درب‌ها، ستون‌های سفارشی و گزینه‌ها را اگر وجود ندارند، با ساختار جدید می‌سازد"""
-    conn = None
-    try:
-        print(f"DEBUG: تلاش برای اتصال به دیتابیس '{DB_NAME}' (initialize_database)")
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        print("DEBUG: ایجاد جدول 'projects' (اگر وجود نداشته باشد)...")
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_name TEXT,
-                customer_name TEXT,
-                order_ref TEXT,
-                date_shamsi TEXT
-            )
-        """
+    """ایجاد جداول اولیه اگر وجود نداشته باشند"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # جدول پروژه‌ها
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_name TEXT NOT NULL,
+            order_ref TEXT NOT NULL,
+            date_shamsi TEXT DEFAULT ''
         )
-
-        print("DEBUG: ایجاد جدول 'doors' (اگر وجود نداشته باشد)...")
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS doors (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
-                location TEXT,
-                width REAL,
-                height REAL,
-                quantity INTEGER,
-                direction TEXT,
-                row_color_tag TEXT DEFAULT 'white',
-                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
-            )
-        """
+    """)
+    
+    # جدول درب‌ها
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS doors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER,
+            location TEXT,
+            width REAL,
+            height REAL,
+            quantity INTEGER,
+            direction TEXT DEFAULT 'چپ',
+            row_color_tag TEXT DEFAULT 'white',
+            FOREIGN KEY (project_id) REFERENCES projects (id)
         )
-
-        print("DEBUG: ایجاد جدول 'custom_columns' (اگر وجود نداشته باشد)...")
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS custom_columns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                column_name TEXT UNIQUE NOT NULL,
-                display_name TEXT NOT NULL,
-                is_active INTEGER DEFAULT 1,
-                column_type TEXT DEFAULT 'text' CHECK(column_type IN ('text', 'dropdown')) 
-            )
-        """
+    """)
+    
+    # جدول ستون‌های سفارشی
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS custom_columns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            column_name TEXT UNIQUE,
+            display_name TEXT,
+            column_type TEXT DEFAULT 'text',
+            is_active BOOLEAN DEFAULT 1
         )
-
-        # اضافه کردن ستون column_type به جدول موجود اگر وجود نداشته باشد
-        try:
-            cursor.execute("SELECT column_type FROM custom_columns LIMIT 1")
-        except sqlite3.OperationalError:
-            print("DEBUG: اضافه کردن ستون 'column_type' به جدول 'custom_columns'...")
-            # ابتدا ستون را بدون CHECK constraint اضافه می‌کنیم، سپس مقادیر پیش‌فرض را ست می‌کنیم
-            # و در نهایت اگر SQLite از ALTER TABLE ... ADD CONSTRAINT پشتیبانی می‌کرد، آن را اضافه می‌کردیم.
-            # چون SQLite محدودیت‌هایی در ALTER TABLE دارد، فعلاً فقط ستون با مقدار پیش‌فرض را اضافه می‌کنیم.
-            # CHECK constraint در CREATE TABLE جدید اعمال خواهد شد.
-            # برای جداول موجود، باید مطمئن شویم داده‌های نامعتبر وارد نمی‌شوند از طریق منطق برنامه.
-            cursor.execute("ALTER TABLE custom_columns ADD COLUMN column_type TEXT DEFAULT 'text'")
-            # برای ستون‌های پایه‌ای که از نوع دراپ‌داون هستند، نوعشان را آپدیت می‌کنیم
-            base_dropdown_columns = ["rang", "noe_profile", "vaziat", "lola", "ghofl", "accessory", "kolaft", "dastgire"]
-            for col_key in base_dropdown_columns:
-                cursor.execute("UPDATE custom_columns SET column_type = 'dropdown' WHERE column_name = ? AND column_type = 'text'", (col_key,))
-            print("DEBUG: ستون 'column_type' با مقدار پیش‌فرض 'text' اضافه شد و ستون‌های پایه دراپ‌داون به‌روز شدند.")
-
-        print("DEBUG: ایجاد جدول 'custom_column_options' (اگر وجود نداشته باشد)...")
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS custom_column_options (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                column_id INTEGER NOT NULL,
-                option_value TEXT NOT NULL,
-                FOREIGN KEY (column_id) REFERENCES custom_columns (id) ON DELETE CASCADE
-            )
-        """
+    """)
+    
+    # جدول گزینه‌های ستون‌های سفارشی
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS custom_column_options (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            column_id INTEGER,
+            option_value TEXT,
+            FOREIGN KEY (column_id) REFERENCES custom_columns (id)
         )
-
-        print("DEBUG: ایجاد جدول 'door_custom_values' (اگر وجود نداشته باشد)...")
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS door_custom_values (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                door_id INTEGER NOT NULL,
-                column_id INTEGER NOT NULL,
-                value TEXT,
-                FOREIGN KEY (door_id) REFERENCES doors (id) ON DELETE CASCADE,
-                FOREIGN KEY (column_id) REFERENCES custom_columns (id) ON DELETE CASCADE
-            )
-        """
+    """)
+    
+    # جدول مقادیر سفارشی درب‌ها
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS door_custom_values (
+            door_id INTEGER,
+            column_id INTEGER,
+            value TEXT,
+            PRIMARY KEY (door_id, column_id),
+            FOREIGN KEY (door_id) REFERENCES doors (id),
+            FOREIGN KEY (column_id) REFERENCES custom_columns (id)
         )
-        
-        # اضافه کردن ستون تاریخ به جدول projects اگر وجود نداشته باشد
-        try:
-            cursor.execute("SELECT date_shamsi FROM projects LIMIT 1")
-        except sqlite3.OperationalError:
-            print("DEBUG: اضافه کردن ستون 'date_shamsi' به جدول 'projects'...")
-            cursor.execute("ALTER TABLE projects ADD COLUMN date_shamsi TEXT")
-        
-        # اضافه کردن جداول سیستم انبارداری
-        print("DEBUG: ایجاد جداول سیستم انبارداری...")
-        
-        # جدول انواع پروفیل
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS profile_types (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,               -- نام نوع پروفیل
-                description TEXT,                        -- توضیحات
-                default_length INTEGER DEFAULT 600,      -- طول پیش‌فرض شاخه به سانتی‌متر
-                weight_per_meter REAL DEFAULT 1.9,       -- وزن هر متر به کیلوگرم
-                color TEXT,                              -- رنگ پروفیل
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+    """)
 
-        # جدول موجودی انبار (شاخه‌های کامل)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inventory_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_type_id INTEGER NOT NULL,        -- نوع پروفیل
-                quantity INTEGER NOT NULL DEFAULT 0,     -- تعداد شاخه‌های موجود
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE
-            )
-        """)
+    # جدول ستون‌های قابل نمایش در هر پروژه
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS project_visible_columns (
+            project_id INTEGER,
+            column_key TEXT,
+            is_visible BOOLEAN DEFAULT 1,
+            PRIMARY KEY (project_id, column_key),
+            FOREIGN KEY (project_id) REFERENCES projects (id)
+        )
+    """)
 
-        # جدول شاخه‌های برش خورده (غیر کامل)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inventory_pieces (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_type_id INTEGER NOT NULL,       -- نوع پروفیل
-                length REAL NOT NULL,                   -- طول شاخه به سانتی‌متر
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE
-            )
-        """)
+    # جدول حالت چک‌باکس‌های ویرایش دسته‌ای (جداگانه برای هر پروژه)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS batch_edit_checkbox_state (
+            project_id INTEGER,
+            column_key TEXT,
+            is_checked BOOLEAN DEFAULT 0,
+            PRIMARY KEY (project_id, column_key),
+            FOREIGN KEY (project_id) REFERENCES projects (id)
+        )
+    """)
 
-        # جدول لاگ تغییرات انبار
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS inventory_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                profile_type_id INTEGER NOT NULL,        -- نوع پروفیل
-                change_type TEXT NOT NULL,               -- نوع تغییر: add, remove, cut
-                quantity INTEGER,                        -- تعداد شاخه‌های اضافه/کم شده (برای شاخه‌های کامل)
-                length REAL,                             -- طول (برای شاخه‌های برش خورده)
-                project_id INTEGER,                      -- شناسه پروژه مرتبط (اگر موجود باشد)
-                description TEXT,                        -- توضیحات بیشتر
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE,
-                FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
-            )
-        """)
+    # جدول جدید برای ذخیره قیمت‌دهی‌ها
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS saved_quotes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_name TEXT,
+            customer_mobile TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            input_width REAL,
+            input_height REAL,
+            profile_type TEXT,
+            aluminum_color TEXT,
+            door_material TEXT,
+            paint_condition TEXT,
+            paint_brand TEXT,
+            selections_details TEXT, -- JSON string of component selections and percentages
+            final_calculated_price REAL,
+            notes TEXT DEFAULT '',
+            shamsi_order_date TEXT DEFAULT '' -- ستون جدید برای تاریخ شمسی
+        )
+    """)
+    
+    # جدول تنظیمات قیمت پایه
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS price_settings (
+            key TEXT PRIMARY KEY,
+            value REAL
+        )
+    """)
 
-        # جدول تنظیمات محاسبه برش
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cutting_settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,              -- نام تنظیم
-                value TEXT,                             -- مقدار تنظیم
-                description TEXT                        -- توضیحات
-            )
-        """)
-
-        # داده‌های پیش‌فرض برای تنظیمات
-        cursor.execute("""
-            INSERT OR IGNORE INTO cutting_settings (name, value, description) 
-            VALUES 
-                ('waste_threshold', '70', 'آستانه اندازه ضایعات کوچک (سانتی‌متر)'),
-                ('use_inventory', 'true', 'استفاده از سیستم انبار در محاسبات'),
-                ('prefer_pieces', 'true', 'اولویت استفاده از شاخه‌های نیمه بر کامل')
-        """)
-
-        # داده‌های پیش‌فرض برای انواع پروفیل
-        cursor.execute("""
-            INSERT OR IGNORE INTO profile_types (name, description, default_length, weight_per_meter, color) 
-            VALUES 
-                ('فریم لس آلومینیومی - سفید', 'پروفیل استاندارد فریم لس رنگ سفید', 600, 1.9, 'سفید'),
-                ('فریم لس آلومینیومی - آنادایز', 'پروفیل استاندارد فریم لس رنگ آنادایز', 600, 1.9, 'آنادایز'),
-                ('فریم قدیمی - سفید', 'پروفیل فریم قدیمی رنگ سفید', 600, 2.1, 'سفید'),
-                ('فریم قدیمی - آنادایز', 'پروفیل فریم قدیمی رنگ آنادایز', 600, 2.1, 'آنادایز'),
-                ('داخل چوب دار - سفید', 'پروفیل داخل چوب دار رنگ سفید', 600, 2.2, 'سفید'),
-                ('داخل چوب دار - آنادایز', 'پروفیل داخل چوب دار رنگ آنادایز', 600, 2.2, 'آنادایز')
-        """)
-        
-        # اضافه کردن این خط در انتهای تابع قبل از conn.commit()
-        ensure_base_columns_exist(cursor)
-        
-        # مطمئن می‌شویم که ستون‌های پایه دراپ‌داون به درستی نوعشان تنظیم شده باشد
-        base_dropdown_columns = ["rang", "noe_profile", "vaziat", "lola", "ghofl", "accessory", "kolaft", "dastgire"]
-        for col_key in base_dropdown_columns:
-            cursor.execute("UPDATE custom_columns SET column_type = 'dropdown' WHERE column_name = ? AND column_type = 'text'", (col_key,))
-        print("DEBUG: اطمینان از تنظیم صحیح نوع ستون‌های پایه دراپ‌داون پس از ensure_base_columns_exist")
-        
-        # افزودن گزینه‌های پیش‌فرض برای ستون‌های دراپ‌داون
-        add_default_options_if_needed(cursor)
-
-        conn.commit()
-        print("DEBUG: تغییرات سایت به دیتابیس با موفقیت Commit شد.")
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در initialize_database: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
+    # بررسی و مقداردهی اولیه جدول price_settings اگر خالی باشد
+    cursor.execute("SELECT COUNT(*) FROM price_settings")
+    if cursor.fetchone()[0] == 0:
+        default_price_settings = {
+            "فریم_لس_قدیمی": 1.7,
+            "فریم_لس_قالب_جدید": 1.9,
+            "توچوب_دار": 1.5,
+            "دور_آلومینیوم": 1.5,
+            "لاستیک": 98000.0,
+            "بست_نصب": 600000.0,
+            "چهارچوب_فریم_لس": 20000000.0,
+            "داخل_چوب": 40000000.0,
+            "دور_آلومینیوم_ماشین": 50000000.0,
+            "خام": 3450000.0,
+            "آنادایز": 3950000.0,
+            "سفید": 3750000.0, # مقدار پیش فرض برای رنگی/سفید
+            "پلای_وود": 19000000.0,
+            "تا_260": 121000000.0,
+            "261_تا_320": 133100000.0,
+            "321_تا_360": 145200000.0,
+            "بیش_از_360": 145200000.0,
+            "رنگ_نهایی_خارجی": 27000000.0,
+            "رنگ_نهایی_ایرانی": 20000000.0,
+            "زیر_سازی_خارجی": 22000000.0,
+            "زیر_سازی_ایرانی": 15000000.0,
+            "کد_رنگ_خارجی": 33000000.0,
+            "کد_رنگ_ایرانی": 25000000.0,
+            "لولا": 18000000.0,
+            "قفل": 14000000.0,
+            "سیلندر": 6800000.0
+        }
+        for key, value in default_price_settings.items():
+            cursor.execute("INSERT INTO price_settings (key, value) VALUES (?, ?)", (key, value))
+        print("DEBUG: جدول price_settings با مقادیر پیش فرض مقداردهی شد.")
+    
+    conn.commit() # این commit تمام تغییرات initialize_database را ذخیره می‌کند
+    conn.close() # این close اتصال را در انتهای تابع می‌بندد
 
 
 def ensure_base_columns_exist(cursor):
@@ -2939,6 +2893,1007 @@ def delete_column_option_api(option_id):
         print(f"Error deleting option {option_id}: {str(e)}")
         traceback.print_exc()
         return jsonify({"success": False, "error": f"خطای سرور: {str(e)}"}), 500
+
+def update_custom_column_option(option_id, new_value):
+    """ویرایش متن یک گزینه از ستون سفارشی"""
+    conn = None
+    success = False
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE custom_column_options SET option_value = ? WHERE id = ?",
+            (new_value, option_id)
+        )
+        conn.commit()
+        success = cursor.rowcount > 0
+    except sqlite3.Error as e:
+        print(f"!!!!!! خطا در update_custom_column_option: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+    return success
+
+@app.route("/api/custom_columns/options/<int:option_id>/edit", methods=["POST"])
+def edit_column_option_api(option_id):
+    """ویرایش متن یک گزینه از ستون دراپ‌داون براساس شناسه گزینه"""
+    try:
+        # بررسی و دریافت داده‌های ارسالی
+        data = request.get_json()
+        if not data or 'new_value' not in data:
+            return jsonify({"success": False, "error": "مقدار جدید گزینه ارسال نشده است"}), 400
+        
+        new_value = data['new_value']
+        if not new_value.strip():
+            return jsonify({"success": False, "error": "مقدار گزینه نمی‌تواند خالی باشد"}), 400
+        
+        # بررسی وجود گزینه قبل از ویرایش
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT column_id FROM custom_column_options WHERE id = ?", (option_id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({"success": False, "error": "گزینه مورد نظر یافت نشد"}), 404
+        
+        column_id = result[0]
+        conn.close()
+        
+        # ویرایش گزینه با استفاده از تابع موجود
+        success = update_custom_column_option(option_id, new_value)
+        
+        if success:
+            return jsonify({
+                "success": True, 
+                "message": "گزینه با موفقیت ویرایش شد", 
+                "updated_option": {"id": option_id, "value": new_value},
+                "column_id": column_id
+            })
+        else:
+            return jsonify({"success": False, "error": "خطا در ویرایش گزینه"}), 500
+            
+    except Exception as e:
+        print(f"Error editing option {option_id}: {str(e)}")
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"خطای سرور: {str(e)}"}), 500
+
+
+# --- Price Calculator Constants ---
+قیمت_انواع_پروفیل = {
+    "فریم لس قدیمی": 1.7,
+    "فریم لس قالب جدید": 1.9,
+    "توچوب دار": 1.5,
+    "دور آلومینیوم": 1.5,
+}
+
+قیمت_ملزومات_نصب = {
+    "لاستیک": 98000,
+    "بست نصب": 600000,
+}
+
+قیمت_اجرت_ماشین_کاری = {
+    "چهارچوب فریم لس": 20000000,
+    "داخل چوب": 40000000,
+    "دور آلومینیوم": 50000000,
+}
+
+قیمت_رنگ_آلومینیوم_جدول = {
+    "خام": 3450000,
+    "آنادایز": 3950000,
+    "رنگی": 3750000,
+}
+
+قیمت_جنس_درب = {
+    "ام دی اف": 0,
+    "پلای وود": 19000000,
+}
+
+قیمت_پایه_درب_خام_بر_اساس_ارتفاع = {
+    "تا 260 سانتی متر": 121000000,
+    "261 تا 320 سانتی متر": 133100000,
+    "321 تا 360 سانتی متر": 145200000,
+    "بیش از 360 سانتی متر": 145200000,
+}
+
+قیمت_خدمات_رنگ = {
+    ("رنگ نهایی", "خارجی"): 27000000,
+    ("رنگ نهایی", "ایرانی"): 20000000,
+    ("زیر سازی", "خارجی"): 22000000,
+    ("زیر سازی", "ایرانی"): 15000000,
+    ("کد رنگ", "خارجی"): 33000000,
+    ("کد رنگ", "ایرانی"): 25000000,
+}
+
+قیمت_یراق_آلات = {
+    "لولا": 18000000,
+    "قفل": 14000000,
+    "سیلندر": 6800000,
+}
+
+def get_قیمت_پایه_درب_خام(height_cm):
+    if height_cm <= 260:
+        return قیمت_پایه_درب_خام_بر_اساس_ارتفاع["تا 260 سانتی متر"]
+    elif height_cm <= 320:
+        return قیمت_پایه_درب_خام_بر_اساس_ارتفاع["261 تا 320 سانتی متر"]
+    elif height_cm <= 360:
+        return قیمت_پایه_درب_خام_بر_اساس_ارتفاع["321 تا 360 سانتی متر"]
+    else:
+        return قیمت_پایه_درب_خام_بر_اساس_ارتفاع["بیش از 360 سانتی متر"]
+
+def format_price(price):
+    """Format price with thousand separators"""
+    return "{:,}".format(int(price))
+
+@app.route("/price_calculator", methods=["GET", "POST"])
+def price_calculator():
+    """صفحه محاسبه قیمت درب"""
+    try:
+        # دریافت مقادیر از دیتابیس (مربوط به تنظیمات قیمت، نه ت فرم کاربر)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM price_settings")
+        rows = cursor.fetchall()
+        db_prices = {row[0]: row[1] for row in rows}
+        conn.close()
+
+        # مقادیر پیش‌فرض قیمت‌ها از تنظیمات
+        prices = {
+            "فریم_لس_قدیمی": db_prices.get("فریم_لس_قدیمی", 0),
+            "فریم_لس_قالب_جدید": db_prices.get("فریم_لس_قالب_جدید", 0),
+            "توچوب_دار": db_prices.get("توچوب_دار", 0),
+            "دور_آلومینیوم": db_prices.get("دور_آلومینیوم", 0),
+            "لاستیک": db_prices.get("لاستیک", 0),
+            "بست_نصب": db_prices.get("بست_نصب", 0),
+            "چهارچوب_فریم_لس": db_prices.get("چهارچوب_فریم_لس", 0),
+            "داخل_چوب": db_prices.get("داخل_چوب", 0),
+            "دور_آلومینیوم_ماشین": db_prices.get("دور_آلومینیوم_ماشین", 0),
+            "خام": db_prices.get("خام", 0), # قیمت رنگ آلومینیوم
+            "آنادایز": db_prices.get("آنادایز", 0), # قیمت رنگ آلومینیوم
+            "رنگی": db_prices.get("رنگی", 0), # قیمت رنگ آلومینیوم (جدیداً سفید شده)
+            "سفید": db_prices.get("سفید", db_prices.get("رنگی",0)), # برای سازگاری اگر "رنگی" هنوز در دیتابیس باشد
+            "پلای_وود": db_prices.get("پلای_وود", 0),
+            "تا_260": db_prices.get("تا_260", 0),
+            "261_تا_320": db_prices.get("261_تا_320", 0),
+            "321_تا_360": db_prices.get("321_تا_360", 0),
+            "بیش_از_360": db_prices.get("بیش_از_360", 0),
+            "رنگ_نهایی_خارجی": db_prices.get("رنگ_نهایی_خارجی", 0),
+            "رنگ_نهایی_ایرانی": db_prices.get("رنگ_نهایی_ایرانی", 0),
+            "زیر_سازی_خارجی": db_prices.get("زیر_سازی_خارجی", 0),
+            "زیر_سازی_ایرانی": db_prices.get("زیر_سازی_ایرانی", 0),
+            "کد_رنگ_خارجی": db_prices.get("کد_رنگ_خارجی", 0),
+            "کد_رنگ_ایرانی": db_prices.get("کد_رنگ_ایرانی", 0),
+            "لولا": db_prices.get("لولا", 0),
+            "قفل": db_prices.get("قفل", 0),
+            "سیلندر": db_prices.get("سیلندر", 0)
+        }
+        # print("DEBUG: Initialized 'prices':", prices) # Removed
+
+        today_shamsi = jdatetime.date.today().strftime("%Y/%m/%d")
+
+        # مقادیر پیش‌فرض برای فیلدهای اصلی فرم (برای GET request)
+        initial_form_values = {
+            "عرض_درب": "110",
+            "ارتفاع_درب": "280",
+            "نوع_پروفیل_فریم_لس": "فریم لس قالب جدید",
+            "رنگ_آلومینیوم": "سفید", # قبلا "رنگی" بود، طبق درخواست کاربر به سفید و آنادایز محدود شد
+            "جنس_درب": "ام دی اف",
+            "شرایط_رنگ": "بدون رنگ",
+            "رند_رنگ": "بدون رنگ",
+            "نام_مشتری": "", # اطمینان از وجود کلید برای نام مشتری
+            "موبایل_مشتری": "", # اطمینان از وجود کلید برای موبایل مشتری
+            "تاریخ_سفارش": today_shamsi # اضافه کردن تاریخ شمسی فعلی
+        }
+
+        # گزینه‌های دراپ‌داون
+        dropdown_options = {
+            "نوع_پروفیل_فریم_لس": ["فریم لس قدیمی", "فریم لس قالب جدید", "توچوب دار", "دور آلومینیوم"],
+            "رنگ_آلومینیوم": ["آنادایز", "سفید"], # تغییر یافته طبق درخواست کاربر
+            "جنس_درب": ["ام دی اف", "پلای وود"],
+            "شرایط_رنگ": ["بدون رنگ", "رنگ نهایی", "زیر سازی", "کد رنگ"],
+            "رند_رنگ": ["بدون رنگ", "خارجی", "ایرانی"]
+        }
+
+        # ساختار و مقادیر پیش‌فرض اولیه برای بخش انتخاب مولفه‌ها (برای GET request)
+        initial_selections_config = {
+            "درب_خام": (False, 0),
+            "درب_با_رنگ_کامل": (True, 30),
+            "فریم": (True, 30),
+            "یراق_کامل": (True, 10),
+            "رنگ_کاری": (False, 0)
+        }
+
+        if request.method == "POST":
+            results = None
+            current_selections_for_template = {}
+            component_markup_rules = {} # برای محاسبات داخلی (درصد به صورت اعشاری)
+
+            try:
+                # دریافت مقادیر اصلی فرم
+                width_str = request.form.get("عرض_درب", initial_form_values["عرض_درب"])
+                height_str = request.form.get("ارتفاع_درب", initial_form_values["ارتفاع_درب"])
+                width = float(width_str)
+                height = float(height_str)
+                profile_type_from_form = request.form.get("نوع_پروفیل_فریم_لس", initial_form_values["نوع_پروفیل_فریم_لس"])
+                # Normalize profile_type_from_form to match the keys in the prices dictionary
+                profile_type = profile_type_from_form.strip().replace(" ", "_")
+                # print(f"DEBUG: profile_type_from_form: '{profile_type_from_form}'") # Removed
+                # print(f"DEBUG: Normalized profile_type for prices lookup: '{profile_type}'") # Removed
+
+                aluminum_color_from_form = request.form.get("رنگ_آلومینیوم", initial_form_values["رنگ_آلومینیوم"])
+                # Normalize aluminum_color_from_form if necessary, though it seems to be working.
+                # For consistency, let's normalize it as well if it might contain spaces.
+                aluminum_color = aluminum_color_from_form.strip() # Assuming keys in prices don't have underscores for colors
+                # print(f"DEBUG: aluminum_color_from_form: '{aluminum_color_from_form}'") # Removed
+                # print(f"DEBUG: Normalized aluminum_color for prices lookup: '{aluminum_color}'") # Removed
+
+                door_type = request.form.get("جنس_درب", initial_form_values["جنس_درب"])
+                paint_type = request.form.get("شرایط_رنگ", initial_form_values["شرایط_رنگ"])
+                paint_origin = request.form.get("رند_رنگ", initial_form_values["رند_رنگ"])
+
+                # دریافت اطلاعات مشتری از فرم
+                customer_name = request.form.get("نام_مشتری", "")
+                customer_mobile = request.form.get("موبایل_مشتری", "")
+                shamsi_order_date_from_form = request.form.get("تاریخ_سفارش", today_shamsi) # خواندن تاریخ از فرم
+
+                # پردازش انتخاب‌ها و درصدها از فرم برای نمایش و محاسبه
+                for key, (default_is_selected, default_percentage_value) in initial_selections_config.items():
+                    is_selected_from_form = request.form.get(f"checkbox_{key}") == "on"
+                    percentage_str_from_form = request.form.get(f"percentage_{key}")
+
+                    template_percentage_to_use = 0.0 # برای نمایش در فرم (0-100)
+                    calc_contrib_decimal_to_use = 0.0 # برای محاسبات (0.0-1.0)
+
+                    if is_selected_from_form:
+                        # اگر کاربر درصدی وارد کرده، آن را استفاده کن، در غیر این صورت از پیش‌فرض اولیه برای حالت انتخاب شده استفاده کن
+                        fallback_percentage = float(default_percentage_value) # پیش‌فرض اولیه برای این مولفه
+                        if percentage_str_from_form:
+                            try:
+                                parsed_percentage = float(percentage_str_from_form)
+                                if 0 <= parsed_percentage <= 100:
+                                    template_percentage_to_use = parsed_percentage
+                                    calc_contrib_decimal_to_use = parsed_percentage / 100.0
+                                else:
+                                    flash(f"درصد برای '{key}' ({parsed_percentage}) خارج از محدوده بود. مقدار پیش‌فرض ({fallback_percentage}%) استفاده شد.", "warning")
+                                    template_percentage_to_use = fallback_percentage
+                                    calc_contrib_decimal_to_use = fallback_percentage / 100.0
+                            except ValueError:
+                                flash(f"مقدار درصد نامعتبر ('{percentage_str_from_form}') برای '{key}'. مقدار پیش‌فرض ({fallback_percentage}%) استفاده شد.", "warning")
+                                template_percentage_to_use = fallback_percentage
+                                calc_contrib_decimal_to_use = fallback_percentage / 100.0
+                        else: # تیک خورده ولی فیلد درصد خالی است
+                            flash(f"درصدی برای '{key}' وارد نشده. مقدار پیش‌فرض ({fallback_percentage}%) استفاده شد.", "warning")
+                            template_percentage_to_use = fallback_percentage
+                            calc_contrib_decimal_to_use = fallback_percentage / 100.0
+                    # else: # اگر تیک نخورده، درصد نمایشی و محاسباتی صفر است
+                        # template_percentage_to_use و calc_contrib_decimal_to_use به طور پیش‌فرض صفر هستند
+                    
+                    current_selections_for_template[key] = (is_selected_from_form, template_percentage_to_use)
+                    component_markup_rules[key] = (is_selected_from_form, calc_contrib_decimal_to_use)
+
+                # --- شروع محاسبات قیمت (منطق قبلی با استفاده از component_markup_rules) ---
+                base_price = 0
+                if height <= 260: base_price = prices["تا_260"]
+                elif height <= 320: base_price = prices["261_تا_320"]
+                elif height <= 360: base_price = prices["321_تا_360"]
+                else: base_price = prices["بیش_از_360"]
+                
+                profile_weight_price = prices.get(profile_type, 0) # قیمت بر اساس وزن پروفیل انتخابی
+                
+                # هزینه فریم بر اساس طول و قیمت وزنی پروفیل
+                # فرض می‌کنیم `prices[profile_type]` قیمت هر واحد وزن (مثلا کیلوگرم) است
+                # و باید منطق محاسبه وزن کل پروفیل را داشته باشیم یا قیمت‌ها بر اساس متر باشند.
+                # در اینجا فرض بر این است که قیمت‌های وارد شده در تنظیمات، قیمت نهایی به ازای هر متر یا واحد مناسب است.
+                # اگر prices[profile_type] قیمت بر کیلوگرم است، باید وزن کل را محاسبه کنیم.
+                # با توجه به نام فیلدها در price_calculator_settings.html مثل "فریم لس قدیمی:" (بدون واحد وزن)
+                # به نظر میرسد قیمت‌های پروفیل در settings قیمت بر متر یا یک واحد دیگر است.
+                # در اینجا، قیمت پروفیل را مستقیماً از prices[profile_type] میخوانیم (که در settings با وزن مشخص شده)
+                # این بخش نیاز به شفاف‌سازی دارد که آیا قیمت‌های پروفیل در settings قیمت واحد وزن است یا قیمت واحد طول.
+                # فعلا فرض می‌کنیم prices.get(profile_type,0) قیمت نهایی به ازای متر است.
+                # اگر این قیمت وزنی است، باید وزن متر پروفیل را هم داشته باشیم.
+                # با توجه به اینکه در settings کاربر وزن وارد می‌کند، prices[profile_type] باید وزن باشد.
+                # پس باید قیمت واحد آلومینیوم را هم داشته باشیم.
+                # این قسمت از محاسبات ممکن است نیاز به بازنگری بر اساس معنای دقیق مقادیر settings داشته باشد.
+                # فعلا فرض می‌کنیم `profile_weight_price` وزن بر متر است و باید در قیمت واحد آلومینیوم ضرب شود.
+                # اما در کد قبلی مستقیم ضرب میشد. پس قیمت واحد آلومینیوم در این وزن‌ها لحاظ شده.
+                
+                # قیمت واحد آلومینیوم بر اساس رنگ انتخابی
+                aluminum_unit_price = prices.get(aluminum_color, prices.get("سفید", 0)) # اگر "آنادایز" یا "سفید" نبود، پیش‌فرض "سفید"
+
+                total_profile_length_meters_raw = (width + (2 * height)) / 100.0 # برای اطمینان از تقسیم اعشاری
+                total_profile_length_meters = ceil(total_profile_length_meters_raw) # گرد کردن به بالا
+                
+                # print(f"DEBUG: total_profile_length_meters_raw: {total_profile_length_meters_raw}") # Removed
+                # print(f"DEBUG: total_profile_length_meters (ceil-ed): {total_profile_length_meters}") # Removed
+                # print(f"DEBUG: profile_type (used for lookup): {profile_type}") # Removed
+                # print(f"DEBUG: prices.get(profile_type, 0) (profile weight from prices): {prices.get(profile_type, 0)}") # Removed
+                # print(f"DEBUG: aluminum_color (used for lookup): {aluminum_color}") # Removed
+                # print(f"DEBUG: aluminum_unit_price (from prices): {aluminum_unit_price}") # Removed
+                
+                # هزینه فریم = طول کل پروفیل * وزن بر متر پروفیل انتخابی * قیمت واحد آلومینیوم بر اساس رنگ
+                frame_cost = total_profile_length_meters * prices.get(profile_type, 0) * aluminum_unit_price
+
+                rubber_cost = total_profile_length_meters * prices["لاستیک"]
+                # installation_cost = prices["بست_نصب"] # Original line to be replaced
+                half_bracket_unit_price = prices["بست_نصب"]          # قیمت یک «بست نصف»
+                half_bracket_per_side   = ceil(height / 60)          # هر ۶۰ cm یک بست نصف
+                total_half_bracket      = half_bracket_per_side * 2  # چون دو طرف در نصب می‌شود
+                installation_cost       = total_half_bracket * half_bracket_unit_price
+                
+                machining_cost_key_map = {
+                    "فریم_لس_قدیمی": "چهارچوب_فریم_لس", # کلید مقصد در prices
+                    "فریم_لس_قالب_جدید": "چهارچوب_فریم_لس",
+                    "توچوب_دار": "داخل_چوب",
+                    "دور_آلومینیوم": "دور_آلومینیوم_ماشین" 
+                }
+                # profile_type از قبل نرمال شده است (مثلا "فریم_لس_قالب_جدید")
+                machining_key_to_lookup_in_prices = machining_cost_key_map.get(profile_type, "چهارچوب_فریم_لس")
+                machining_cost = prices.get(machining_key_to_lookup_in_prices, 0)
+
+                paint_service_cost = 0
+                if paint_type != "بدون رنگ" and paint_origin != "بدون رنگ":
+                    paint_key = f"{paint_type}_{paint_origin}"
+                    unit_paint_service_cost_per_sqm = prices.get(paint_key.replace(" ", "_"), 0) # e.g. رنگ_نهایی_خارجی
+                    
+                    # Calculate paint area (paint_area_sqm) based on door dimensions
+                    # width و height اینجا باید مقادیر عددی سانتی متر باشند
+                    if width > 10 and height > 6:  # برای جلوگیری از مساحت منفی
+                        paint_area_sqm = ((width - 10.0) * (height - 6.0) * 2.0) / 10000.0
+                    else:
+                        paint_area_sqm = 0.0  # یا مقدار پیش فرض دیگر یا ایجاد خطا
+                    
+                    # Calculate total paint service cost
+                    paint_service_cost = paint_area_sqm * unit_paint_service_cost_per_sqm
+                
+                # محاسبه تعداد لولا بر اساس ارتفاع درب
+                height_meters = height / 100.0  # تبدیل ارتفاع به متر
+                
+                if height_meters <= 0:  # مدیریت ارتفاع نامعتبر
+                    num_hinges = 2  # یا مقدار پیش فرض دیگر یا ایجاد خطا
+                    # flash("ارتفاع درب نامعتبر است، تعداد لولا پیش‌فرض در نظر گرفته شد.", "warning")
+                elif height_meters <= 1.8:
+                    num_hinges = 2
+                elif height_meters <= 2.1:
+                    num_hinges = 3
+                elif height_meters <= 2.4:
+                    num_hinges = 3
+                elif height_meters <= 2.7:
+                    num_hinges = 4
+                elif height_meters <= 3.2:
+                    num_hinges = 5
+                elif height_meters <= 3.6:
+                    num_hinges = 6
+                else:
+                    # برای ارتفاع‌های بیشتر از ۳.۶ متر، یا یک مقدار ثابت در نظر بگیرید،
+                    # یا بر اساس یک الگو ادامه دهید، یا خطا ایجاد کنید.
+                    # فعلا فرض می کنیم برای ارتفاع بیشتر هم ۶ لولا کافی است یا باید بررسی شود.
+                    num_hinges = 6  # یا مثلاً: num_hinges = 6 + math.ceil((height_meters - 3.6) / 0.5) اگر یک الگوی افزایشی دارید
+                    # flash(f"ارتفاع درب ({height_meters} متر) بسیار زیاد است، تعداد لولا ({num_hinges}) بر اساس حداکثر پیش‌بینی شده در نظر گرفته شد.", "warning")
+                
+                # محاسبه هزینه کل یراق آلات
+                # num_hinges از مرحله بالا محاسبه شده است
+                price_per_hinge = prices.get("لولا", 0.0)  # قیمت هر عدد لولا از تنظیمات
+                price_per_lock = prices.get("قفل", 0.0)   # قیمت پایه قفل از تنظیمات
+                price_per_cylinder = prices.get("سیلندر", 0.0)  # قیمت پایه سیلندر از تنظیمات
+                
+                total_hinge_cost = num_hinges * price_per_hinge
+                hardware_cost = total_hinge_cost + price_per_lock + price_per_cylinder
+                door_material_cost = prices["پلای_وود"] if door_type == "پلای وود" else 0
+                
+                results = {}
+                # سهم درب خام (شامل هزینه جنس درب)
+                هزینه_پایه_درب_خام = base_price + door_material_cost
+                is_selected_درب_خام, contrib_decimal_درب_خام = component_markup_rules["درب_خام"]
+                if is_selected_درب_خام:
+                    results["D14_هزینه_درب_خام_یک_درب"] = هزینه_پایه_درب_خام * (1 + contrib_decimal_درب_خام)
+                else:
+                    results["D14_هزینه_درب_خام_یک_درب"] = 0
+                
+                # سهم درب با رنگ کامل (شامل هزینه جنس درب و رنگ کاری)
+                هزینه_پایه_درب_با_رنگ_کامل = base_price + door_material_cost + paint_service_cost
+                is_selected_درب_با_رنگ, contrib_decimal_درب_با_رنگ = component_markup_rules["درب_با_رنگ_کامل"]
+                if is_selected_درب_با_رنگ:
+                    results["C11_درب_با_رنگ_کامل"] = هزینه_پایه_درب_با_رنگ_کامل * (1 + contrib_decimal_درب_با_رنگ)
+                else:
+                    results["C11_درب_با_رنگ_کامل"] = 0
+                
+                # سهم فریم
+                # print(f"DEBUG: frame_cost: {frame_cost}") # Removed
+                # print(f"DEBUG: rubber_cost: {rubber_cost}") # Removed
+                # print(f"DEBUG: installation_cost: {installation_cost}") # Removed
+                # print(f"DEBUG: machining_cost: {machining_cost}") # Removed
+                هزینه_پایه_فریم = frame_cost + rubber_cost + installation_cost + machining_cost
+                is_selected_فریم, contrib_decimal_فریم = component_markup_rules["فریم"]
+                if is_selected_فریم:
+                    results["D11_فریم"] = هزینه_پایه_فریم * (1 + contrib_decimal_فریم)
+                else:
+                    results["D11_فریم"] = 0
+                
+                # گرد کردن سهم نهایی فریم
+                if results.get("D11_فریم") is not None and results["D11_فریم"] > 0: # فقط اگر مقدار مثبت و معناداری دارد
+                    results["D11_فریم"] = ceil(results["D11_فریم"] / 1000000.0) * 1000000
+                elif results.get("D11_فریم") is None: # اگر کلید اصلا وجود نداشت یا None بود
+                     results["D11_فریم"] = 0 # یا مقدار مناسب دیگر
+                # اگر صفر بود، صفر باقی می ماند
+
+                # سهم یراق کامل
+                هزینه_پایه_یراق_کامل = hardware_cost
+                is_selected_یراق, contrib_decimal_یراق = component_markup_rules["یراق_کامل"]
+                if is_selected_یراق:
+                    results["E11_یراق_کامل"] = هزینه_پایه_یراق_کامل * (1 + contrib_decimal_یراق)
+                else:
+                    results["E11_یراق_کامل"] = 0
+                
+                # سهم رنگ کاری (فقط هزینه خدمات رنگ)
+                هزینه_پایه_رنگ_کاری = paint_service_cost
+                is_selected_رنگ_کاری, contrib_decimal_رنگ_کاری = component_markup_rules["رنگ_کاری"]
+                if is_selected_رنگ_کاری:
+                    results["رنگ_کاری_contrib"] = هزینه_پایه_رنگ_کاری * (1 + contrib_decimal_رنگ_کاری)
+                else:
+                    results["رنگ_کاری_contrib"] = 0
+                
+                # مقادیر نمایشی که حذف شده بودند، برای سازگاری و جلوگیری از خطا None یا 0 میگذاریم
+                results["G14_هزینه_فریم_کل"] = frame_cost + rubber_cost + installation_cost + machining_cost # این در محاسبات اصلی استفاده نمیشود، فقط برای نمایش اگر لازم شد
+                results["N14_هزینه_کل_رنگ_کاری_یک_درب"] = paint_service_cost # اینم
+
+                results["total_cost"] = sum(filter(None, [
+                    results.get("D14_هزینه_درب_خام_یک_درب"),
+                    results.get("C11_درب_با_رنگ_کامل"),
+                    results.get("D11_فریم"),
+                    results.get("E11_یراق_کامل"),
+                    results.get("رنگ_کاری_contrib")
+                ]))
+                # گرد کردن قیمت نهایی کل
+                if results.get("total_cost") is not None and results["total_cost"] > 0: # فقط اگر مقدار مثبت و معناداری دارد
+                    results["total_cost"] = ceil(results["total_cost"] / 1000000.0) * 1000000
+                elif results.get("total_cost") is None:
+                    results["total_cost"] = 0
+                # اگر صفر بود، صفر باقی می ماند
+                # --- پایان محاسبات ---
+
+                # Check if this is an AJAX request
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    # Collect flash messages for AJAX response
+                    flashed_messages = []
+                    for category, message in get_flashed_messages(with_categories=True):
+                        flashed_messages.append({"category": category, "message": message})
+                    
+                    return jsonify(success=True, results=results, flash_messages=flashed_messages)
+
+                return render_template(
+                    "price_calculator.html",
+                    results=results,
+                    default_values=request.form, # برای حفظ مقادیر فرم اصلی
+                    dropdown_options=dropdown_options,
+                    selections=current_selections_for_template # برای حفظ وضعیت چک‌باکس‌ها و درصدها
+                )
+                
+            except ValueError as ve: # خطای تبدیل نوع مثل float()
+                flash(f"خطا در مقادیر ورودی: {str(ve)}. لطفاً مقادیر عددی صحیح وارد کنید.", "error")
+                traceback.print_exc()
+                # در صورت خطا، فرم را با مقادیر وارد شده توسط کاربر نمایش بده
+                preserved_selections_on_error = {}
+                for key, (default_sel, default_perc) in initial_selections_config.items():
+                    is_selected = request.form.get(f"checkbox_{key}") == "on"
+                    percentage_str = request.form.get(f"percentage_{key}")
+                    perc_to_display = 0.0
+                    if is_selected:
+                        fallback_percentage = float(default_perc)
+                        if percentage_str:
+                            try: perc_to_display = float(percentage_str)
+                            except: perc_to_display = fallback_percentage
+                            if not (0 <= perc_to_display <= 100): perc_to_display = fallback_percentage
+                        else: perc_to_display = fallback_percentage
+                    preserved_selections_on_error[key] = (is_selected, perc_to_display)
+                
+                # Check if this is an AJAX request
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    flashed_messages = []
+                    for category, message in get_flashed_messages(with_categories=True):
+                        flashed_messages.append({"category": category, "message": message})
+                    return jsonify(success=False, error=str(ve), default_values=request.form.to_dict(), 
+                                 selections=preserved_selections_on_error, flash_messages=flashed_messages), 400
+
+                return render_template(
+                    "price_calculator.html", results=None, default_values=request.form,
+                    dropdown_options=dropdown_options, selections=preserved_selections_on_error
+                )
+            except Exception as e:
+                flash(f"خطا در محاسبه قیمت: {str(e)}", "error")
+                traceback.print_exc()
+                # تلاش برای حفظ حالت فرم در صورت خطای عمومی
+                preserved_selections_on_error = {}
+                for key, (default_sel, default_perc) in initial_selections_config.items():
+                    is_selected = request.form.get(f"checkbox_{key}") == "on"
+                    percentage_str = request.form.get(f"percentage_{key}")
+                    perc_to_display = 0.0
+                    if is_selected:
+                        fallback_percentage = float(default_perc)
+                        if percentage_str:
+                            try: perc_to_display = float(percentage_str)
+                            except: perc_to_display = fallback_percentage
+                            if not (0 <= perc_to_display <= 100): perc_to_display = fallback_percentage
+                        else: perc_to_display = fallback_percentage
+                    preserved_selections_on_error[key] = (is_selected, perc_to_display)
+
+                # Check if this is an AJAX request
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    flashed_messages = []
+                    for category, message in get_flashed_messages(with_categories=True):
+                        flashed_messages.append({"category": category, "message": message})
+                    return jsonify(success=False, error=str(e), flash_messages=flashed_messages), 500
+
+                return render_template(
+                    "price_calculator.html", results=None, default_values=request.form,
+                    dropdown_options=dropdown_options, selections=preserved_selections_on_error
+                )
+        
+        # GET request
+        # مقادیر پیش‌فرض اولیه برای نمایش در اولین بارگذاری صفحه
+        # اطمینان از اینکه selections به درستی برای قالب آماده شده (شامل مقادیر پیش‌فرض درصد)
+        prepared_initial_selections = {
+            key: (val[0], val[1] if val[1] is not None else 0) 
+            for key, val in initial_selections_config.items()
+        }
+
+        # مقادیر پیش‌فرض فرم را ابتدا با مقادیر اولیه پر کن
+        current_default_values = initial_form_values.copy() 
+
+        # بررسی اطلاعات مشتری فلش شده از روت save_quote
+        preserved_customer_data = session.pop('preserved_customer_info_data', None) # NEW way: Get from session
+
+        if preserved_customer_data: # NEW way: Check if data exists
+            if isinstance(preserved_customer_data, dict): # اطمینان از اینکه دیکشنری است
+                current_default_values['نام_مشتری'] = preserved_customer_data.get('customer_name', initial_form_values.get('نام_مشتری', ''))
+                current_default_values['موبایل_مشتری'] = preserved_customer_data.get('customer_mobile', initial_form_values.get('موبایل_مشتری', ''))
+                # سایر فیلدهای ورودی (عرض، ارتفاع و ...) باید از initial_form_values باشند تا برای یک محاسبه جدید ریست شوند
+                # فقط نام و موبایل حفظ می شوند.
+
+        return render_template(
+            "price_calculator.html",
+            results=None, # برای سفارش جدید یا پس از ذخیره، نتایج باید خالی باشند
+            default_values=current_default_values, # استفاده از مقادیری که ممکن است اطلاعات مشتری را حفظ کرده باشند
+            dropdown_options=dropdown_options,
+            selections=prepared_initial_selections # انتخاب‌های پیش‌فرض اولیه با مقادیر درصد صحیح
+        )
+        
+    except Exception as e:
+        print(f"خطای کلی در روت price_calculator: {e}")
+        traceback.print_exc()
+        flash("خطایی در بارگذاری صفحه محاسبه قیمت رخ داد.", "error")
+        return redirect(url_for("index"))
+
+@app.route("/price_calculator_settings", methods=["GET", "POST"])
+def price_calculator_settings():
+    """صفحه تنظیمات قیمت پایه"""
+    # print("\\n--- Initiating price_calculator_settings ---") # Removed
+    try:
+        if request.method == "POST":
+            # print("--- Method: POST ---") # Removed
+            
+            # # چاپ مقادیر خام از فرم # Removed
+            # print("DEBUG: Raw form data:") # Removed
+            # for key in request.form: # Removed
+            #     print(f"  {key}: {request.form.getlist(key)}") # استفاده از getlist برای دیدن همه مقادیر در صورت وجود کلید تکراری # Removed
+            
+            value_for_sefid_price = request.form.get("رنگی") 
+            # print(f"DEBUG: Raw 'رنگی' value from form: {value_for_sefid_price}") # Removed
+
+            prices_to_save = {
+                "فریم_لس_قدیمی": float(request.form.get("فریم_لس_قدیمی")),
+                "فریم_لس_قالب_جدید": float(request.form.get("فریم_لس_قالب_جدید")),
+                "توچوب_دار": float(request.form.get("توچوب_دار")),
+                "دور_آلومینیوم": float(request.form.get("دور_آلومینیوم")),
+                "لاستیک": float(request.form.get("لاستیک")),
+                "بست_نصب": float(request.form.get("بست_نصب")),
+                "چهارچوب_فریم_لس": float(request.form.get("چهارچوب_فریم_لس")),
+                "داخل_چوب": float(request.form.get("داخل_چوب")),
+                "دور_آلومینیوم_ماشین": float(request.form.get("دور_آلومینیوم_ماشین")),
+                "خام": float(request.form.get("خام")),
+                "آنادایز": float(request.form.get("آنادایز")),
+                "سفید": float(value_for_sefid_price),
+                "پلای_وود": float(request.form.get("پلای_وود")),
+                "تا_260": float(request.form.get("تا_260")),
+                "261_تا_320": float(request.form.get("261_تا_320")),
+                "321_تا_360": float(request.form.get("321_تا_360")),
+                "بیش_از_360": float(request.form.get("بیش_از_360")),
+                "رنگ_نهایی_خارجی": float(request.form.get("رنگ_نهایی_خارجی")),
+                "رنگ_نهایی_ایرانی": float(request.form.get("رنگ_نهایی_ایرانی")),
+                "زیر_سازی_خارجی": float(request.form.get("زیر_سازی_خارجی")),
+                "زیر_سازی_ایرانی": float(request.form.get("زیر_سازی_ایرانی")),
+                "کد_رنگ_خارجی": float(request.form.get("کد_رنگ_خارجی")),
+                "کد_رنگ_ایرانی": float(request.form.get("کد_رنگ_ایرانی")),
+                "لولا": float(request.form.get("لولا")),
+                "قفل": float(request.form.get("قفل")),
+                "سیلندر": float(request.form.get("سیلندر"))
+            }
+            # print(f"DEBUG: Prices to save (after _to_float): {prices_to_save}") # Removed
+            
+            conn = None # Initialize conn to None
+            try:
+                conn = get_db_connection()
+                # print("DEBUG: Database connection obtained for POST.") # Removed
+                cursor = conn.cursor()
+                cursor.execute("CREATE TABLE IF NOT EXISTS price_settings (key TEXT PRIMARY KEY, value REAL)")
+                # print("DEBUG: 'price_settings' table ensured.") # Removed
+                
+                # print("DEBUG: Attempting to save to DB:") # Removed
+                for key, value in prices_to_save.items():
+                    # print(f"  Saving: {key} = {value} (Type: {type(value)})") # Removed
+                    cursor.execute("INSERT OR REPLACE INTO price_settings (key, value) VALUES (?, ?)", (key, value))
+                
+                conn.commit()
+                # print("DEBUG: conn.commit() executed successfully.") # Removed
+            except sqlite3.Error as db_err:
+                print(f"!!!!!! DATABASE ERROR during POST: {db_err}")
+                traceback.print_exc()
+                flash(f"خطای دیتابیس هنگام ذخیره: {db_err}", "error")
+            finally:
+                if conn:
+                    conn.close()
+                    # print("DEBUG: Database connection closed for POST.") # Removed
+            
+            if not flash_messages_exist(category_filter="error"): # Only flash success if no DB error occurred
+                 flash("تنظیمات با موفقیت ذخیره شد.", "success")
+            return redirect(url_for("price_calculator_settings"))
+        
+        # GET request - نمایش فرم
+        # print("--- Method: GET ---") # Removed
+        conn = None # Initialize conn to None
+        current_prices = {}
+        try:
+            conn = get_db_connection()
+            # print("DEBUG: Database connection obtained for GET.") # Removed
+            cursor = conn.cursor()
+            # اطمینان از وجود جدول قبل از خواندن (اگرچه در POST هم ایجاد می‌شود)
+            cursor.execute("CREATE TABLE IF NOT EXISTS price_settings (key TEXT PRIMARY KEY, value REAL)")
+            # print("DEBUG: 'price_settings' table ensured for GET.") # Removed
+            cursor.execute("SELECT key, value FROM price_settings")
+            rows = cursor.fetchall()
+            # print(f"DEBUG: Rows fetched from DB: {len(rows)} rows") # Removed
+            current_prices = {row[0]: row[1] for row in rows}
+            # print(f"DEBUG: Current prices from DB: {current_prices}") # Removed
+        except sqlite3.Error as db_err:
+            print(f"!!!!!! DATABASE ERROR during GET: {db_err}")
+            traceback.print_exc()
+            flash(f"خطای دیتابیس هنگام خواندن تنظیمات: {db_err}", "error")
+            # اگر در خواندن از دیتابیس خطا رخ دهد، current_prices خالی می‌ماند و مقادیر پیش‌فرض استفاده می‌شوند
+        finally:
+            if conn:
+                conn.close()
+                # print("DEBUG: Database connection closed for GET.") # Removed
+        
+        display_prices = {
+            "فریم_لس_قدیمی": current_prices.get("فریم_لس_قدیمی", 0.0),
+            "فریم_لس_قالب_جدید": current_prices.get("فریم_لس_قالب_جدید", 0.0),
+            "توچوب_دار": current_prices.get("توچوب_دار", 0.0),
+            "دور_آلومینیوم": current_prices.get("دور_آلومینیوم", 0.0),
+            "لاستیک": current_prices.get("لاستیک", 0.0),
+            "بست_نصب": current_prices.get("بست_نصب", 0.0),
+            "چهارچوب_فریم_لس": current_prices.get("چهارچوب_فریم_لس", 0.0),
+            "داخل_چوب": current_prices.get("داخل_چوب", 0.0),
+            "دور_آلومینیوم_ماشین": current_prices.get("دور_آلومینیوم_ماشین", 0.0),
+            "خام": current_prices.get("خام", 0.0),
+            "آنادایز": current_prices.get("آنادایز", 0.0),
+            "رنگی": current_prices.get("سفید", 0.0), 
+            "پلای_وود": current_prices.get("پلای_وود", 0.0),
+            "تا_260": current_prices.get("تا_260", 0.0),
+            "261_تا_320": current_prices.get("261_تا_320", 0.0),
+            "321_تا_360": current_prices.get("321_تا_360", 0.0),
+            "بیش_از_360": current_prices.get("بیش_از_360", 0.0),
+            "رنگ_نهایی_خارجی": current_prices.get("رنگ_نهایی_خارجی", 0.0),
+            "رنگ_نهایی_ایرانی": current_prices.get("رنگ_نهایی_ایرانی", 0.0),
+            "زیر_سازی_خارجی": current_prices.get("زیر_سازی_خارجی", 0.0),
+            "زیر_سازی_ایرانی": current_prices.get("زیر_سازی_ایرانی", 0.0),
+            "کد_رنگ_خارجی": current_prices.get("کد_رنگ_خارجی", 0.0),
+            "کد_رنگ_ایرانی": current_prices.get("کد_رنگ_ایرانی", 0.0),
+            "لولا": current_prices.get("لولا", 0.0),
+            "قفل": current_prices.get("قفل", 0.0),
+            "سیلندر": current_prices.get("سیلندر", 0.0),
+        }
+        # print(f"DEBUG: Display prices sent to template: {display_prices}") # Removed
+        
+        return render_template("price_calculator_settings.html", prices=display_prices)
+        
+    except Exception as e:
+        print(f"!!!!!! خطای کلی در روت price_calculator_settings: {e}")
+        traceback.print_exc()
+        flash("خطایی در تنظیمات قیمت پایه رخ داد.", "error")
+        return redirect(url_for("index")) # تغییر به ایندکس برای جلوگیری از حلقه احتمالی
+
+# Helper function to check if flash messages of a certain category exist
+def flash_messages_exist(category_filter=None):
+    if '_flashes' in session:
+        for category, message in session['_flashes']:
+            if category_filter is None or category == category_filter:
+                return True
+    return False
+
+@app.route("/save_quote", methods=["POST"])
+def save_quote():
+    if request.method == "POST":
+        conn = None  # Initialize conn to None
+        try:
+            # Ensure the request is JSON
+            if not request.is_json:
+                flash("درخواست باید با فرمت JSON باشد.", "danger")
+                # Return JSON error for AJAX, redirect otherwise (though AJAX is expected)
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify(success=False, error="درخواست باید با فرمت JSON باشد"), 400
+                return redirect(url_for('price_calculator'))
+
+            data = request.get_json()
+            if not data:
+                flash("اطلاعات ارسال نشده یا فرمت نامعتبر است.", "danger")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify(success=False, error="اطلاعات ارسال نشده یا فرمت نامعتبر است."), 400
+                return redirect(url_for('price_calculator'))
+
+            # Log دریافت داده‌ها
+            print(f"DEBUG: Data received in /save_quote: {data}")
+
+            customer_name = data.get("customer_name")
+            customer_mobile = data.get("customer_mobile")
+            input_width = data.get("input_width")
+            input_height = data.get("input_height")
+            profile_type = data.get("profile_type")
+            aluminum_color = data.get("aluminum_color")
+            door_material = data.get("door_material")
+            paint_condition = data.get("paint_condition")
+            paint_brand = data.get("paint_brand")
+            selections_details = data.get("selections_details") # Already a JSON string from JS
+            final_price = data.get("final_price")
+            shamsi_order_date = data.get("shamsi_date", "") # دریافت تاریخ شمسی از payload
+
+            # اعتبارسنجی اولیه
+            if not all([customer_name, input_width, input_height, profile_type, selections_details, final_price]):
+                error_message = "اطلاعات ضروری برای ذخیره قیمت ناقص است."
+                flash(error_message, "danger")
+                # حفظ اطلاعات مشتری حتی در صورت خطا در سایر فیلدها
+                if customer_name or customer_mobile:
+                     # flash({'customer_name': customer_name, 'customer_mobile': customer_mobile}, 'preserved_customer_info') # OLD way
+                     session['preserved_customer_info_data'] = {'customer_name': customer_name, 'customer_mobile': customer_mobile} # NEW way
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify(success=False, error=error_message, preserved_info={'customer_name': customer_name, 'customer_mobile': customer_mobile}), 400
+                return redirect(url_for('price_calculator'))
+
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO saved_quotes 
+                (customer_name, customer_mobile, input_width, input_height, profile_type, aluminum_color, door_material, paint_condition, paint_brand, selections_details, final_calculated_price, timestamp, shamsi_order_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (customer_name, customer_mobile, input_width, input_height, profile_type, aluminum_color, door_material, paint_condition, paint_brand, selections_details, final_price, datetime.now(), shamsi_order_date))
+            conn.commit()
+
+            # --- شروع تغییرات مهم ---
+            success_message = "قیمت‌دهی با موفقیت ذخیره شد."
+            flash(success_message, "success")
+            # اطلاعات مشتری را برای استفاده در ریدایرکت بعدی فلش کن
+            # flash({'customer_name': customer_name, 'customer_mobile': customer_mobile}, 'preserved_customer_info') # OLD way
+            session['preserved_customer_info_data'] = {'customer_name': customer_name, 'customer_mobile': customer_mobile} # NEW way
+            
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify(success=True, message=success_message, preserved_info={'customer_name': customer_name, 'customer_mobile': customer_mobile})
+            # --- پایان تغییرات مهم ---
+            # پس از موفقیت، به price_calculator ریدایرکت می‌کنیم (این خط دیگر نباید اجرا شود اگر AJAX است)
+            return redirect(url_for('price_calculator'))
+
+
+        except sqlite3.Error as e:
+            if conn:
+                conn.rollback()
+            print(f"SQLite error in /save_quote: {e}") 
+            traceback.print_exc()
+            error_message = f"خطا در ذخیره در دیتابیس: {str(e)}"
+            flash(error_message, "danger")
+            
+            preserved_customer_name = ""
+            preserved_customer_mobile = ""
+            # data may not be defined if error happened before data = request.get_json()
+            # or if request was not json
+            if request.is_json:
+                data_for_flash = request.get_json() 
+                if data_for_flash:
+                    preserved_customer_name = data_for_flash.get("customer_name", "")
+                    preserved_customer_mobile = data_for_flash.get("customer_mobile", "")
+            
+            if preserved_customer_name or preserved_customer_mobile:
+                # flash({'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}, 'preserved_customer_info') # OLD way
+                session['preserved_customer_info_data'] = {'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile} # NEW way
+
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify(success=False, error=error_message, preserved_info={'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}), 500
+            return redirect(url_for('price_calculator'))
+
+        except Exception as e:
+            if conn:
+                conn.rollback() 
+            print(f"General error in /save_quote: {e}")
+            traceback.print_exc()
+            error_message = f"خطای پیش‌بینی نشده: {str(e)}"
+            flash(error_message, "danger")
+
+            preserved_customer_name = ""
+            preserved_customer_mobile = ""
+            if request.is_json:
+                data_for_flash = request.get_json()
+                if data_for_flash:
+                    preserved_customer_name = data_for_flash.get("customer_name", "")
+                    preserved_customer_mobile = data_for_flash.get("customer_mobile", "")
+
+            if preserved_customer_name or preserved_customer_mobile:
+                 # flash({'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}, 'preserved_customer_info') # OLD way
+                 session['preserved_customer_info_data'] = {'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile} # NEW way
+
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify(success=False, error=error_message, preserved_info={'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}), 500
+            return redirect(url_for('price_calculator'))
+        finally:
+            if conn:
+                conn.close()
+    
+    # اگر متد POST نبود یا خطای دیگری قبل از try رخ داد
+    flash("درخواست نامعتبر برای ذخیره قیمت.", "warning")
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify(success=False, error="درخواست نامعتبر برای ذخیره قیمت."), 405 # Method Not Allowed
+    return redirect(url_for('price_calculator'))
+
+@app.route("/saved_quotes")
+def saved_quotes():
+    """نمایش قیمت‌دهی‌های ذخیره شده با قابلیت گروه‌بندی و باز/بسته شدن"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, customer_name, customer_mobile, input_width, input_height, profile_type, 
+                   aluminum_color, door_material, paint_condition, paint_brand, 
+                   timestamp, selections_details, final_calculated_price, shamsi_order_date
+            FROM saved_quotes 
+            ORDER BY customer_name, timestamp DESC
+        """)
+        quotes_raw = cursor.fetchall()
+        conn.close()
+        
+        grouped_quotes = defaultdict(list)
+        for quote_row in quotes_raw: # Removed index i as it's not used after removing print
+            quote_dict = {
+                'id': quote_row[0],
+                'customer_name': quote_row[1] if quote_row[1] else "بدون نام مشتری",
+                'customer_mobile': quote_row[2],
+                'input_width': quote_row[3],
+                'input_height': quote_row[4],
+                'profile_type': quote_row[5],
+                'aluminum_color': quote_row[6],
+                'door_material': quote_row[7],
+                'paint_condition': quote_row[8],
+                'paint_brand': quote_row[9],
+                'final_calculated_price': quote_row[12],
+                'shamsi_order_date': quote_row[13] if quote_row[13] else "تاریخ نامشخص"
+            }
+
+            timestamp_val = quote_row[10]
+            if isinstance(timestamp_val, str):
+                try:
+                    timestamp_val = datetime.strptime(timestamp_val.split('.')[0], '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    try:
+                        timestamp_val = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M')
+                    except ValueError:
+                        print(f"WARNING: Could not parse timestamp string: {quote_row[10]} for quote id {quote_dict['id']}. Setting to None.")
+                        timestamp_val = None
+            elif timestamp_val is None:
+                print(f"WARNING: Timestamp is None for quote id {quote_dict['id']}. Setting to None.")
+                timestamp_val = None
+            quote_dict['timestamp'] = timestamp_val
+            
+            try:
+                if quote_row[11]:
+                    quote_dict['selections_details'] = json.loads(quote_row[11])
+                else:
+                    quote_dict['selections_details'] = {}
+            except json.JSONDecodeError as json_err:
+                print(f"ERROR: JSONDecodeError for quote id {quote_dict['id']}: {json_err}")
+                quote_dict['selections_details'] = {}
+            except Exception as e_json: # Catching a more general exception for unexpected errors during JSON processing
+                print(f"ERROR: Unknown error parsing selections_details for quote id {quote_dict['id']}: {e_json}")
+                quote_dict['selections_details'] = {}
+                
+            customer_key = quote_dict['customer_name']
+            grouped_quotes[customer_key].append(quote_dict)
+        
+        all_quotes_for_js = [quote for customer_quotes in grouped_quotes.values() for quote in customer_quotes]
+        quotes_json_list = []
+        for quote_data_dict in all_quotes_for_js:
+            temp_quote = quote_data_dict.copy()
+            if temp_quote.get('timestamp') and not isinstance(temp_quote['timestamp'], str):
+                try:
+                    temp_quote['timestamp'] = temp_quote['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+                except AttributeError: # Should not happen if previous logic is correct, but as a safeguard
+                    temp_quote['timestamp'] = str(temp_quote['timestamp'])
+            quotes_json_list.append(temp_quote)
+        all_quotes_json = json.dumps(quotes_json_list)
+
+        return render_template("saved_quotes.html", grouped_quotes=grouped_quotes, all_quotes_json=all_quotes_json)
+        
+    except Exception as e:
+        print(f"!!!!!! ERROR in saved_quotes route: {e}") 
+        traceback.print_exc()
+        flash("خطایی در بارگذاری قیمت‌دهی‌های ذخیره شده رخ داد.", "error")
+        return redirect(url_for("index"))
+
+@app.route("/delete_quote/<int:quote_id>", methods=["POST"])
+def delete_quote(quote_id):
+    """پاک کردن یک قیمت‌دهی ذخیره شده"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # بررسی وجود قیمت‌دهی
+        cursor.execute("SELECT id FROM saved_quotes WHERE id = ?", (quote_id,))
+        quote = cursor.fetchone()
+        
+        if not quote:
+            flash("قیمت‌دهی مورد نظر یافت نشد.", "error")
+            conn.close()
+            return redirect(url_for("saved_quotes"))
+        
+        # پاک کردن قیمت‌دهی
+        cursor.execute("DELETE FROM saved_quotes WHERE id = ?", (quote_id,))
+        conn.commit()
+        conn.close()
+        
+        flash("قیمت‌دهی با موفقیت پاک شد.", "success")
+        return redirect(url_for("saved_quotes"))
+        
+    except Exception as e:
+        print(f"خطا در پاک کردن قیمت‌دهی: {e}")
+        traceback.print_exc()
+        flash("خطایی در پاک کردن قیمت‌دهی رخ داد.", "error")
+        return redirect(url_for("saved_quotes"))
+
+@app.route("/delete_multiple_quotes", methods=["POST"])
+def delete_multiple_quotes():
+    """پاک کردن چندین قیمت‌دهی انتخاب شده"""
+    try:
+        # دریافت لیست شناسه‌های انتخاب شده
+        selected_ids = request.form.getlist('selected_quotes')
+        
+        if not selected_ids:
+            flash("هیچ قیمت‌دهی‌ای انتخاب نشده است.", "warning")
+            return redirect(url_for("saved_quotes"))
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # تبدیل شناسه‌ها به عدد و پاک کردن آنها
+        deleted_count = 0
+        for quote_id in selected_ids:
+            try:
+                quote_id = int(quote_id)
+                cursor.execute("DELETE FROM saved_quotes WHERE id = ?", (quote_id,))
+                deleted_count += cursor.rowcount
+            except ValueError:
+                continue
+        
+        conn.commit()
+        conn.close()
+        
+        if deleted_count > 0:
+            flash(f"{deleted_count} قیمت‌دهی با موفقیت پاک شدند.", "success")
+        else:
+            flash("هیچ قیمت‌دهی‌ای پاک نشد.", "warning")
+        
+        return redirect(url_for("saved_quotes"))
+        
+    except Exception as e:
+        print(f"خطا در پاک کردن قیمت‌دهی‌های انتخاب شده: {e}")
+        traceback.print_exc()
+        flash("خطایی در پاک کردن قیمت‌دهی‌ها رخ داد.", "error")
+        return redirect(url_for("saved_quotes"))
 
 # افزودن کد راه‌اندازی Flask در انتهای فایل
 if __name__ == "__main__":

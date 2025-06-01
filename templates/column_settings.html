@@ -485,6 +485,16 @@
                             const actionsDiv = document.createElement('div');
                             actionsDiv.className = 'option-item-actions';
                             
+                            // افزودن دکمه ویرایش
+                            const editBtn = document.createElement('button');
+                            editBtn.innerHTML = '<i class="fas fa-edit"></i> ویرایش';
+                            editBtn.className = 'button info-button button-sm edit-option-btn';
+                            editBtn.type = 'button';
+                            editBtn.dataset.optionId = optionObject.id; // ذخیره شناسه برای ویرایش
+                            editBtn.dataset.currentValue = optionObject.value; // ذخیره مقدار فعلی
+                            editBtn.style.marginLeft = '5px'; // فاصله بین دکمه‌های ویرایش و حذف
+                            actionsDiv.appendChild(editBtn);
+                            
                             // افزودن دکمه حذف
                             const deleteBtn = document.createElement('button');
                             deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> حذف';
@@ -542,69 +552,144 @@
             currentOptionsList.addEventListener('click', async function(e) {
                 // بررسی اینکه آیا روی دکمه حذف کلیک شده
                 const deleteButton = e.target.closest('.delete-option-btn');
-                if (!deleteButton) return;
-                
-                const optionId = deleteButton.dataset.optionId;
-                if (!optionId) return;
-                
-                // تأیید حذف از کاربر
-                if (!confirm('آیا از حذف این گزینه اطمینان دارید؟')) return;
-                
-                try {
-                    const response = await fetch(`/api/custom_columns/options/${optionId}/delete`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
+                if (deleteButton) {
+                    const optionId = deleteButton.dataset.optionId;
+                    if (!optionId) return;
                     
-                    const data = await response.json();
+                    // تأیید حذف از کاربر
+                    if (!confirm('آیا از حذف این گزینه اطمینان دارید؟')) return;
                     
-                    if (data.success) {
-                        // حذف آیتم از لیست مدال
-                        const listItem = deleteButton.closest('li');
-                        const optionValue = listItem ? listItem.dataset.optionValue : '';
-                        if (listItem) listItem.remove();
+                    try {
+                        const response = await fetch(`/api/custom_columns/options/${optionId}/delete`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        });
                         
-                        // چک کردن آیا لیست خالی شده
-                        if (currentOptionsList.children.length === 0 && noOptionsMessage) {
-                            noOptionsMessage.style.display = 'block';
-                        }
+                        const data = await response.json();
                         
-                        // حذف گزینه از لیست در کارت اصلی ستون
-                        const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${data.column_id}"]`);
-                        if (columnCard) {
-                            const cardListItems = columnCard.querySelectorAll('ul li');
-                            cardListItems.forEach(item => {
-                                if (item.textContent.trim() === optionValue) {
-                                    item.remove();
-                                }
-                            });
+                        if (data.success) {
+                            // حذف آیتم از لیست مدال
+                            const listItem = deleteButton.closest('li');
+                            const optionValue = listItem ? listItem.dataset.optionValue : '';
+                            if (listItem) listItem.remove();
                             
-                            // اگر لیست خالی شد، پیام "هیچ گزینه‌ای تعریف نشده است" را نمایش بده
-                            if (columnCard.querySelector('ul').children.length === 0) {
-                                const emptyMessageExists = columnCard.querySelector('em');
-                                if (!emptyMessageExists) {
-                                    const emptyMessage = document.createElement('em');
-                                    emptyMessage.style.fontSize = '0.8em';
-                                    emptyMessage.style.color = '#777';
-                                    emptyMessage.style.display = 'block';
-                                    emptyMessage.style.paddingRight = '15px';
-                                    emptyMessage.textContent = 'هیچ گزینه‌ای تعریف نشده است.';
-                                    columnCard.appendChild(emptyMessage);
-                                } else {
-                                    emptyMessageExists.style.display = 'block';
+                            // چک کردن آیا لیست خالی شده
+                            if (currentOptionsList.children.length === 0 && noOptionsMessage) {
+                                noOptionsMessage.style.display = 'block';
+                            }
+                            
+                            // حذف گزینه از لیست در کارت اصلی ستون
+                            const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${data.column_id}"]`);
+                            if (columnCard) {
+                                const cardListItems = columnCard.querySelectorAll('ul li');
+                                cardListItems.forEach(item => {
+                                    if (item.textContent.trim() === optionValue) {
+                                        item.remove();
+                                    }
+                                });
+                                
+                                // اگر لیست خالی شد، پیام "هیچ گزینه‌ای تعریف نشده است" را نمایش بده
+                                if (columnCard.querySelector('ul').children.length === 0) {
+                                    const emptyMessageExists = columnCard.querySelector('em');
+                                    if (!emptyMessageExists) {
+                                        const emptyMessage = document.createElement('em');
+                                        emptyMessage.style.fontSize = '0.8em';
+                                        emptyMessage.style.color = '#777';
+                                        emptyMessage.style.display = 'block';
+                                        emptyMessage.style.paddingRight = '15px';
+                                        emptyMessage.textContent = 'هیچ گزینه‌ای تعریف نشده است.';
+                                        columnCard.appendChild(emptyMessage);
+                                    } else {
+                                        emptyMessageExists.style.display = 'block';
+                                    }
                                 }
                             }
+                            
+                            alert('گزینه با موفقیت حذف شد');
+                        } else {
+                            alert(`خطا: ${data.error || 'خطای نامشخص'}`);
                         }
-                        
-                        alert('گزینه با موفقیت حذف شد');
-                    } else {
-                        alert(`خطا: ${data.error || 'خطای نامشخص'}`);
+                    } catch (error) {
+                        console.error('Fetch error:', error);
+                        alert('خطا در برقراری ارتباط با سرور');
                     }
-                } catch (error) {
-                    console.error('Fetch error:', error);
-                    alert('خطا در برقراری ارتباط با سرور');
+                }
+                
+                // بررسی اینکه آیا روی دکمه ویرایش کلیک شده
+                const editButton = e.target.closest('.edit-option-btn');
+                if (editButton) {
+                    const optionId = editButton.dataset.optionId;
+                    const currentValue = editButton.dataset.currentValue;
+                    
+                    if (!optionId) return;
+                    
+                    // دریافت متن جدید از کاربر با استفاده از prompt
+                    const newValueFromPrompt = prompt("متن جدید گزینه را وارد کنید:", currentValue);
+                    
+                    // بررسی ورودی کاربر
+                    if (newValueFromPrompt === null) return; // کاربر دکمه Cancel را زده
+                    
+                    const trimmedValue = newValueFromPrompt.trim();
+                    
+                    // بررسی خالی نبودن متن جدید
+                    if (!trimmedValue) {
+                        alert("مقدار گزینه نمی‌تواند خالی باشد.");
+                        return;
+                    }
+                    
+                    // بررسی تغییر در متن
+                    if (trimmedValue === currentValue) {
+                        alert("تغییری در مقدار گزینه ایجاد نشده است.");
+                        return;
+                    }
+                    
+                    try {
+                        // ارسال درخواست به API برای ویرایش گزینه
+                        const response = await fetch(`/api/custom_columns/options/${optionId}/edit`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ new_value: trimmedValue })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            // به‌روزرسانی متن گزینه در مدال
+                            const listItem = editButton.closest('li');
+                            if (listItem) {
+                                const optionSpan = listItem.querySelector('span');
+                                if (optionSpan) {
+                                    optionSpan.textContent = data.updated_option.value;
+                                }
+                                
+                                // به‌روزرسانی data attributes
+                                listItem.dataset.optionValue = data.updated_option.value;
+                                editButton.dataset.currentValue = data.updated_option.value;
+                            }
+                            
+                            // به‌روزرسانی متن گزینه در کارت اصلی ستون
+                            const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${data.column_id}"]`);
+                            if (columnCard) {
+                                const cardListItems = columnCard.querySelectorAll('ul li');
+                                cardListItems.forEach(item => {
+                                    if (item.textContent.trim() === currentValue) {
+                                        item.textContent = data.updated_option.value;
+                                    }
+                                });
+                            }
+                            
+                            alert(data.message || 'گزینه با موفقیت ویرایش شد');
+                        } else {
+                            alert(`خطا: ${data.error || 'خطای نامشخص'}`);
+                        }
+                    } catch (error) {
+                        console.error('Fetch error:', error);
+                        alert('خطا در برقراری ارتباط با سرور');
+                    }
                 }
             });
         }
@@ -697,6 +782,16 @@
                                 
                                 const actionsDiv = document.createElement('div');
                                 actionsDiv.className = 'option-item-actions';
+                                
+                                // افزودن دکمه ویرایش
+                                const editBtn = document.createElement('button');
+                                editBtn.innerHTML = '<i class="fas fa-edit"></i> ویرایش';
+                                editBtn.className = 'button info-button button-sm edit-option-btn';
+                                editBtn.type = 'button';
+                                editBtn.dataset.optionId = addedOption.id;
+                                editBtn.dataset.currentValue = addedOption.value;
+                                editBtn.style.marginLeft = '5px';
+                                actionsDiv.appendChild(editBtn);
                                 
                                 // افزودن دکمه حذف
                                 const deleteBtn = document.createElement('button');

@@ -1,0 +1,654 @@
+{% macro format_price(price) %}
+    {% if price %}
+        {{ "{:,}".format(price|int) }}
+    {% else %}
+        0
+    {% endif %}
+{% endmacro %}
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاسبه قیمت درب</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazirmatn', sans-serif; /* یا فونت فارسی دیگر */
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f8f9fa;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1200px; /* افزایش عرض کانتینر */
+            margin-top: 20px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h1, h2 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            font-weight: bold;
+        }
+
+        .form-control, .form-select {
+            margin-bottom: 15px;
+        }
+
+        .results-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+        }
+
+        .results-section h2 {
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+
+        .result-item {
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .result-item strong {
+            color: #333;
+        }
+
+        .total-cost {
+            font-weight: bold;
+            font-size: 1.3em;
+            color: #28a745;
+            margin-top: 20px;
+            border-top: 2px solid #ccc;
+            padding-top: 10px;
+        }
+
+        .nav-buttons {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .nav-buttons .btn {
+            margin: 0 10px;
+        }
+
+        .component-selection-table {
+            width: 100%;
+            margin-bottom: 20px;
+            border-collapse: collapse;
+        }
+
+        .component-selection-table th, .component-selection-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .component-selection-table th {
+            background-color: #f2f2f2;
+        }
+
+        .component-selection-table input[type="checkbox"] {
+            transform: scale(1.2);
+        }
+
+        .component-selection-table input[type="number"] {
+            width: 80px; /* Adjust as needed */
+            text-align: center;
+        }
+
+        /* استایل برای چیدمان جدید */
+        .main-content-row {
+            display: flex;
+            flex-wrap: wrap; /* اجازه شکستن به ردیف جدید در صفحات کوچک */
+        }
+
+        .form-inputs-column {
+            flex: 1; /* ستون فرم اصلی فضای بیشتری بگیرد */
+            padding-right: 15px; /* فاصله بین ستون فرم و ستون انتخاب مولفه */
+        }
+
+        .selections-and-results-column {
+            flex: 0 0 450px; /* عرض ثابت برای ستون انتخاب مولفه و نتایج */
+            max-width: 450px; /* جلوگیری از بزرگ شدن بیش از حد */
+            padding-left: 15px;
+        }
+
+        @media (max-width: 992px) { /* برای صفحات کوچکتر از lg */
+            .form-inputs-column, .selections-and-results-column {
+                flex: 1 0 100%; /* هر دو ستون عرض کامل بگیرند و زیر هم قرار گیرند */
+                padding-right: 0;
+                padding-left: 0;
+                max-width: 100%;
+            }
+            .selections-and-results-column {
+                margin-top: 20px; /* فاصله در حالت زیر هم */
+            }
+        }
+
+        .sticky-sidebar {
+            position: sticky;
+            top: 20px; /* فاصله از بالا */
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>محاسبه‌گر قیمت درب</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- div برای پیام‌های خطای AJAX -->
+        <div id="ajaxErrorMessages"></div>
+
+        <form id="priceCalculatorForm" method="POST" action="{{ url_for('price_calculator') }}">
+            <div class="main-content-row">
+                <div class="form-inputs-column">
+                    <h2>ورودی‌های اصلی</h2>
+                    
+                    <!-- اطلاعات مشتری -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="نام_مشتری" class="form-label">نام مشتری:</label>
+                            <input type="text" class="form-control" id="نام_مشتری" name="نام_مشتری" value="{{ default_values.نام_مشتری if default_values else '' }}" placeholder="نام و نام خانوادگی مشتری">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="موبایل_مشتری" class="form-label">شماره موبایل مشتری:</label>
+                            <input type="tel" class="form-control" id="موبایل_مشتری" name="موبایل_مشتری" value="{{ default_values.موبایل_مشتری if default_values else '' }}" placeholder="09123456789">
+                        </div>
+                    </div>
+
+                    <!-- ابعاد درب و تاریخ سفارش -->
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="عرض_درب" class="form-label">عرض درب (سانتی‌متر):</label>
+                            <input type="number" step="0.01" class="form-control" id="عرض_درب" name="عرض_درب" value="{{ default_values.عرض_درب if default_values else '110' }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="ارتفاع_درب" class="form-label">ارتفاع درب (سانتی‌متر):</label>
+                            <input type="number" step="0.01" class="form-control" id="ارتفاع_درب" name="ارتفاع_درب" value="{{ default_values.ارتفاع_درب if default_values else '280' }}" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="تاریخ_سفارش" class="form-label">تاریخ سفارش (شمسی):</label>
+                            <input type="text" class="form-control" id="تاریخ_سفارش" name="تاریخ_سفارش" 
+                                   value="{{ default_values.تاریخ_سفارش if default_values and default_values.تاریخ_سفارش else '' }}" 
+                                   placeholder="مثال: ۱۴۰۳/۰۳/۱۰" readonly>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="نوع_پروفیل_فریم_لس" class="form-label">نوع پروفیل فریم لس:</label>
+                            <select class="form-select" id="نوع_پروفیل_فریم_لس" name="نوع_پروفیل_فریم_لس">
+                                {% for option in dropdown_options.نوع_پروفیل_فریم_لس %}
+                                    <option value="{{ option }}" {% if default_values and default_values.نوع_پروفیل_فریم_لس == option %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="رنگ_آلومینیوم" class="form-label">رنگ آلومینیوم:</label>
+                            <select class="form-select" id="رنگ_آلومینیوم" name="رنگ_آلومینیوم">
+                                {% for option in dropdown_options.رنگ_آلومینیوم %}
+                                    <option value="{{ option }}" {% if default_values and default_values.رنگ_آلومینیوم == option %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label for="جنس_درب" class="form-label">جنس درب:</label>
+                            <select class="form-select" id="جنس_درب" name="جنس_درب">
+                                {% for option in dropdown_options.جنس_درب %}
+                                    <option value="{{ option }}" {% if default_values and default_values.جنس_درب == option %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="شرایط_رنگ" class="form-label">شرایط رنگ:</label>
+                            <select class="form-select" id="شرایط_رنگ" name="شرایط_رنگ">
+                                {% for option in dropdown_options.شرایط_رنگ %}
+                                    <option value="{{ option }}" {% if default_values and default_values.شرایط_رنگ == option %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="رند_رنگ" class="form-label">برند رنگ:</label>
+                            <select class="form-select" id="رند_رنگ" name="رند_رنگ">
+                                {% for option in dropdown_options.رند_رنگ %}
+                                    <option value="{{ option }}" {% if default_values and default_values.رند_رنگ == option %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="selections-and-results-column">
+                    <div class="sticky-sidebar">
+                        <h2>انتخاب و درصد سهم مولفه ها</h2>
+                        <table class="component-selection-table">
+                            <thead>
+                                <tr>
+                                    <th>مولفه</th>
+                                    <th>انتخاب</th>
+                                    <th>درصد سود فروش (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, (is_selected_default, percentage_default) in selections.items() %}
+                                <tr>
+                                    <td>{{ key }}</td>
+                                    <td>
+                                        <input type="checkbox" class="form-check-input" name="checkbox_{{ key }}" id="checkbox_{{ key }}" 
+                                               {% if is_selected_default %}checked{% endif %}>
+                                    </td>
+                                    <td>
+                                        <input type="number" step="0.01" class="form-control percentage-input" name="percentage_{{ key }}" id="percentage_{{ key }}" 
+                                               value="{{ percentage_default if percentage_default is not none else '0' }}" 
+                                               {% if not is_selected_default %}disabled{% endif %}>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+
+                        {% if results %}
+                        <div class="results-section">
+                            <h2>نتایج محاسبه</h2>
+                            {% if results.D14_هزینه_درب_خام_یک_درب is not none and results.D14_هزینه_درب_خام_یک_درب > 0 %}
+                                <div class="result-item"><strong>سهم درب خام:</strong> {{ format_price(results.D14_هزینه_درب_خام_یک_درب) }} ریال</div>
+                            {% endif %}
+                            {% if results.C11_درب_با_رنگ_کامل is not none and results.C11_درب_با_رنگ_کامل > 0 %}
+                                <div class="result-item"><strong>سهم درب با رنگ کامل:</strong> {{ format_price(results.C11_درب_با_رنگ_کامل) }} ریال</div>
+                            {% endif %}
+                            {% if results.D11_فریم is not none and results.D11_فریم > 0 %}
+                                <div class="result-item"><strong>سهم فریم:</strong> {{ format_price(results.D11_فریم) }} ریال</div>
+                            {% endif %}
+                            {% if results.E11_یراق_کامل is not none and results.E11_یراق_کامل > 0 %}
+                                <div class="result-item"><strong>سهم یراق کامل:</strong> {{ format_price(results.E11_یراق_کامل) }} ریال</div>
+                            {% endif %}
+                             {% if results.رنگ_کاری_contrib is not none and results.رنگ_کاری_contrib > 0 %}
+                                <div class="result-item"><strong>سهم رنگ کاری:</strong> {{ format_price(results.رنگ_کاری_contrib) }} ریال</div>
+                            {% endif %}
+                            <hr>
+                            <div class="total-cost"><strong>قیمت نهایی کل:</strong> {{ format_price(results.total_cost) }} ریال</div>
+                        </div>
+                        {% else %}
+                        <div class="results-section" style="text-align: center; padding: 20px;">
+                            <p>لطفاً مقادیر را وارد کرده و برای مشاهده نتایج، اطلاعات فرم را تغییر دهید.</p>
+                            <p>(نتایج پس از تغییر در ورودی‌ها یا انتخاب مولفه‌ها به طور خودکار نمایش داده خواهد شد)</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-center nav-buttons mb-3">
+                <button type="submit" class="btn btn-primary">محاسبه قیمت</button>
+                <button type="button" class="btn btn-success" id="saveQuoteBtn" style="margin-left: 10px;">ذخیره این قیمت</button>
+                <a href="{{ url_for('price_calculator') }}" class="btn btn-warning" style="margin-left: 10px;">سفارش جدید (پاک کردن فرم)</a>
+                <a href="{{ url_for('saved_quotes') }}" class="btn btn-info" style="margin-left: 10px;">مشاهده قیمت‌های ذخیره شده</a>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // فعال/غیرفعال کردن فیلد درصد بر اساس وضعیت چک‌باکس
+            const checkboxes = document.querySelectorAll('.component-selection-table input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                const percentageInput = document.getElementById(checkbox.id.replace('checkbox_', 'percentage_'));
+                if (percentageInput) {
+                    // Set initial state based on pre-filled "selections" data
+                    percentageInput.disabled = !checkbox.checked;
+
+                    checkbox.addEventListener('change', function () {
+                        percentageInput.disabled = !this.checked;
+                        if (!this.checked) {
+                            // Optional: Clear or reset percentage when unchecked
+                            // percentageInput.value = '0'; 
+                        }
+                        submitFormAJAX(); // ارسال فرم با تغییر چک باکس
+                    });
+                }
+            });
+
+            // ارسال فرم با تغییر مقادیر
+            const formInputs = document.querySelectorAll('#priceCalculatorForm input, #priceCalculatorForm select');
+            formInputs.forEach(input => {
+                input.addEventListener('change', function() { // 'change' event is better than 'blur' for selects
+                    submitFormAJAX();
+                });
+                 // برای input type number و text، با Enter هم ارسال شود
+                if (input.type === 'number' || input.type === 'text') {
+                    input.addEventListener('keypress', function(event) {
+                        if (event.key === 'Enter') {
+                            event.preventDefault(); // جلوگیری از ارسال عادی فرم
+                            submitFormAJAX();
+                        }
+                    });
+                }
+            });
+
+            // رویداد کلیک دکمه "ذخیره این قیمت" (پیاده‌سازی بهبود یافته)
+            const saveQuoteBtn = document.getElementById('saveQuoteBtn');
+            if (saveQuoteBtn) {
+                saveQuoteBtn.addEventListener('click', function(event) {
+                    // جلوگیری از رفتار پیش‌فرض
+                    event.preventDefault();
+                    
+                    console.log('Save button clicked'); // Debug
+                    
+                    // بررسی وجود نتایج محاسبه
+                    const resultsSection = document.querySelector('.results-section');
+                    if (!resultsSection) {
+                        alert('ابتدا محاسبه قیمت را انجام دهید تا بتوانید آن را ذخیره کنید.');
+                        return;
+                    }
+                    
+                    // بررسی اینکه بخش نتایج حاوی محاسبات واقعی است یا پیام راهنما
+                    const hasActualResults = resultsSection.querySelector('.total-cost');
+                    if (!hasActualResults) {
+                        alert('لطفاً ابتدا مقادیر را تغییر دهید تا محاسبه قیمت انجام شود، سپس آن را ذخیره کنید.');
+                        return;
+                    }
+                    
+                    // بررسی اینکه حداقل یک مولفه انتخاب شده باشد
+                    const selectedComponents = document.querySelectorAll('.component-selection-table input[type="checkbox"]:checked');
+                    if (selectedComponents.length === 0) {
+                        alert('لطفاً حداقل یک مولفه را انتخاب کنید.');
+                        return;
+                    }
+                    
+                    // جمع‌آوری اطلاعات مشتری
+                    const customerName = document.getElementById('نام_مشتری').value.trim();
+                    const customerMobile = document.getElementById('موبایل_مشتری').value.trim();
+                    
+                    if (!customerName) {
+                        alert('لطفاً نام مشتری را وارد کنید.');
+                        document.getElementById('نام_مشتری').focus();
+                        return;
+                    }
+                    
+                    // جمع‌آوری ورودی‌های اصلی سفارش
+                    const inputWidth = parseFloat(document.getElementById('عرض_درب').value) || 0;
+                    const inputHeight = parseFloat(document.getElementById('ارتفاع_درب').value) || 0;
+                    const profileType = document.getElementById('نوع_پروفیل_فریم_لس').value;
+                    const aluminumColor = document.getElementById('رنگ_آلومینیوم').value;
+                    const doorMaterial = document.getElementById('جنس_درب').value;
+                    const paintCondition = document.getElementById('شرایط_رنگ').value;
+                    const paintBrand = document.getElementById('رند_رنگ').value;
+                    
+                    // بررسی صحت ابعاد درب
+                    if (inputWidth <= 0 || inputHeight <= 0) {
+                        alert('لطفاً عرض و ارتفاع درب را به درستی وارد کنید.');
+                        return;
+                    }
+                    
+                    // جمع‌آوری انتخاب‌ها و درصدهای مولفه‌ها
+                    const selectionsDetails = {};
+                    checkboxes.forEach(checkbox => {
+                        const componentKey = checkbox.id.replace('checkbox_', '');
+                        const isSelected = checkbox.checked;
+                        const percentageInput = document.getElementById('percentage_' + componentKey);
+                        const percentage = percentageInput ? parseFloat(percentageInput.value) || 0 : 0;
+                        
+                        selectionsDetails[componentKey] = [isSelected, percentage];
+                    });
+                    
+                    // استخراج قیمت نهایی از DOM - روش بهبود یافته
+                    const totalCostElement = document.querySelector('.total-cost');
+                    if (!totalCostElement) {
+                        alert('خطا: قیمت نهایی یافت نشد. لطفاً دوباره محاسبه کنید.');
+                        return;
+                    }
+                    
+                    // بجای استخراج از DOM، قیمت را از آخرین response محاسبه بگیریم
+                    let finalPrice = 0;
+                    
+                    // بررسی وجود قیمت در متغیر سراسری
+                    if (window.lastCalculationResults && window.lastCalculationResults.total_cost) {
+                        finalPrice = window.lastCalculationResults.total_cost;
+                        console.log('Using price from last calculation results:', finalPrice);
+                    } else {
+                        // در صورت عدم وجود، محاسبه مجدد را درخواست کنید
+                        alert('لطفاً ابتدا دکمه "محاسبه قیمت" را فشار دهید تا قیمت نهایی محاسبه شود.');
+                        return;
+                    }
+                    
+                    console.log('Final price to save:', finalPrice); // Debug
+                    
+                    // بررسی نهایی قیمت
+                    if (finalPrice <= 0) {
+                        alert('خطا: قیمت نهایی صفر یا منفی است. لطفاً بررسی کنید که:\n1. حداقل یک مولفه انتخاب شده باشد\n2. قیمت‌های پایه در تنظیمات درست باشند\n3. ابعاد درب صحیح باشند');
+                        return;
+                    }
+                    
+                    // ساخت payload برای ارسال
+                    const shamsiOrderDate = document.getElementById('تاریخ_سفارش').value;
+                    const payload = {
+                        customer_name: customerName,
+                        customer_mobile: customerMobile,
+                        input_width: inputWidth,
+                        input_height: inputHeight,
+                        profile_type: profileType,
+                        aluminum_color: aluminumColor,
+                        door_material: doorMaterial,
+                        paint_condition: paintCondition,
+                        paint_brand: paintBrand,
+                        selections_details: JSON.stringify(selectionsDetails),
+                        final_price: finalPrice,
+                        shamsi_date: shamsiOrderDate
+                    };
+                    
+                    console.log('Payload being sent:', payload); // Debug
+                    
+                    // نمایش Loading
+                    const originalButtonText = saveQuoteBtn.textContent;
+                    saveQuoteBtn.textContent = 'در حال ذخیره...';
+                    saveQuoteBtn.disabled = true;
+                    
+                    // ارسال داده‌ها با AJAX
+                    fetch('/save_quote', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            const successMessage = data.message || 'قیمت‌دهی با موفقیت ذخیره شد.';
+                            showFlashMessages([{category: 'success', message: successMessage}]);
+                            
+                            // بررسی و استفاده از اطلاعات مشتری حفظ شده
+                            if (data.preserved_info) {
+                                document.getElementById('نام_مشتری').value = data.preserved_info.customer_name || '';
+                                document.getElementById('موبایل_مشتری').value = data.preserved_info.customer_mobile || '';
+                            } else {
+                                // fallback: پاک کردن فیلدهای مشتری اگر اطلاعات حفظ شده موجود نباشد
+                                document.getElementById('نام_مشتری').value = '';
+                                document.getElementById('موبایل_مشتری').value = '';
+                            }
+                        } else {
+                            throw new Error(data.error || 'خطای نامشخص در ذخیره');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error saving quote:', error);
+                        const errorMessage = typeof error === 'string' ? error : 
+                                           error.message || 'خطا در ارتباط با سرور';
+                        
+                        const errorDiv = document.getElementById('ajaxErrorMessages');
+                        if (errorDiv) {
+                            errorDiv.innerHTML = `<div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                خطا در ذخیره: ${errorMessage}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>`;
+                        } else {
+                            alert('خطا در ذخیره: ' + errorMessage);
+                        }
+                    })
+                    .finally(() => {
+                        // بازگرداندن حالت عادی دکمه
+                        saveQuoteBtn.textContent = originalButtonText;
+                        saveQuoteBtn.disabled = false;
+                    });
+                });
+            }
+
+            function submitFormAJAX() {
+                const form = document.getElementById('priceCalculatorForm');
+                const formData = new FormData(form);
+                const actionUrl = form.action;
+
+                fetch(actionUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest' // برای تشخیص درخواست AJAX در سرور
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.results) {
+                        // Store results globally for save quote functionality
+                        window.lastCalculationResults = data.results;
+                        updateResultsSection(data.results);
+                    } else if (data.error) {
+                        // نمایش خطا در صورت وجود
+                        // شما می‌توانید یک بخش برای نمایش پیام‌های خطا در HTML ایجاد کنید
+                        console.error('Error from server:', data.error);
+                        // نمایش پیام خطا به کاربر با استفاده از alert یا یک div مخصوص
+                        const errorDiv = document.getElementById('ajaxErrorMessages');
+                        if (errorDiv) {
+                            errorDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                        } else {
+                            alert("خطا در محاسبه: " + data.error);
+                        }
+                    }
+                     if (data.flash_messages) {
+                        showFlashMessages(data.flash_messages);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error submitting form via AJAX:', error);
+                    const errorDiv = document.getElementById('ajaxErrorMessages');
+                    if (errorDiv) {
+                        errorDiv.innerHTML = `<div class="alert alert-danger">خطا در ارتباط با سرور.</div>`;
+                    } else {
+                        alert("خطا در ارتباط با سرور.");
+                    }
+                });
+            }
+
+            function formatPrice(price) {
+                if (price === null || price === undefined) return '0';
+                return parseInt(price).toLocaleString('fa-IR');
+            }
+
+            function updateResultsSection(results) {
+                const resultsSection = document.querySelector('.results-section');
+                if (!resultsSection) return;
+
+                let htmlContent = '<h2>نتایج محاسبه</h2>';
+                if (results.D14_هزینه_درب_خام_یک_درب !== undefined && parseFloat(results.D14_هزینه_درب_خام_یک_درب) > 0) {
+                    htmlContent += `<div class="result-item"><strong>سهم درب خام:</strong> ${formatPrice(results.D14_هزینه_درب_خام_یک_درب)} ریال</div>`;
+                }
+                if (results.C11_درب_با_رنگ_کامل !== undefined && parseFloat(results.C11_درب_با_رنگ_کامل) > 0) {
+                    htmlContent += `<div class="result-item"><strong>سهم درب با رنگ کامل:</strong> ${formatPrice(results.C11_درب_با_رنگ_کامل)} ریال</div>`;
+                }
+                if (results.D11_فریم !== undefined && parseFloat(results.D11_فریم) > 0) {
+                    htmlContent += `<div class="result-item"><strong>سهم فریم:</strong> ${formatPrice(results.D11_فریم)} ریال</div>`;
+                }
+                if (results.E11_یراق_کامل !== undefined && parseFloat(results.E11_یراق_کامل) > 0) {
+                    htmlContent += `<div class="result-item"><strong>سهم یراق کامل:</strong> ${formatPrice(results.E11_یراق_کامل)} ریال</div>`;
+                }
+                if (results.رنگ_کاری_contrib !== undefined && parseFloat(results.رنگ_کاری_contrib) > 0) {
+                    htmlContent += `<div class="result-item"><strong>سهم رنگ کاری:</strong> ${formatPrice(results.رنگ_کاری_contrib)} ریال</div>`;
+                }
+                htmlContent += '<hr>';
+                htmlContent += `<div class="total-cost"><strong>قیمت نهایی کل:</strong> ${formatPrice(results.total_cost)} ریال</div>`;
+                
+                resultsSection.innerHTML = htmlContent;
+            }
+
+            function showFlashMessages(messages) {
+                const container = document.querySelector('.container'); // یا هر المان دیگری که می‌خواهید پیام‌ها در آن نمایش داده شوند
+                let messagesHtml = '';
+                messages.forEach(msg => {
+                    messagesHtml += `<div class="alert alert-${msg.category} alert-dismissible fade show" role="alert">
+                                        ${msg.message}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>`;
+                });
+                // ایجاد یک div برای پیام‌های فلش اگر وجود ندارد
+                let flashContainer = document.getElementById('ajaxFlashMessages');
+                if (!flashContainer) {
+                    flashContainer = document.createElement('div');
+                    flashContainer.id = 'ajaxFlashMessages';
+                    // درج قبل از فرم یا در مکان مناسب دیگر
+                     const formElement = document.getElementById('priceCalculatorForm');
+                    if (formElement) {
+                        formElement.parentNode.insertBefore(flashContainer, formElement);
+                    } else {
+                        container.insertAdjacentHTML('afterbegin', flashContainer.outerHTML); // fallback
+                    }
+                }
+                flashContainer.innerHTML = messagesHtml;
+
+                // Automatically dismiss alerts after some time
+                setTimeout(() => {
+                    const alerts = flashContainer.querySelectorAll('.alert');
+                    alerts.forEach(alert => {
+                        const bsAlert = new bootstrap.Alert(alert);
+                        bsAlert.close();
+                    });
+                }, 7000); // 7 seconds
+            }
+        });
+    </script>
+</body>
+
+</html>
