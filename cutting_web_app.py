@@ -16,7 +16,7 @@ import json
 from collections import defaultdict # Add this import
 
 # --- تنظیمات اولیه ---
-DB_NAME = "cutting_web_data.db"
+DB_NAME = os.getenv("CUTTING_DB_PATH", "cutting_web_data.db")
 
 # --- توابع کار با دیتابیس (مستقیم در همین فایل) ---
 
