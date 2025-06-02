@@ -96,6 +96,13 @@ def apply_migrations(conn):
         );
     """
 
+    sql_apply_003_price_settings = """
+        CREATE TABLE IF NOT EXISTS price_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+    """
+
     migrations = [
         {
             "name": "000_create_initial_tables",
@@ -124,6 +131,13 @@ def apply_migrations(conn):
                     description TEXT
                 )
             ''',
+            "execution_type": "single",
+        },
+        {
+            "name": "003_create_price_settings_table",
+            "description": "ایجاد جدول price_settings برای تنظیمات محاسبه قیمت",
+            "check_logic": lambda c: not c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='price_settings'").fetchone(),
+            "sql_apply": sql_apply_003_price_settings,
             "execution_type": "single",
         }
     ]

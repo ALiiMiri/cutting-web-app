@@ -669,7 +669,7 @@ app = Flask(__name__, template_folder='templates')
 app.secret_key = "a_different_secret_key_now_for_sure"  # کلید مخفی
 
 # --- مقداردهی اولیه دیتابیس ---
-initialize_database()
+# initialize_database() # Removed this call
 
 # --- بررسی وجود جداول بعد از مقداردهی اولیه ---
 print("\n--- شروع بررسی جداول ---")
@@ -3748,4 +3748,15 @@ def delete_multiple_quotes():
 
 # افزودن کد راه‌اندازی Flask در انتهای فایل
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    print("DEBUG: تلاش برای اجرای ensure_default_custom_columns()")
+    ensure_default_custom_columns()
+    print("DEBUG: ensure_default_custom_columns() اجرا شد.")
+    initialize_inventory_database() # اضافه شده برای مقداردهی اولیه Inventory
+    print("DEBUG: initialize_inventory_database() فراخوانی شد.")
+    
+    # اتصال اولیه برای اجرای مهاجرت‌ها
+    conn = get_db_connection()
+    if conn:
+        conn.close()
+        
+    app.run(debug=True, host='0.0.0.0', port=5001)
