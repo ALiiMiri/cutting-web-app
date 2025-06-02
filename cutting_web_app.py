@@ -14,6 +14,7 @@ from inventory_init import initialize_inventory_database
 from math import ceil # Ensure ceil is imported
 import json
 from collections import defaultdict # Add this import
+from db_migrations import apply_migrations # Added import
 
 # --- تنظیمات اولیه ---
 DB_NAME = os.getenv("CUTTING_DB_PATH", "cutting_web_data.db")
@@ -24,6 +25,9 @@ def get_db_connection():
     """ایجاد و بازگرداندن یک اتصال به دیتابیس"""
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row  # برای دسترسی به ستون‌ها با نام
+    # Apply migrations as soon as the first connection is made in the app lifecycle
+    # This ensures migrations run before any other database operation that might depend on the schema.
+    apply_migrations(conn) 
     return conn
 
 # --- تابع کمکی برای بررسی وجود جدول ---
@@ -125,159 +129,6 @@ def add_default_options_if_needed(cursor):
         traceback.print_exc()
         # خطا به تابع والد منتقل می‌شود تا آنجا مدیریت شود
         # raise e
-
-
-def initialize_database():
-    """ایجاد جداول اولیه اگر وجود نداشته باشند"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # جدول پروژه‌ها
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS projects (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_name TEXT NOT NULL,
-            order_ref TEXT NOT NULL,
-            date_shamsi TEXT DEFAULT ''
-        )
-    """)
-    
-    # جدول درب‌ها
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS doors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER,
-            location TEXT,
-            width REAL,
-            height REAL,
-            quantity INTEGER,
-            direction TEXT DEFAULT 'چپ',
-            row_color_tag TEXT DEFAULT 'white',
-            FOREIGN KEY (project_id) REFERENCES projects (id)
-        )
-    """)
-    
-    # جدول ستون‌های سفارشی
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS custom_columns (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            column_name TEXT UNIQUE,
-            display_name TEXT,
-            column_type TEXT DEFAULT 'text',
-            is_active BOOLEAN DEFAULT 1
-        )
-    """)
-    
-    # جدول گزینه‌های ستون‌های سفارشی
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS custom_column_options (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            column_id INTEGER,
-            option_value TEXT,
-            FOREIGN KEY (column_id) REFERENCES custom_columns (id)
-        )
-    """)
-    
-    # جدول مقادیر سفارشی درب‌ها
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS door_custom_values (
-            door_id INTEGER,
-            column_id INTEGER,
-            value TEXT,
-            PRIMARY KEY (door_id, column_id),
-            FOREIGN KEY (door_id) REFERENCES doors (id),
-            FOREIGN KEY (column_id) REFERENCES custom_columns (id)
-        )
-    """)
-
-    # جدول ستون‌های قابل نمایش در هر پروژه
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS project_visible_columns (
-            project_id INTEGER,
-            column_key TEXT,
-            is_visible BOOLEAN DEFAULT 1,
-            PRIMARY KEY (project_id, column_key),
-            FOREIGN KEY (project_id) REFERENCES projects (id)
-        )
-    """)
-
-    # جدول حالت چک‌باکس‌های ویرایش دسته‌ای (جداگانه برای هر پروژه)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS batch_edit_checkbox_state (
-            project_id INTEGER,
-            column_key TEXT,
-            is_checked BOOLEAN DEFAULT 0,
-            PRIMARY KEY (project_id, column_key),
-            FOREIGN KEY (project_id) REFERENCES projects (id)
-        )
-    """)
-
-    # جدول جدید برای ذخیره قیمت‌دهی‌ها
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS saved_quotes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_name TEXT,
-            customer_mobile TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            input_width REAL,
-            input_height REAL,
-            profile_type TEXT,
-            aluminum_color TEXT,
-            door_material TEXT,
-            paint_condition TEXT,
-            paint_brand TEXT,
-            selections_details TEXT, -- JSON string of component selections and percentages
-            final_calculated_price REAL,
-            notes TEXT DEFAULT '',
-            shamsi_order_date TEXT DEFAULT '' -- ستون جدید برای تاریخ شمسی
-        )
-    """)
-    
-    # جدول تنظیمات قیمت پایه
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS price_settings (
-            key TEXT PRIMARY KEY,
-            value REAL
-        )
-    """)
-
-    # بررسی و مقداردهی اولیه جدول price_settings اگر خالی باشد
-    cursor.execute("SELECT COUNT(*) FROM price_settings")
-    if cursor.fetchone()[0] == 0:
-        default_price_settings = {
-            "فریم_لس_قدیمی": 1.7,
-            "فریم_لس_قالب_جدید": 1.9,
-            "توچوب_دار": 1.5,
-            "دور_آلومینیوم": 1.5,
-            "لاستیک": 98000.0,
-            "بست_نصب": 600000.0,
-            "چهارچوب_فریم_لس": 20000000.0,
-            "داخل_چوب": 40000000.0,
-            "دور_آلومینیوم_ماشین": 50000000.0,
-            "خام": 3450000.0,
-            "آنادایز": 3950000.0,
-            "سفید": 3750000.0, # مقدار پیش فرض برای رنگی/سفید
-            "پلای_وود": 19000000.0,
-            "تا_260": 121000000.0,
-            "261_تا_320": 133100000.0,
-            "321_تا_360": 145200000.0,
-            "بیش_از_360": 145200000.0,
-            "رنگ_نهایی_خارجی": 27000000.0,
-            "رنگ_نهایی_ایرانی": 20000000.0,
-            "زیر_سازی_خارجی": 22000000.0,
-            "زیر_سازی_ایرانی": 15000000.0,
-            "کد_رنگ_خارجی": 33000000.0,
-            "کد_رنگ_ایرانی": 25000000.0,
-            "لولا": 18000000.0,
-            "قفل": 14000000.0,
-            "سیلندر": 6800000.0
-        }
-        for key, value in default_price_settings.items():
-            cursor.execute("INSERT INTO price_settings (key, value) VALUES (?, ?)", (key, value))
-        print("DEBUG: جدول price_settings با مقادیر پیش فرض مقداردهی شد.")
-    
-    conn.commit() # این commit تمام تغییرات initialize_database را ذخیره می‌کند
-    conn.close() # این close اتصال را در انتهای تابع می‌بندد
 
 
 def ensure_base_columns_exist(cursor):
