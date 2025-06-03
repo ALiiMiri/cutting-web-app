@@ -139,6 +139,13 @@ def apply_migrations(conn):
             "check_logic": lambda c: not c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='price_settings'").fetchone(),
             "sql_apply": sql_apply_003_price_settings,
             "execution_type": "single",
+        },
+        {
+            "name": "004_add_installation_notes_to_doors",
+            "description": "افزودن ستون installation_notes به جدول doors برای یادداشت‌های نصب",
+            "check_logic": lambda c: not any(col[1] == 'installation_notes' for col in c.execute("PRAGMA table_info(doors)").fetchall()),
+            "sql_apply": "ALTER TABLE doors ADD COLUMN installation_notes TEXT DEFAULT '';",
+            "execution_type": "single"
         }
     ]
 
