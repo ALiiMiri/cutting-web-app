@@ -11,662 +11,55 @@ from weasyprint import HTML, CSS
 from datetime import datetime, date
 import jdatetime
 from inventory_init import initialize_inventory_database
-from math import ceil # Ensure ceil is imported
+from math import ceil
 import json
-from collections import defaultdict # Add this import
-from db_migrations import apply_migrations # Added import
+from collections import defaultdict
+from config import Config
+from database import (
+    get_db_connection,
+    check_table_exists,
+    get_all_projects,
+    add_project_db,
+    get_project_details_db,
+    get_doors_for_project_db,
+    add_door_db,
+    get_all_custom_columns,
+    get_active_custom_columns,
+    get_active_custom_columns_values,
+    add_custom_column,
+    update_custom_column_status,
+    get_column_id_by_key,
+    get_custom_column_options,
+    add_option_to_column,
+    delete_column_option,
+    update_door_custom_value,
+    get_door_custom_values,
+    update_project_db,
+    delete_project_db,
+    check_column_can_hide_internal,
+    ensure_default_custom_columns,
+    update_custom_column_option,
+    get_non_empty_custom_columns_for_project,
+    get_price_settings_db,
+    save_quote_db,
+    get_all_saved_quotes_db,
+    delete_quote_db,
+    delete_multiple_quotes_db
+)
 
 # --- تنظیمات اولیه ---
-DB_NAME = os.getenv("CUTTING_DB_PATH", "cutting_web_data.db")
+DB_NAME = Config.DB_NAME
 
-# --- توابع کار با دیتابیس (مستقیم در همین فایل) ---
-
-def get_db_connection():
-    """ایجاد و بازگرداندن یک اتصال به دیتابیس"""
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row  # برای دسترسی به ستون‌ها با نام
-    # Apply migrations as soon as the first connection is made in the app lifecycle
-    # This ensures migrations run before any other database operation that might depend on the schema.
-    apply_migrations(conn) 
-    return conn
 
 # --- تابع کمکی برای بررسی وجود جدول ---
 
 
-def check_table_exists(table_name):
-    conn_check = None
-    exists = False
-    print(f"DEBUG: شروع بررسی وجود جدول '{table_name}'...")
-    try:
-        conn_check = sqlite3.connect(DB_NAME)
-        cursor_check = conn_check.cursor()
-        cursor_check.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-            (table_name,),
-        )
-        result = cursor_check.fetchone()
-        if result:
-            exists = True
-            print(
-                f"DEBUG: جدول '{table_name}' با موفقیت در دیتابیس '{DB_NAME}' پیدا شد."
-            )
-        else:
-            print(
-                f"DEBUG: جدول '{table_name}' در دیتابیس '{DB_NAME}' یافت نشد."
-            )
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در check_table_exists: {e}")
-        traceback.print_exc()
-    finally:
-        if conn_check:
-            conn_check.close()
-    return exists
 
-
-# ------------------------------------
-
-
-def add_default_options_if_needed(cursor):
-    """گزینه‌های پیش‌فرض برای ستون‌های دراپ‌داون پایه را اضافه می‌کند اگر قبلاً اضافه نشده باشند"""
-    try:
-        print("DEBUG: شروع بررسی و افزودن گزینه‌های پیش‌فرض برای ستون‌های دراپ‌داون...")
-        
-        # دیکشنری گزینه‌های پیش‌فرض برای ستون‌های دراپ‌داون پایه
-        default_column_options_map = {
-            "rang": ["سفید", "آنادایز", "مشکی", "شامپاینی", "طلایی", "نقره‌ای", "قهوه‌ای"],
-            "noe_profile": ["فریم لس آلومینیومی", "فریم قدیمی", "داخل چوب دار", "فریم دار", "ساده"],
-            "vaziat": ["همزمان با تولید چهارچوب", "تولید درب در آینده", "بدون درب", "درب دار", "نصب شده"],
-            "lola": ["OTLAV", "HTH", "NHN", "سه تیکه", "مخفی", "متفرقه"],
-            "ghofl": ["STV", "ایزدو", "NHN", "HTN", "یونی", "مگنتی", "بدون قفل"],
-            "accessory": ["آلومینیوم آستانه فاق و زبانه", "آرامبند مرونی", "قفل برق سارو با فنر", "آینه", "دستگیره پشت درب"],
-            "kolaft": ["دو طرفه", "سه طرفه", "یک طرفه", "بدون کلافت"],
-            "dastgire": ["دو تیکه", "ایزدو", "گریف ورک", "گریف تو کار", "متفرقه"]
-        }
-        
-        # برای هر ستون دراپ‌داون در نقشه
-        for column_name, default_options in default_column_options_map.items():
-            # پیدا کردن ستون در جدول custom_columns
-            cursor.execute(
-                "SELECT id, column_type FROM custom_columns WHERE column_name = ?",
-                (column_name,)
-            )
-            column = cursor.fetchone()
-            
-            if not column:
-                print(f"DEBUG: ستون '{column_name}' در دیتابیس یافت نشد.")
-                continue
-                
-            column_id, column_type = column
-            
-            # اطمینان از اینکه ستون از نوع دراپ‌داون است
-            if column_type != 'dropdown':
-                print(f"DEBUG: ستون '{column_name}' از نوع دراپ‌داون نیست (نوع فعلی: {column_type}).")
-                continue
-            
-            # بررسی اینکه آیا این ستون قبلاً گزینه‌ای دارد یا خیر
-            cursor.execute(
-                "SELECT COUNT(*) FROM custom_column_options WHERE column_id = ?",
-                (column_id,)
-            )
-            option_count = cursor.fetchone()[0]
-            
-            if option_count > 0:
-                print(f"DEBUG: ستون '{column_name}' قبلاً {option_count} گزینه دارد. نیازی به افزودن گزینه‌های پیش‌فرض نیست.")
-                continue
-            
-            # اضافه کردن گزینه‌های پیش‌فرض
-            print(f"DEBUG: افزودن {len(default_options)} گزینه پیش‌فرض برای ستون '{column_name}'...")
-            for option_value in default_options:
-                cursor.execute(
-                    "INSERT INTO custom_column_options (column_id, option_value) VALUES (?, ?)",
-                    (column_id, option_value)
-                )
-            
-            print(f"DEBUG: گزینه‌های پیش‌فرض برای ستون '{column_name}' با موفقیت اضافه شدند.")
-            
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در add_default_options_if_needed: {e}")
-        traceback.print_exc()
-        # خطا به تابع والد منتقل می‌شود تا آنجا مدیریت شود
-        # raise e
-
-
-def ensure_base_columns_exist(cursor):
-    """اطمینان از وجود ستون‌های پایه در دیتابیس با استفاده از cursor موجود"""
-    base_columns = [
-        ("rang", "رنگ پروفیل"),
-        ("noe_profile", "نوع پروفیل"),
-        ("vaziat", "وضعیت تولید درب"),
-        ("lola", "لولا"),
-        ("ghofl", "قفل"),
-        ("accessory", "اکسسوری"),
-        ("kolaft", "کلاف"),
-        ("dastgire", "دستگیره"),
-        ("tozihat", "توضیحات")
-    ]
-    
-    for column_key, display_name in base_columns:
-        try:
-            # بررسی وجود ستون
-            cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
-            result = cursor.fetchone()
-            if not result:
-                print(f"DEBUG: افزودن ستون پایه '{column_key}' به دیتابیس")
-                # تعیین نوع ستون بر اساس کلید
-                col_type = 'dropdown'
-                if column_key == 'tozihat': # توضیحات متنی است
-                    col_type = 'text'
-                
-                cursor.execute(
-                    "INSERT INTO custom_columns (column_name, display_name, is_active, column_type) VALUES (?, ?, 1, ?)",
-                    (column_key, display_name, col_type)
-                )
-                print(f"DEBUG: ستون پایه '{column_key}' با موفقیت به دیتابیس اضافه شد.")
-            else:
-                print(f"DEBUG: ستون پایه '{column_key}' از قبل در دیتابیس وجود داشت.")
-        except sqlite3.Error as e:
-            print(f"ERROR در ensure_base_columns_exist برای ستون {column_key}: {e}")
-            # در اینجا می‌توان خطا را به بالا pass داد تا initialize_database آن را مدیریت کند
-            # raise e
-
-
-def get_all_projects():
-    """لیستی از تمام پروژه‌ها (id, نام مشتری، شماره سفارش) را برمی‌گرداند"""
-    conn = None
-    projects = []
-    print("DEBUG: ورود به تابع get_all_projects")
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, customer_name, order_ref, date_shamsi FROM projects ORDER BY id DESC"
-        )
-        projects = [
-            {"id": row[0], "cust_name": row[1], "order_ref": row[2], "date_shamsi": row[3]}
-            for row in cursor.fetchall()
-        ]
-        print(f"DEBUG: get_all_projects {len(projects)} پروژه یافت.")
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_all_projects: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return projects
-
-
-def add_project_db(customer_name, order_ref, date_shamsi=""):
-    """اضافه کردن یک پروژه جدید به دیتابیس"""
-    print(f"DEBUG: ورود به تابع add_project_db، customer_name: {customer_name}, order_ref: {order_ref}, date_shamsi: {date_shamsi}")
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO projects (customer_name, order_ref, date_shamsi) VALUES (?, ?, ?)",
-            (customer_name, order_ref, date_shamsi),
-        )
-        project_id = cursor.lastrowid
-        conn.commit()
-        print(f"DEBUG: پروژه‌ی جدید با آی‌دی {project_id} اضافه شد.")
-        return project_id
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در add_project_db: {e}")
-        traceback.print_exc()
-        return None
-    finally:
-        if conn:
-            conn.close()
-
-
-def get_project_details_db(project_id):
-    """جزئیات یک پروژه خاص را بر اساس ID برمی‌گرداند"""
-    conn = None
-    project_details = None
-    print(f"DEBUG: ورود به تابع get_project_details_db برای ID: {project_id}")
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, customer_name, order_ref, date_shamsi FROM projects WHERE id = ?",
-            (project_id,),
-        )
-        row = cursor.fetchone()
-        if row:
-            project_details = {
-                "id": row[0],
-                "customer_name": row[1],
-                "order_ref": row[2],
-                "date_shamsi": row[3]
-            }
-            print(f"DEBUG: جزئیات پروژه ID {project_id} یافت شد.")
-        else:
-            print(f"DEBUG: پروژه ID {project_id} یافت نشد.")
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_project_details_db: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return project_details
-
-
-def get_doors_for_project_db(project_id):
-    """لیستی از تمام درب‌های مربوط به یک پروژه خاص را برمی‌گرداند"""
-    conn = None
-    doors = []
-    print(f"DEBUG: ورود به تابع get_doors_for_project_db برای پروژه ID: {project_id}")
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        # ابتدا اطلاعات پایه درب‌ها را می‌گیریم
-        cursor.execute(
-            """
-            SELECT id, location, width, height, quantity, direction, row_color_tag 
-            FROM doors 
-            WHERE project_id = ? 
-            ORDER BY id
-        """,
-            (project_id,),
-        )
-
-        base_doors_data = cursor.fetchall()
-        print(f"DEBUG: تعداد درب‌های پایه یافت شده: {len(base_doors_data)}")
-
-        for row in base_doors_data:
-            door_id = row[0]
-            door_data = {
-                "id": door_id,
-                "location": row[1],
-                "width": row[2],
-                "height": row[3],
-                "quantity": row[4],
-                "direction": row[5],
-                "row_color_tag": row[6] if row[6] else "white",
-            }
-
-            # مقادیر ستون‌های سفارشی را برای این درب دریافت می‌کنیم
-            cursor.execute("""
-                SELECT cc.column_name, dcv.value
-                FROM door_custom_values dcv
-                JOIN custom_columns cc ON dcv.column_id = cc.id
-                WHERE dcv.door_id = ?
-            """, (door_id,))
-            
-            for custom_col in cursor.fetchall():
-                col_name = custom_col[0]
-                col_value = custom_col[1]
-                door_data[col_name] = col_value
-                
-            print(f"DEBUG: مقادیر سفارشی درب {door_id}: {door_data}")
-
-            doors.append(door_data)
-
-        print(f"DEBUG: get_doors_for_project_db {len(doors)} درب یافت.")
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_doors_for_project_db: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return doors
-
-
-def add_door_db(
-    project_id, location, width, height, quantity, direction, row_color="white"
-):
-    """اطلاعات یک درب جدید را برای پروژه مشخص شده در دیتابیس ذخیره می‌کند"""
-    conn = None
-    door_id = None
-    print(f"DEBUG: ورود به تابع add_door_db برای پروژه ID: {project_id}")
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO doors (project_id, location, width, height, quantity, direction, row_color_tag) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-            (project_id, location, width, height, quantity, direction, row_color),
-        )
-        door_id = cursor.lastrowid
-        conn.commit()
-        print(
-            f"DEBUG: درب جدید با ID {door_id} برای پروژه ID {project_id} ذخیره و commit شد."
-        )
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در add_door_db: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return door_id
-
-
-def get_all_custom_columns():
-    """لیست تمام ستون‌های سفارشی را برمی‌گرداند"""
-    conn = None
-    columns = []
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, column_name, display_name, is_active, column_type FROM custom_columns ORDER BY id"
-        )
-        columns = [
-            {"id": row[0], "key": row[1], "display": row[2], "is_active": row[3], "type": row[4]}
-            for row in cursor.fetchall()
-        ]
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_all_custom_columns: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return columns
-
-
-def get_active_custom_columns():
-    """لیست ستون‌های سفارشی فعال را برمی‌گرداند"""
-    conn = None
-    columns = []
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, column_name, display_name, column_type FROM custom_columns WHERE is_active = 1 ORDER BY id"
-        )
-        columns = [
-            {"id": row[0], "key": row[1], "display": row[2], "type": row[3]}
-            for row in cursor.fetchall()
-        ]
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_active_custom_columns: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return columns
-
-
-def get_active_custom_columns_values():
-    """لیست کلیدهای ستون‌های سفارشی فعال را برمی‌گرداند"""
-    active_columns = get_active_custom_columns()
-    return [column["key"] for column in active_columns]
-
-
-def add_custom_column(column_name, display_name, column_type='text'):
-    """افزودن ستون سفارشی جدید"""
-    conn = None
-    new_id = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO custom_columns (column_name, display_name, is_active, column_type) VALUES (?, ?, 1, ?)",
-            (column_name, display_name, column_type),
-        )
-        new_id = cursor.lastrowid
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در add_custom_column: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return new_id
-
-
-def update_custom_column_status(column_id, is_active):
-    """تغییر وضعیت فعال/غیرفعال ستون سفارشی"""
-    conn = None
-    success = False
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE custom_columns SET is_active = ? WHERE id = ?",
-            (1 if is_active else 0, column_id),
-        )
-        conn.commit()
-        success = True
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در update_custom_column_status: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return success
-
-
-def get_column_id_by_key(column_key):
-    """یافتن شناسه ستون براساس کلید آن"""
-    conn = None
-    column_id = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id FROM custom_columns WHERE column_name = ?", (column_key,)
-        )
-        result = cursor.fetchone()
-        if result:
-            column_id = result[0]
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_column_id_by_key: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return column_id
-
-
-def get_custom_column_options(column_id):
-    """گزینه‌های یک ستون سفارشی را برمی‌گرداند"""
-    conn = None
-    options = []
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, option_value FROM custom_column_options WHERE column_id = ? ORDER BY id",
-            (column_id,),
-        )
-        options = [{"id": row[0], "value": row[1]} for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_custom_column_options: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return options
-
-
-def add_option_to_column(column_id, option_value):
-    """افزودن گزینه جدید به ستون سفارشی"""
-    conn = None
-    success = False
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO custom_column_options (column_id, option_value) VALUES (?, ?)",
-            (column_id, option_value),
-        )
-        conn.commit()
-        success = True
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در add_option_to_column: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return success
-
-
-def delete_column_option(option_id):
-    """حذف یک گزینه از ستون سفارشی"""
-    conn = None
-    success = False
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM custom_column_options WHERE id = ?", (option_id,))
-        conn.commit()
-        success = True
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در delete_column_option: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return success
-
-
-def update_door_custom_value(door_id, column_id, value):
-    """به‌روزرسانی مقدار یک ستون سفارشی برای یک درب"""
-    conn = None
-    success = False
-    
-    print(f"DEBUG: شروع به‌روزرسانی مقدار سفارشی - درب: {door_id}, ستون: {column_id}, مقدار: '{value}'")
-    
-    # اطمینان از اینکه مقدار None به رشته خالی تبدیل شود
-    if value is None:
-        value = ""
-    
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        # ابتدا چک می‌کنیم که آیا رکوردی وجود دارد
-        cursor.execute(
-            "SELECT id FROM door_custom_values WHERE door_id = ? AND column_id = ?",
-            (door_id, column_id),
-        )
-        exists = cursor.fetchone()
-
-        if exists:
-            print(f"DEBUG: بروزرسانی مقدار موجود برای درب {door_id}, ستون {column_id}")
-            cursor.execute(
-                "UPDATE door_custom_values SET value = ? WHERE door_id = ? AND column_id = ?",
-                (value, door_id, column_id),
-            )
-            print(f"DEBUG: تعداد رکوردهای به‌روزرسانی شده: {cursor.rowcount}")
-        else:
-            print(f"DEBUG: درج مقدار جدید برای درب {door_id}, ستون {column_id}")
-            cursor.execute(
-                "INSERT INTO door_custom_values (door_id, column_id, value) VALUES (?, ?, ?)",
-                (door_id, column_id, value),
-            )
-            print(f"DEBUG: شناسه درج شده: {cursor.lastrowid}")
-
-        conn.commit()
-        print(f"DEBUG: تغییرات در door_custom_values با موفقیت ذخیره شد (commit).")
-        
-        # برای اطمینان، مقدار نهایی را بخوانیم
-        cursor.execute(
-            "SELECT value FROM door_custom_values WHERE door_id = ? AND column_id = ?",
-            (door_id, column_id),
-        )
-        final_value = cursor.fetchone()
-        print(f"DEBUG: مقدار نهایی ذخیره شده: {final_value[0] if final_value else 'NULL'}")
-        
-        success = True
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در update_door_custom_value: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    
-    print(f"DEBUG: پایان به‌روزرسانی مقدار سفارشی - نتیجه: {'موفق' if success else 'ناموفق'}")
-    return success
-
-
-def get_door_custom_values(door_id):
-    """دریافت مقادیر سفارشی برای درب"""
-    conn = None
-    custom_values = {}
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT cc.column_name, dcv.value 
-            FROM door_custom_values dcv
-            JOIN custom_columns cc ON dcv.column_id = cc.id
-            WHERE dcv.door_id = ?
-            """,
-            (door_id,),
-        )
-        
-        for row in cursor.fetchall():
-            custom_values[row[0]] = row[1]
-        
-        # برای ستون‌های موجود ولی بدون مقدار، مقدار پیش‌فرض خالی
-        all_columns = get_all_custom_columns()
-        for col in all_columns:
-            if col["key"] not in custom_values:
-                custom_values[col["key"]] = ""
-                
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_door_custom_values: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return custom_values
-
-
-def update_project_db(project_id, customer_name, order_ref, date_shamsi=""):
-    """به‌روزرسانی اطلاعات یک پروژه با ID مشخص"""
-    conn = None
-    success = False
-    print(f"DEBUG: ورود به تابع update_project_db برای ID: {project_id}")
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE projects SET customer_name = ?, order_ref = ?, date_shamsi = ? WHERE id = ?",
-            (customer_name, order_ref, date_shamsi, project_id),
-        )
-        conn.commit()
-        success = cursor.rowcount > 0
-        print(f"DEBUG: به‌روزرسانی پروژه ID {project_id} {'انجام شد' if success else 'انجام نشد'}.")
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در update_project_db: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return success
-
-
-def delete_project_db(project_id):
-    """حذف یک پروژه و تمام درب‌های مرتبط با آن (با استفاده از ON DELETE CASCADE)"""
-    conn = None
-    success = False
-    print(f"DEBUG: ورود به تابع delete_project_db برای ID: {project_id}")
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-        conn.commit()
-        success = cursor.rowcount > 0
-        print(f"DEBUG: حذف پروژه ID {project_id} {'انجام شد' if success else 'انجام نشد'}.")
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در delete_project_db: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return success
 
 
 # --- Flask App Setup ---
 app = Flask(__name__, template_folder='templates')
-app.secret_key = "a_different_secret_key_now_for_sure"  # کلید مخفی
+app.secret_key = Config.SECRET_KEY
 
 # --- مقداردهی اولیه دیتابیس ---
 # initialize_database() # Removed this call
@@ -907,39 +300,73 @@ def finish_adding_doors(project_id):
     print(
         f"DEBUG: شروع ذخیره {len(pending_doors)} درب از لیست موقت برای پروژه {project_id}..."
     )
-    for door_data in pending_doors:
-        # اضافه کردن یک درب جدید و دریافت ID آن
-        door_id = add_door_db(
-            project_id=project_id,
-            location=door_data.get("location"),
-            width=door_data.get("width"),
-            height=door_data.get("height"),
-            quantity=door_data.get("quantity"),
-            direction=door_data.get("direction"),
-            row_color=door_data.get("row_color_tag", "white"),
-        )
+    
+    # ایجاد یک اتصال دیتابیس برای تمام عملیات
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        
+        for door_data in pending_doors:
+            try:
+                # اضافه کردن یک درب جدید و دریافت ID آن
+                cursor.execute(
+                    """
+                    INSERT INTO doors (project_id, location, width, height, quantity, direction, row_color_tag) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        project_id,
+                        door_data.get("location"),
+                        door_data.get("width"),
+                        door_data.get("height"),
+                        door_data.get("quantity"),
+                        door_data.get("direction"),
+                        door_data.get("row_color_tag", "white"),
+                    ),
+                )
+                door_id = cursor.lastrowid
+                print(
+                    f"DEBUG: درب جدید با ID {door_id} برای پروژه ID {project_id} ذخیره شد."
+                )
 
-        if door_id:
-            saved_count += 1
+                if door_id:
+                    saved_count += 1
 
-            # ذخیره مقادیر ستون‌های سفارشی
-            for key, value in door_data.items():
-                # اگر کلید مربوط به ستون‌های پایه نباشد
-                if key not in [
-                    "location",
-                    "width",
-                    "height",
-                    "quantity",
-                    "direction",
-                    "row_color_tag",
-                ]:
-                    # ابتدا ID ستون را پیدا می‌کنیم
-                    column_id = get_column_id_by_key(key)
-                    if column_id:
-                        # مقدار ستون سفارشی را ذخیره می‌کنیم
-                        update_door_custom_value(door_id, column_id, value)
-        else:
-            error_count += 1
+                    # ذخیره مقادیر ستون‌های سفارشی
+                    for key, value in door_data.items():
+                        # اگر کلید مربوط به ستون‌های پایه نباشد
+                        if key not in [
+                            "location",
+                            "width",
+                            "height",
+                            "quantity",
+                            "direction",
+                            "row_color_tag",
+                        ]:
+                            # ابتدا ID ستون را پیدا می‌کنیم
+                            column_id = get_column_id_by_key(key)
+                            if column_id:
+                                # مقدار ستون سفارشی را ذخیره می‌کنیم
+                                update_door_custom_value(cursor, door_id, column_id, value)
+            except sqlite3.Error as e:
+                error_count += 1
+                print(f"!!!!!! خطا در ذخیره درب: {e}")
+                traceback.print_exc()
+        
+        # commit تمام تغییرات در پایان
+        conn.commit()
+        print(f"DEBUG: تمام تغییرات برای پروژه {project_id} commit شد.")
+    except sqlite3.Error as e:
+        print(f"!!!!!! خطا در finish_adding_doors: {e}")
+        traceback.print_exc()
+        if conn:
+            conn.rollback()
+        error_count = len(pending_doors)
+        saved_count = 0
+    finally:
+        if conn:
+            conn.close()
 
     # <-- کلید session منحصر به فرد
     session.pop(f"pending_doors_{project_id}", None)
@@ -983,74 +410,39 @@ def initialize_visible_columns(project_id):
 
 
 def refresh_project_visible_columns(project_id):
-    print(f"DEBUG: شروع refresh_project_visible_columns برای پروژه ID: {project_id}")
+    print(f"DEBUG: Starting refresh_project_visible_columns for project ID: {project_id}")
     session_key = f"visible_columns_{project_id}"
     
     base_column_keys = ["location", "width", "height", "quantity", "direction"]
     final_visible_columns = list(base_column_keys)
 
-    active_custom_columns_data = get_active_custom_columns() 
+    # Use the logic from database.py to get non-empty columns
+    non_empty_cols = get_non_empty_custom_columns_for_project(project_id, base_column_keys)
+    
+    for col_key in non_empty_cols:
+         if col_key not in final_visible_columns:
+             final_visible_columns.append(col_key)
+             print(f"DEBUG: Column '{col_key}' added to visible_columns.")
+    
+    current_columns_in_session = session.get(session_key, [])
+    # Preserve relative order
+    ordered_final_visible_columns = list(base_column_keys) 
+    # Custom columns that were already in session and still have data
+    for col_key_in_session in current_columns_in_session:
+        if col_key_in_session in final_visible_columns and col_key_in_session not in ordered_final_visible_columns:
+            ordered_final_visible_columns.append(col_key_in_session)
+    # New custom columns that have data
+    for col_key_in_final in final_visible_columns:
+        if col_key_in_final not in ordered_final_visible_columns:
+                ordered_final_visible_columns.append(col_key_in_final)
 
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-
-        for col_data in active_custom_columns_data:
-            column_key = col_data["key"]
-            column_id = col_data["id"]
-
-            if column_key in base_column_keys:
-                continue
-
-            cursor.execute("""
-                SELECT 1 FROM door_custom_values dcv
-                JOIN doors d ON dcv.door_id = d.id
-                WHERE d.project_id = ? AND dcv.column_id = ? AND dcv.value IS NOT NULL AND dcv.value != ''
-                LIMIT 1
-            """, (project_id, column_id))
-            
-            if cursor.fetchone(): 
-                if column_key not in final_visible_columns:
-                    final_visible_columns.append(column_key)
-                print(f"DEBUG: ستون '{column_key}' در پروژه {project_id} داده دارد و به visible_columns اضافه شد/باقی ماند.")
-            else:
-                print(f"DEBUG: ستون '{column_key}' در پروژه {project_id} هیچ داده‌ای ندارد و در visible_columns نخواهد بود.")
-        
-        current_columns_in_session = session.get(session_key, [])
-        # برای حفظ ترتیب ستون‌هایی که کاربر ممکن است دستی از طریق column_settings تنظیم کرده باشد،
-        # می‌توانیم ترتیب final_visible_columns را بر اساس current_columns_in_session مرتب کنیم،
-        # اما فقط برای ستون‌هایی که در final_visible_columns هستند.
-        
-        # یک راه ساده برای حفظ ترتیب نسبی ستون‌های سفارشی که از قبل در session بودند:
-        ordered_final_visible_columns = list(base_column_keys) # پایه‌ها اول
-        # ستون‌های سفارشی که هم در session قبلی بودند و هم در لیست جدید ما (چون داده دارند)
-        for col_key_in_session in current_columns_in_session:
-            if col_key_in_session in final_visible_columns and col_key_in_session not in ordered_final_visible_columns:
-                ordered_final_visible_columns.append(col_key_in_session)
-        # ستون‌های سفارشی جدیدی که داده دارند و در session قبلی نبودند
-        for col_key_in_final in final_visible_columns:
-            if col_key_in_final not in ordered_final_visible_columns:
-                 ordered_final_visible_columns.append(col_key_in_final)
-
-
-        if set(current_columns_in_session) != set(ordered_final_visible_columns) or \
-           current_columns_in_session != ordered_final_visible_columns:
-            session[session_key] = ordered_final_visible_columns
-            session.modified = True
-            print(f"DEBUG: visible_columns برای پروژه {project_id} به‌روز شد: {ordered_final_visible_columns}")
-        else:
-            print(f"DEBUG: visible_columns برای پروژه {project_id} تغییری نکرده است: {ordered_final_visible_columns}")
-            
-    except sqlite3.Error as e:
-        print(f"ERROR در refresh_project_visible_columns (sqlite3.Error): {e}")
-        traceback.print_exc()
-    except Exception as e:
-        print(f"ERROR در refresh_project_visible_columns (Exception): {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
+    if set(current_columns_in_session) != set(ordered_final_visible_columns) or \
+       current_columns_in_session != ordered_final_visible_columns:
+        session[session_key] = ordered_final_visible_columns
+        session.modified = True
+        print(f"DEBUG: visible_columns for project {project_id} updated: {ordered_final_visible_columns}")
+    else:
+        print(f"DEBUG: visible_columns for project {project_id} unchanged: {ordered_final_visible_columns}")
     
     return session.get(session_key, [])
 
@@ -1096,6 +488,13 @@ def project_treeview(project_id):
     # بررسی سریع مقادیر سفارشی
     for door in doors[:5]:  # فقط 5 درب اول را برای دیباگ بررسی می‌کنیم
         print(f"DEBUG: درب {door['id']} - مقادیر سفارشی: {door}")
+    
+    print("-" * 50)
+    print(f"DEBUG (treeview): Preparing to render for project_id: {project_id}")
+    print(f"DEBUG (treeview): Visible columns from session: {visible_columns}")
+    print(f"DEBUG (treeview): Doors list from DB: {doors}")
+    print(f"DEBUG (treeview): Active custom columns list: {active_custom_columns}")
+    print("-" * 50)
     
     return render_template(
         "project_treeview.html", 
@@ -1588,59 +987,7 @@ def calculate_cutting(project_id):
     )
 
 
-def ensure_default_custom_columns():
-    """اضافه کردن ستون‌های سفارشی پیش‌فرض اگر هیچ ستونی وجود نداشته باشد"""
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        # بررسی تعداد ستون‌های سفارشی فعال
-        cursor.execute("SELECT COUNT(*) FROM custom_columns WHERE is_active = 1")
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
-            print("DEBUG: هیچ ستون سفارشی فعالی یافت نشد. اضافه کردن ستون‌های پیش‌فرض...")
-            
-            # ستون‌های پیش‌فرض را تعریف کنیم
-            default_columns = [
-                ("rang", "رنگ پروفیل"),
-                ("noe_profile", "نوع پروفیل"),
-                ("vaziat", "وضعیت تولید درب"),
-                ("lola", "لولا"),
-                ("ghofl", "قفل"),
-                ("accessory", "اکسسوری"),
-                ("kolaft", "کلافت"),
-                ("dastgire", "دستگیره"),
-                ("tozihat", "توضیحات")
-            ]
-            
-            for column_key, display_name in default_columns:
-                # ابتدا چک کنیم که این ستون قبلاً وجود دارد یا خیر
-                cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
-                column = cursor.fetchone()
-                
-                if column:
-                    # اگر وجود دارد، فعال کنیم
-                    cursor.execute("UPDATE custom_columns SET is_active = 1 WHERE id = ?", (column[0],))
-                    print(f"DEBUG: ستون '{column_key}' فعال شد")
-                else:
-                    # اگر وجود ندارد، اضافه کنیم
-                    cursor.execute(
-                        "INSERT INTO custom_columns (column_name, display_name, is_active) VALUES (?, ?, 1)",
-                        (column_key, display_name)
-                    )
-                    print(f"DEBUG: ستون '{column_key}' اضافه شد")
-            
-            conn.commit()
-            print("DEBUG: ستون‌های پیش‌فرض با موفقیت اضافه/فعال شدند")
-        
-    except sqlite3.Error as e:
-        print(f"ERROR: خطا در تابع ensure_default_custom_columns: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
+
 
 
 @app.route("/project/<int:project_id>/batch_edit", methods=["GET"])
@@ -1876,22 +1223,17 @@ def apply_batch_edit(project_id):
                         current_value = current_result[0] if current_result else None
                         
                         # ذخیره مقدار جدید با استفاده از تابع update_door_custom_value
-                        result = update_door_custom_value(door_id, column_id, new_value)
-                        if result:
-                            door_updated = True
-                            
-                            # ساختن پیام موفقیت
-                            if current_value:
-                                msg = f"ستون '{column_display}' از '{current_value}' به '{new_value}' تغییر کرد"
-                            else:
-                                msg = f"ستون '{column_display}' به '{new_value}' تنظیم شد"
-                                
-                            success_messages.append(f"درب {door_location}: {msg}")
-                            print(f"DEBUG: درب {door_location}: {msg}")
+                        update_door_custom_value(cursor, door_id, column_id, new_value)
+                        door_updated = True
+                        
+                        # ساختن پیام موفقیت
+                        if current_value:
+                            msg = f"ستون '{column_display}' از '{current_value}' به '{new_value}' تغییر کرد"
                         else:
-                            error_msg = f"به‌روزرسانی ستون '{column_display}' برای درب {door_location} ناموفق بود"
-                            error_messages.append(error_msg)
-                            print(f"ERROR: {error_msg}")
+                            msg = f"ستون '{column_display}' به '{new_value}' تنظیم شد"
+                            
+                        success_messages.append(f"درب {door_location}: {msg}")
+                        print(f"DEBUG: درب {door_location}: {msg}")
                     
                     except Exception as e:
                         error_msg = f"خطا در به‌روزرسانی ستون '{column_key}' برای درب {door_location}: {str(e)}"
@@ -2013,55 +1355,7 @@ def toggle_column_display(project_id):
         return jsonify({"success": False, "error": str(e)})
 
 
-def check_column_can_hide_internal(project_id, column_key):
-    """بررسی اینکه آیا یک ستون می‌تواند مخفی شود یا خیر (نسخه داخلی)"""
-    if not column_key:
-        return {"can_hide": True, "reason": "کلید ستون خالی است"}
-    
-    try:
-        # بررسی اینکه آیا ستون در پایگاه داده وجود دارد
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        # ابتدا شناسه ستون را پیدا می‌کنیم
-        cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
-        result = cursor.fetchone()
-        if not result:
-            # اگر ستون وجود ندارد، می‌تواند مخفی شود
-            return {"can_hide": True, "reason": "ستون در پایگاه داده وجود ندارد"}
-        
-        column_id = result[0]
-        
-        # حالا بررسی می‌کنیم که آیا این ستون در جدول door_custom_values دارای مقدار است
-        cursor.execute("""
-            SELECT COUNT(*) FROM door_custom_values 
-            JOIN doors ON door_custom_values.door_id = doors.id
-            WHERE door_custom_values.column_id = ? 
-            AND doors.project_id = ?
-            AND door_custom_values.value IS NOT NULL 
-            AND door_custom_values.value != ''
-        """, (column_id, project_id))
-        
-        count = cursor.fetchone()[0]
-        conn.close()
-        
-        if count > 0:
-            # اگر این ستون دارای مقدار است، نمی‌تواند مخفی شود
-            return {
-                "can_hide": False, 
-                "reason": f"ستون '{column_key}' دارای {count} مقدار در پروژه است"
-            }
-        
-        # اگر به اینجا رسیدیم، یعنی ستون می‌تواند مخفی شود
-        return {"can_hide": True, "reason": "ستون هیچ داده‌ای ندارد"}
-        
-    except sqlite3.Error as e:
-        print(f"خطا در بررسی ستون {column_key}: {e}")
-        # در صورت بروز خطا، از روی احتیاط اجازه مخفی کردن نمی‌دهیم
-        return {"can_hide": False, "reason": f"خطای پایگاه داده: {e}"}
-    except Exception as e:
-        print(f"خطای غیرمنتظره در بررسی ستون {column_key}: {e}")
-        return {"can_hide": False, "reason": f"خطای غیرمنتظره: {e}"}
+
 
 
 @app.route("/project/<int:project_id>/check_column_can_hide", methods=["POST"])
@@ -2596,7 +1890,8 @@ def manage_custom_columns():
         
         # پردازش درخواست GET (نمایش صفحه)
         all_columns = get_all_custom_columns()
-        print(f"DEBUG: All columns from DB: {all_columns}")
+        # حذف print برای جلوگیری از خطای encoding در Windows
+        # print(f"DEBUG: All columns from DB: {all_columns}")
         
         column_type_display_map = {
             'text': 'متنی',
@@ -2605,11 +1900,13 @@ def manage_custom_columns():
         processed_columns = []
         for col in all_columns:
             col_copy = col.copy() 
-            print(f"DEBUG: Processing column: {col_copy}")
+            # حذف print برای جلوگیری از خطای encoding در Windows
+            # print(f"DEBUG: Processing column: {col_copy}")
             col_copy['type_display'] = column_type_display_map.get(col_copy.get('type'), col_copy.get('type', 'نامشخص'))
             if col_copy.get('type') == 'dropdown':
                 col_copy['options'] = get_custom_column_options(col_copy['id'])
-                print(f"DEBUG: Options for {col_copy['key']}: {col_copy['options']}")
+                # حذف print برای جلوگیری از خطای encoding در Windows
+                # print(f"DEBUG: Options for {col_copy['key']}: {col_copy['options']}")
             else:
                 col_copy['options'] = [] # برای ستون‌های غیر دراپ‌داون، لیست گزینه‌ها خالی است
             processed_columns.append(col_copy)
@@ -2675,48 +1972,11 @@ def add_column_option_api(column_id):
         traceback.print_exc()
         return jsonify({"success": False, "error": f"خطای سرور: {str(e)}"}), 500
 
-def get_custom_column_options(column_id):
-    """گزینه‌های یک ستون سفارشی را برمی‌گرداند"""
-    conn = None
-    options = []
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, option_value FROM custom_column_options WHERE column_id = ? ORDER BY id",
-            (column_id,),
-        )
-        options = [{"id": row[0], "value": row[1]} for row in cursor.fetchall()]
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در get_custom_column_options: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return options
 
 
 
-def add_option_to_column(column_id, option_value):
-    """افزودن گزینه جدید به ستون سفارشی"""
-    conn = None
-    success = False
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO custom_column_options (column_id, option_value) VALUES (?, ?)",
-            (column_id, option_value),
-        )
-        conn.commit()
-        success = True
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در add_option_to_column: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return success
+
+
 
 @app.route("/api/custom_columns/options/<int:option_id>/delete", methods=["POST"])
 def delete_column_option_api(option_id):
@@ -2745,26 +2005,7 @@ def delete_column_option_api(option_id):
         traceback.print_exc()
         return jsonify({"success": False, "error": f"خطای سرور: {str(e)}"}), 500
 
-def update_custom_column_option(option_id, new_value):
-    """ویرایش متن یک گزینه از ستون سفارشی"""
-    conn = None
-    success = False
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE custom_column_options SET option_value = ? WHERE id = ?",
-            (new_value, option_id)
-        )
-        conn.commit()
-        success = cursor.rowcount > 0
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در update_custom_column_option: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
-    return success
+
 
 @app.route("/api/custom_columns/options/<int:option_id>/edit", methods=["POST"])
 def edit_column_option_api(option_id):
@@ -2882,12 +2123,8 @@ def price_calculator():
     """صفحه محاسبه قیمت درب"""
     try:
         # دریافت مقادیر از دیتابیس (مربوط به تنظیمات قیمت، نه ت فرم کاربر)
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT key, value FROM price_settings")
-        rows = cursor.fetchall()
-        db_prices = {row[0]: row[1] for row in rows}
-        conn.close()
+        # دریافت مقادیر از دیتابیس (مربوط به تنظیمات قیمت، نه ت فرم کاربر)
+        db_prices = get_price_settings_db()
 
         # مقادیر پیش‌فرض قیمت‌ها از تنظیمات
         prices = {
@@ -3511,81 +2748,52 @@ def save_quote():
                 return redirect(url_for('price_calculator'))
 
 
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO saved_quotes 
-                (customer_name, customer_mobile, input_width, input_height, profile_type, aluminum_color, door_material, paint_condition, paint_brand, selections_details, final_calculated_price, timestamp, shamsi_order_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (customer_name, customer_mobile, input_width, input_height, profile_type, aluminum_color, door_material, paint_condition, paint_brand, selections_details, final_price, datetime.now(), shamsi_order_date))
-            conn.commit()
-
-            # --- شروع تغییرات مهم ---
-            success_message = "قیمت‌دهی با موفقیت ذخیره شد."
-            flash(success_message, "success")
-            # اطلاعات مشتری را برای استفاده در ریدایرکت بعدی فلش کن
-            # flash({'customer_name': customer_name, 'customer_mobile': customer_mobile}, 'preserved_customer_info') # OLD way
-            session['preserved_customer_info_data'] = {'customer_name': customer_name, 'customer_mobile': customer_mobile} # NEW way
+            # فراخوانی تابع دیتابیس برای ذخیره
+            data_to_save = {
+                'customer_name': customer_name,
+                'customer_mobile': customer_mobile,
+                'input_width': input_width,
+                'input_height': input_height,
+                'profile_type': profile_type,
+                'aluminum_color': aluminum_color,
+                'door_material': door_material,
+                'paint_condition': paint_condition,
+                'paint_brand': paint_brand,
+                'selections_details': selections_details,
+                'final_price': final_price,
+                'shamsi_order_date': shamsi_order_date
+            }
             
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify(success=True, message=success_message, preserved_info={'customer_name': customer_name, 'customer_mobile': customer_mobile})
-            # --- پایان تغییرات مهم ---
-            # پس از موفقیت، به price_calculator ریدایرکت می‌کنیم (این خط دیگر نباید اجرا شود اگر AJAX است)
-            return redirect(url_for('price_calculator'))
-
-
-        except sqlite3.Error as e:
-            if conn:
-                conn.rollback()
-            print(f"SQLite error in /save_quote: {e}") 
-            traceback.print_exc()
-            error_message = f"خطا در ذخیره در دیتابیس: {str(e)}"
-            flash(error_message, "danger")
-            
-            preserved_customer_name = ""
-            preserved_customer_mobile = ""
-            # data may not be defined if error happened before data = request.get_json()
-            # or if request was not json
-            if request.is_json:
-                data_for_flash = request.get_json() 
-                if data_for_flash:
-                    preserved_customer_name = data_for_flash.get("customer_name", "")
-                    preserved_customer_mobile = data_for_flash.get("customer_mobile", "")
-            
-            if preserved_customer_name or preserved_customer_mobile:
-                # flash({'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}, 'preserved_customer_info') # OLD way
-                session['preserved_customer_info_data'] = {'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile} # NEW way
-
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return jsonify(success=False, error=error_message, preserved_info={'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}), 500
-            return redirect(url_for('price_calculator'))
+            if save_quote_db(data_to_save):
+                success_message = "قیمت‌دهی با موفقیت ذخیره شد."
+                flash(success_message, "success")
+                session['preserved_customer_info_data'] = {'customer_name': customer_name, 'customer_mobile': customer_mobile}
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify(success=True, message=success_message, preserved_info={'customer_name': customer_name, 'customer_mobile': customer_mobile})
+                return redirect(url_for('price_calculator'))
+            else:
+                raise Exception("خطا در عملیات ذخیره در پایگاه داده")
 
         except Exception as e:
-            if conn:
-                conn.rollback() 
-            print(f"General error in /save_quote: {e}")
+            print(f"Error in /save_quote: {e}")
             traceback.print_exc()
-            error_message = f"خطای پیش‌بینی نشده: {str(e)}"
+            error_message = f"خطا در ذخیره اطلاعات: {str(e)}"
             flash(error_message, "danger")
 
             preserved_customer_name = ""
             preserved_customer_mobile = ""
             if request.is_json:
-                data_for_flash = request.get_json()
-                if data_for_flash:
-                    preserved_customer_name = data_for_flash.get("customer_name", "")
-                    preserved_customer_mobile = data_for_flash.get("customer_mobile", "")
-
+                data_for_flash = request.get_json() or {}
+                preserved_customer_name = data_for_flash.get("customer_name", "")
+                preserved_customer_mobile = data_for_flash.get("customer_mobile", "")
+            
             if preserved_customer_name or preserved_customer_mobile:
-                 # flash({'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}, 'preserved_customer_info') # OLD way
-                 session['preserved_customer_info_data'] = {'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile} # NEW way
+                session['preserved_customer_info_data'] = {'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}
 
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return jsonify(success=False, error=error_message, preserved_info={'customer_name': preserved_customer_name, 'customer_mobile': preserved_customer_mobile}), 500
             return redirect(url_for('price_calculator'))
-        finally:
-            if conn:
-                conn.close()
     
     # اگر متد POST نبود یا خطای دیگری قبل از try رخ داد
     flash("درخواست نامعتبر برای ذخیره قیمت.", "warning")
@@ -3597,36 +2805,26 @@ def save_quote():
 def saved_quotes():
     """نمایش قیمت‌دهی‌های ذخیره شده با قابلیت گروه‌بندی و باز/بسته شدن"""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, customer_name, customer_mobile, input_width, input_height, profile_type, 
-                   aluminum_color, door_material, paint_condition, paint_brand, 
-                   timestamp, selections_details, final_calculated_price, shamsi_order_date
-            FROM saved_quotes 
-            ORDER BY customer_name, timestamp DESC
-        """)
-        quotes_raw = cursor.fetchall()
-        conn.close()
+        quotes = get_all_saved_quotes_db()
         
         grouped_quotes = defaultdict(list)
-        for quote_row in quotes_raw: # Removed index i as it's not used after removing print
+        for quote_data in quotes:
             quote_dict = {
-                'id': quote_row[0],
-                'customer_name': quote_row[1] if quote_row[1] else "بدون نام مشتری",
-                'customer_mobile': quote_row[2],
-                'input_width': quote_row[3],
-                'input_height': quote_row[4],
-                'profile_type': quote_row[5],
-                'aluminum_color': quote_row[6],
-                'door_material': quote_row[7],
-                'paint_condition': quote_row[8],
-                'paint_brand': quote_row[9],
-                'final_calculated_price': quote_row[12],
-                'shamsi_order_date': quote_row[13] if quote_row[13] else "تاریخ نامشخص"
+                'id': quote_data['id'],
+                'customer_name': quote_data['customer_name'] if quote_data['customer_name'] else "بدون نام مشتری",
+                'customer_mobile': quote_data['customer_mobile'],
+                'input_width': quote_data['input_width'],
+                'input_height': quote_data['input_height'],
+                'profile_type': quote_data['profile_type'],
+                'aluminum_color': quote_data['aluminum_color'],
+                'door_material': quote_data['door_material'],
+                'paint_condition': quote_data['paint_condition'],
+                'paint_brand': quote_data['paint_brand'],
+                'final_calculated_price': quote_data['final_calculated_price'],
+                'shamsi_order_date': quote_data['shamsi_order_date'] if quote_data['shamsi_order_date'] else "تاریخ نامشخص"
             }
 
-            timestamp_val = quote_row[10]
+            timestamp_val = quote_data['timestamp']
             if isinstance(timestamp_val, str):
                 try:
                     timestamp_val = datetime.strptime(timestamp_val.split('.')[0], '%Y-%m-%d %H:%M:%S')
@@ -3634,22 +2832,26 @@ def saved_quotes():
                     try:
                         timestamp_val = datetime.strptime(timestamp_val, '%Y-%m-%d %H:%M')
                     except ValueError:
-                        print(f"WARNING: Could not parse timestamp string: {quote_row[10]} for quote id {quote_dict['id']}. Setting to None.")
+                        print(f"WARNING: Could not parse timestamp string: {quote_data['timestamp']} for quote id {quote_dict['id']}. Setting to None.")
                         timestamp_val = None
             elif timestamp_val is None:
-                print(f"WARNING: Timestamp is None for quote id {quote_dict['id']}. Setting to None.")
+                # print(f"WARNING: Timestamp is None for quote id {quote_dict['id']}. Setting to None.")
                 timestamp_val = None
             quote_dict['timestamp'] = timestamp_val
             
             try:
-                if quote_row[11]:
-                    quote_dict['selections_details'] = json.loads(quote_row[11])
+                if quote_data['selections_details']:
+                    # Handle both JSON string and already parsed JSON (if DB driver did it, though sqlite returns str)
+                    if isinstance(quote_data['selections_details'], str):
+                         quote_dict['selections_details'] = json.loads(quote_data['selections_details'])
+                    else:
+                         quote_dict['selections_details'] = quote_data['selections_details']
                 else:
                     quote_dict['selections_details'] = {}
             except json.JSONDecodeError as json_err:
                 print(f"ERROR: JSONDecodeError for quote id {quote_dict['id']}: {json_err}")
                 quote_dict['selections_details'] = {}
-            except Exception as e_json: # Catching a more general exception for unexpected errors during JSON processing
+            except Exception as e_json:
                 print(f"ERROR: Unknown error parsing selections_details for quote id {quote_dict['id']}: {e_json}")
                 quote_dict['selections_details'] = {}
                 
@@ -3680,24 +2882,11 @@ def saved_quotes():
 def delete_quote(quote_id):
     """پاک کردن یک قیمت‌دهی ذخیره شده"""
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # بررسی وجود قیمت‌دهی
-        cursor.execute("SELECT id FROM saved_quotes WHERE id = ?", (quote_id,))
-        quote = cursor.fetchone()
-        
-        if not quote:
-            flash("قیمت‌دهی مورد نظر یافت نشد.", "error")
-            conn.close()
-            return redirect(url_for("saved_quotes"))
-        
-        # پاک کردن قیمت‌دهی
-        cursor.execute("DELETE FROM saved_quotes WHERE id = ?", (quote_id,))
-        conn.commit()
-        conn.close()
-        
-        flash("قیمت‌دهی با موفقیت پاک شد.", "success")
+        # استفاده از تابع جدید
+        if delete_quote_db(quote_id):
+            flash("قیمت‌دهی با موفقیت پاک شد.", "success")
+        else:
+            flash("قیمت‌دهی مورد نظر یافت نشد یا خطا در حذف.", "error")
         return redirect(url_for("saved_quotes"))
         
     except Exception as e:
@@ -3717,27 +2906,20 @@ def delete_multiple_quotes():
             flash("هیچ قیمت‌دهی‌ای انتخاب نشده است.", "warning")
             return redirect(url_for("saved_quotes"))
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        conn = None # To avoid UnboundLocalError in finally if used
         
-        # تبدیل شناسه‌ها به عدد و پاک کردن آنها
-        deleted_count = 0
-        for quote_id in selected_ids:
-            try:
-                quote_id = int(quote_id)
-                cursor.execute("DELETE FROM saved_quotes WHERE id = ?", (quote_id,))
-                deleted_count += cursor.rowcount
-            except ValueError:
-                continue
-        
-        conn.commit()
-        conn.close()
+        # تبدیل شناسه‌ها به لیست
+        if not selected_ids:
+             flash("هیچ موردی انتخاب نشده", "warning")
+             return redirect(url_for("saved_quotes"))
+
+        deleted_count = delete_multiple_quotes_db(selected_ids)
         
         if deleted_count > 0:
             flash(f"{deleted_count} قیمت‌دهی با موفقیت پاک شدند.", "success")
         else:
             flash("هیچ قیمت‌دهی‌ای پاک نشد.", "warning")
-        
+            
         return redirect(url_for("saved_quotes"))
         
     except Exception as e:

@@ -1,0 +1,10 @@
+[2025-07-30 23:18:10,761] [INFO] - [DATABASE] شروع مقداردهی اولیه پایگاه داده...
+[2025-07-30 23:18:10,765] [ERROR] - [DATABASE] خطا در مقداردهی اولیه پایگاه داده: name 'initialize_database' is not defined
+[2025-07-30 23:18:10,771] [ERROR] - [DATABASE] Traceback (most recent call last):
+  File "g:\My Drive\cutting\New folder\cutting_web_app\2\cutting_tool.py", line 198, in _initialize_database
+    initialize_database()
+    ^^^^^^^^^^^^^^^^^^^
+NameError: name 'initialize_database' is not defined
+
+[2025-07-30 23:18:13,355] [INFO] - [PROJECT] بارگذاری لیست پروژه‌ها
+[2025-07-30 23:18:13,355] [ERROR] - [PROJECT] خطا در بارگذاری لیست پروژه‌ها: name 'get_all_projects' is not defined

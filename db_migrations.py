@@ -119,7 +119,15 @@ def apply_migrations(conn):
             "execution_type": "single",
         },
         {
-            "name": "002_create_inventory_logs_table",
+            "name": "002_seed_base_custom_columns",
+            "description": "اضافه کردن ستون‌های پایه و گزینه‌های پیش‌فرض برای ستون‌های سفارشی",
+            "check_logic": lambda c: c.execute("SELECT COUNT(*) FROM custom_columns WHERE column_name IN ('rang', 'noe_profile', 'vaziat', 'lola', 'ghofl', 'accessory', 'kolaft', 'dastgire', 'tozihat')").fetchone()[0] < 9,
+            "sql_apply": None,
+            "execution_type": "python_module",
+            "module_path": "migrations.002_seed_base_custom_columns"
+        },
+        {
+            "name": "003_create_inventory_logs_table",
             "description": "ایجاد جدول inventory_logs",
             "check_logic": lambda c: not c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inventory_logs'").fetchone(),
             "sql_apply": '''
@@ -134,18 +142,11 @@ def apply_migrations(conn):
             "execution_type": "single",
         },
         {
-            "name": "003_create_price_settings_table",
+            "name": "004_create_price_settings_table",
             "description": "ایجاد جدول price_settings برای تنظیمات محاسبه قیمت",
             "check_logic": lambda c: not c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='price_settings'").fetchone(),
             "sql_apply": sql_apply_003_price_settings,
             "execution_type": "single",
-        },
-        {
-            "name": "004_add_installation_notes_to_doors",
-            "description": "افزودن ستون installation_notes به جدول doors برای یادداشت‌های نصب",
-            "check_logic": lambda c: not any(col[1] == 'installation_notes' for col in c.execute("PRAGMA table_info(doors)").fetchall()),
-            "sql_apply": "ALTER TABLE doors ADD COLUMN installation_notes TEXT DEFAULT '';",
-            "execution_type": "single"
         }
     ]
 
@@ -167,16 +168,32 @@ def apply_migrations(conn):
             needs_sql_execution = migration["check_logic"](cursor)
 
             if needs_sql_execution:
-                print(f"شرایط مایگریشن '{migration_name}' نشان می‌دهد که SQL باید اجرا شود. در حال اجرای SQL...")
+                print(f"شرایط مایگریشن '{migration_name}' نشان می‌دهد که باید اجرا شود. در حال اجرا...")
                 execution_type = migration.get("execution_type", "single")
+                
                 if execution_type == "script":
                     cursor.executescript(migration["sql_apply"])
+                    conn.commit()
+                    print(f"SQL script برای مایگریشن '{migration_name}' با موفقیت اجرا شد.")
+                elif execution_type == "python_module":
+                    # import و اجرای ماژول پایتون
+                    module_path = migration["module_path"]
+                    try:
+                        module = __import__(module_path, fromlist=['apply'])
+                        module.apply(conn)
+                        print(f"ماژول پایتون برای مایگریشن '{migration_name}' با موفقیت اجرا شد.")
+                    except ImportError as e:
+                        print(f"خطا در import ماژول '{module_path}': {e}")
+                        raise e
+                    except Exception as e:
+                        print(f"خطا در اجرای ماژول '{module_path}': {e}")
+                        raise e
                 else:
                     cursor.execute(migration["sql_apply"])
-                conn.commit()
-                print(f"SQL برای مایگریشن '{migration_name}' با موفقیت اجرا شد.")
+                    conn.commit()
+                    print(f"SQL برای مایگریشن '{migration_name}' با موفقیت اجرا شد.")
             else:
-                print(f"شرایط مایگریشن '{migration_name}' نشان می‌دهد که SQL نیازی به اجرا ندارد (وضعیت دیتابیس از قبل مطابق است).")
+                print(f"شرایط مایگریشن '{migration_name}' نشان می‌دهد که نیازی به اجرا ندارد (وضعیت دیتابیس از قبل مطابق است).")
 
             cursor.execute("INSERT INTO schema_migrations (name) VALUES (?)", (migration_name,))
             conn.commit()
