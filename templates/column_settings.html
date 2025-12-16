@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,14 +13,14 @@
             font-weight: normal;
             font-style: normal;
         }
-        
+
         body {
             font-family: 'Vazir', Tahoma, sans-serif;
             background-color: #f4f7f6;
             padding: 20px;
             margin: 0;
         }
-        
+
         .container {
             max-width: 800px;
             margin: 0 auto;
@@ -28,28 +29,28 @@
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             padding: 20px;
         }
-        
+
         h1 {
             color: #2c3e50;
             border-bottom: 2px solid #3498db;
             padding-bottom: 10px;
             margin-bottom: 25px;
         }
-        
+
         .info-box {
             background-color: #f8f9fa;
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
         }
-        
+
         .columns-container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 15px;
             margin-bottom: 30px;
         }
-        
+
         .column-item {
             background-color: #f9f9f9;
             border: 1px solid #ddd;
@@ -60,28 +61,28 @@
             justify-content: space-between;
             flex-wrap: wrap;
         }
-        
+
         .column-item:hover {
             background-color: #f1f1f1;
         }
-        
+
         .column-name {
             font-weight: bold;
         }
-        
+
         .toggle-switch {
             position: relative;
             display: inline-block;
             width: 50px;
             height: 24px;
         }
-        
+
         .toggle-switch input {
             opacity: 0;
             width: 0;
             height: 0;
         }
-        
+
         .slider {
             position: absolute;
             cursor: pointer;
@@ -93,7 +94,7 @@
             transition: .4s;
             border-radius: 24px;
         }
-        
+
         .slider:before {
             position: absolute;
             content: "";
@@ -105,25 +106,25 @@
             transition: .4s;
             border-radius: 50%;
         }
-        
-        input:checked + .slider {
+
+        input:checked+.slider {
             background-color: #2196F3;
         }
-        
-        input:focus + .slider {
+
+        input:focus+.slider {
             box-shadow: 0 0 1px #2196F3;
         }
-        
-        input:checked + .slider:before {
+
+        input:checked+.slider:before {
             transform: translateX(26px);
         }
-        
+
         .button-container {
             display: flex;
             justify-content: space-between;
             margin-top: 20px;
         }
-        
+
         .button {
             padding: 10px 15px;
             border: none;
@@ -133,16 +134,16 @@
             font-size: 14px;
             transition: background-color 0.3s;
         }
-        
+
         .save-button {
             background-color: #27ae60;
             color: white;
         }
-        
+
         .save-button:hover {
             background-color: #219952;
         }
-        
+
         .back-button {
             background-color: #3498db;
             color: white;
@@ -151,35 +152,35 @@
             gap: 5px;
             text-decoration: none;
         }
-        
+
         .back-button:hover {
             background-color: #2980b9;
         }
-        
+
         .flash {
             padding: 10px;
             margin-bottom: 15px;
             border-radius: 4px;
         }
-        
+
         .flash.success {
             background-color: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
+
         .flash.error {
             background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        
+
         .flash.warning {
             background-color: #fff3cd;
             color: #856404;
             border: 1px solid #ffeeba;
         }
-        
+
         .toggle-switch .slider:before {
             content: "";
             position: absolute;
@@ -191,15 +192,15 @@
             border-radius: 50%;
             transition: .4s;
         }
-        
-        .toggle-switch input:checked + .slider {
+
+        .toggle-switch input:checked+.slider {
             background-color: #2196F3;
         }
-        
-        .toggle-switch input:checked + .slider:before {
+
+        .toggle-switch input:checked+.slider:before {
             transform: translateX(-20px);
         }
-        
+
         .delete-button {
             background-color: #e74c3c;
             color: white;
@@ -211,11 +212,11 @@
             cursor: pointer;
             transition: background-color 0.3s;
         }
-        
+
         .delete-button:hover {
             background-color: #c0392b;
         }
-        
+
         /* استایل‌های مربوط به مدال */
         .modal {
             display: none;
@@ -228,7 +229,7 @@
             overflow: auto;
             background-color: rgba(0, 0, 0, 0.4);
         }
-        
+
         .modal-content {
             background-color: #fefefe;
             margin: 10% auto;
@@ -238,7 +239,7 @@
             max-width: 500px;
             position: relative;
         }
-        
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -247,13 +248,13 @@
             padding-bottom: 10px;
             margin-bottom: 15px;
         }
-        
+
         .modal-title {
             margin: 0;
             color: #2c3e50;
             font-size: 18px;
         }
-        
+
         .close-button {
             color: #aaa;
             font-size: 24px;
@@ -263,15 +264,15 @@
             border: none;
             padding: 0;
         }
-        
+
         .close-button:hover {
             color: #555;
         }
-        
+
         .modal-body {
             margin-bottom: 20px;
         }
-        
+
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -279,30 +280,31 @@
             padding-top: 10px;
             border-top: 1px solid #eee;
         }
-        
+
         .info-button {
             background-color: #3498db;
             color: white;
         }
-        
+
         .info-button:hover {
             background-color: #2980b9;
         }
-        
+
         .button-sm {
             padding: 5px 10px;
             font-size: 12px;
         }
-        
+
         @media screen and (max-width: 768px) {
             /* قوانین media query */
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>مدیریت ستون‌های سفارشی</h1>
-        
+
         <!-- نمایش پیام های فلش -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -311,15 +313,20 @@
         {% endfor %}
         {% endif %}
         {% endwith %}
-        
+
         <div class="info-box">
-            <p>در این صفحه می‌توانید ستون‌های سفارشی برنامه را مدیریت کنید. ستون‌های فعال در جدول‌های پروژه‌ها نمایش داده می‌شوند.</p>
+            <p>در این صفحه می‌توانید ستون‌های سفارشی برنامه را مدیریت کنید. ستون‌های فعال در جدول‌های پروژه‌ها نمایش
+                داده می‌شوند.</p>
         </div>
-        
-        <div class="add-column-form" style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
+
+        <div class="add-column-form"
+            style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
             <h3>افزودن ستون جدید</h3>
             <form method="POST" action="{{ url_for('manage_custom_columns') }}">
                 <input type="hidden" name="action" value="add_column">
+                {% if project_id %}
+                <input type="hidden" name="project_id" value="{{ project_id }}">
+                {% endif %}
                 <div class="form-group">
                     <label for="display_name">نام نمایشی ستون:</label>
                     <input type="text" id="display_name" name="display_name" class="form-control" required>
@@ -327,7 +334,8 @@
 
                 <div class="form-group">
                     <label for="column_key">کلید ستون (انگلیسی):</label>
-                    <input type="text" id="column_key" name="column_key" class="form-control" required pattern="[a-z_]+" title="فقط حروف کوچک انگلیسی و _">
+                    <input type="text" id="column_key" name="column_key" class="form-control" required pattern="[a-z_]+"
+                        title="فقط حروف کوچک انگلیسی و _">
                 </div>
                 <div class="form-group">
                     <label for="column_type_add">نوع ستون:</label>
@@ -339,511 +347,549 @@
                 <button type="submit" class="button save-button">افزودن ستون</button>
             </form>
         </div>
-        
+
         <div class="columns-container">
             {% for column in all_columns %}
             <div class="column-item">
-                <div style="flex-grow: 1;"> 
+                <div style="flex-grow: 1;">
                     <div class="column-name">{{ column.display }}</div>
-                    <div class="column-type-display" style="font-size: 0.9em; color: #555; margin-right: 10px; margin-left: auto;">نوع: {{ column.type_display }}</div>
+                    <div class="column-type-display"
+                        style="font-size: 0.9em; color: #555; margin-right: 10px; margin-left: auto;">نوع: {{
+                        column.type_display }}</div>
                 </div>
 
                 <div style="display: flex; align-items: center;">
-                    <form method="POST" action="{{ url_for('manage_custom_columns') }}" style="display: inline-block; margin-left: 10px;">
+                    <form method="POST" action="{{ url_for('manage_custom_columns') }}"
+                        style="display: inline-block; margin-left: 10px;">
                         <input type="hidden" name="action" value="toggle_status">
                         <input type="hidden" name="column_id" value="{{ column.id }}">
+                        {% if project_id %}
+                        <input type="hidden" name="project_id" value="{{ project_id }}">
+                        {% endif %}
                         <label class="toggle-switch">
-                            <input type="checkbox" name="is_active" value="1" 
-                                {% if column.is_active %}checked{% endif %}
-                                onchange="this.form.submit()">
+                            <input type="checkbox" name="is_active" value="1" {% if column.is_active %}checked{% endif
+                                %} onchange="this.form.submit()">
                             <span class="slider"></span>
                         </label>
                     </form>
-                    
+
                     {% if column.type == 'dropdown' %}
-                    <button type="button" class="button info-button button-sm manage-options-btn" 
-                            data-column-id="{{ column.id }}" 
-                            data-column-name="{{ column.display }}">
+                    <button type="button" class="button info-button button-sm manage-options-btn"
+                        data-column-id="{{ column.id }}" data-column-name="{{ column.display }}">
                         <i class="fas fa-edit"></i> مدیریت گزینه‌ها
                     </button>
                     {% endif %}
-                    
-                    {% if column.key not in ['rang', 'noe_profile', 'vaziat', 'lola', 'ghofl', 'accessory', 'kolaft', 'dastgire', 'tozihat'] %}
+
+                    {% if column.key not in ['rang', 'noe_profile', 'vaziat', 'lola', 'ghofl', 'accessory', 'kolaft',
+                    'dastgire', 'tozihat'] %}
                     <form method="POST" action="{{ url_for('manage_custom_columns') }}" style="display: inline;">
                         <input type="hidden" name="action" value="delete_column">
                         <input type="hidden" name="column_id" value="{{ column.id }}">
-                        <button type="submit" class="button delete-button" 
-                           onclick="return confirm('آیا از حذف این ستون اطمینان دارید؟')">حذف</button>
+                        {% if project_id %}
+                        <input type="hidden" name="project_id" value="{{ project_id }}">
+                        {% endif %}
+                        <button type="submit" class="button delete-button"
+                            onclick="return confirm('آیا از حذف این ستون اطمینان دارید؟')">حذف</button>
                     </form>
                     {% endif %}
                 </div>
-                
+
                 {% if column.type == 'dropdown' %}
-                <div class="column-options-container" style="width: 100%; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc; flex-basis: 100%;" data-column-id="{{ column.id }}">
+                <div class="column-options-container"
+                    style="width: 100%; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #ccc; flex-basis: 100%;"
+                    data-column-id="{{ column.id }}">
                     <strong style="font-size: 0.85em;">گزینه‌ها:</strong>
                     {% if column.options %}
-                        <ul style="font-size: 0.8em; color: #333; padding-right: 20px; margin-bottom: 0; list-style-type: disc;">
-                            {% for option in column.options %}
-                                <li>{{ option.value }}</li>
-                            {% endfor %}
-                        </ul>
+                    <ul
+                        style="font-size: 0.8em; color: #333; padding-right: 20px; margin-bottom: 0; list-style-type: disc;">
+                        {% for option in column.options %}
+                        <li>{{ option.value }}</li>
+                        {% endfor %}
+                    </ul>
                     {% else %}
-                        <em style="font-size: 0.8em; color: #777; display: block; padding-right: 15px;">هیچ گزینه‌ای تعریف نشده است.</em>
+                    <em style="font-size: 0.8em; color: #777; display: block; padding-right: 15px;">هیچ گزینه‌ای تعریف
+                        نشده است.</em>
                     {% endif %}
                 </div>
                 {% endif %}
             </div>
             {% endfor %}
         </div>
-        
+
         <div class="button-container">
+            {% if project_id %}
+            <a href="{{ url_for('project_treeview', project_id=project_id) }}" class="button back-button">
+                <i class="fas fa-arrow-right"></i>
+                بازگشت به نمای درختی
+            </a>
+            {% else %}
             <a href="{{ url_for('index') }}" class="button back-button">
                 <i class="fas fa-arrow-right"></i>
                 بازگشت به صفحه اصلی
             </a>
+            {% endif %}
         </div>
-    </div>
-    
-    <!-- مدال مدیریت گزینه‌ها -->
-    <div id="optionsModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle" class="modal-title">مدیریت گزینه‌های <span id="columnNameDisplay"></span></h3>
-                <button type="button" id="closeModalBtn" class="close-button">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="add-option-form-container">
-                    <h4 style="margin-top:0; margin-bottom:10px;">افزودن گزینه جدید</h4>
-                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
-                        <input type="text" id="newOptionValue" class="form-control" style="flex-grow: 1;" placeholder="مقدار گزینه...">
-                        <button type="button" id="addOptionButton" class="button save-button button-sm"><i class="fas fa-plus"></i> افزودن</button>
-                    </div>
-                    <input type="hidden" id="currentColumnIdModal" value="">
+
+        <!-- مدال مدیریت گزینه‌ها -->
+        <div id="optionsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalTitle" class="modal-title">مدیریت گزینه‌های <span id="columnNameDisplay"></span></h3>
+                    <button type="button" id="closeModalBtn" class="close-button">&times;</button>
                 </div>
-                <hr style="margin: 15px 0;">
-                <h4 style="margin-bottom:10px;">گزینه‌های موجود:</h4>
-                <ul id="currentOptionsList" style="list-style: none; padding: 0; max-height: 200px; overflow-y: auto;">
-                    <!-- گزینه‌ها توسط جاوااسکریپت اینجا اضافه می‌شوند -->
-                </ul>
-                <p id="noOptionsMessage" style="text-align:center; color:#777; display:none; margin-top:10px;"><em>هنوز گزینه‌ای برای این ستون تعریف نشده است.</em></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="closeModalFooterBtn" class="button back-button close-modal">بستن</button>
+                <div class="modal-body">
+                    <div class="add-option-form-container">
+                        <h4 style="margin-top:0; margin-bottom:10px;">افزودن گزینه جدید</h4>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
+                            <input type="text" id="newOptionValue" class="form-control" style="flex-grow: 1;"
+                                placeholder="مقدار گزینه...">
+                            <button type="button" id="addOptionButton" class="button save-button button-sm"><i
+                                    class="fas fa-plus"></i> افزودن</button>
+                        </div>
+                        <input type="hidden" id="currentColumnIdModal" value="">
+                    </div>
+                    <hr style="margin: 15px 0;">
+                    <h4 style="margin-bottom:10px;">گزینه‌های موجود:</h4>
+                    <ul id="currentOptionsList"
+                        style="list-style: none; padding: 0; max-height: 200px; overflow-y: auto;">
+                        <!-- گزینه‌ها توسط جاوااسکریپت اینجا اضافه می‌شوند -->
+                    </ul>
+                    <p id="noOptionsMessage" style="text-align:center; color:#777; display:none; margin-top:10px;">
+                        <em>هنوز گزینه‌ای برای این ستون تعریف نشده است.</em>
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="closeModalFooterBtn" class="button back-button close-modal">بستن</button>
+                </div>
             </div>
         </div>
-    </div>
-    
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const modal = document.getElementById('optionsModal');
-        const closeModalButton = document.getElementById('closeModalBtn');
-        const modalTitleSpan = document.querySelector('#modalTitle #columnNameDisplay');
-        const manageOptionsButtons = document.querySelectorAll('.manage-options-btn');
-        const currentOptionsList = document.getElementById('currentOptionsList');
-        const noOptionsMessage = document.getElementById('noOptionsMessage');
 
-        // تابع برای باز کردن مدال
-        async function openModal(columnId, columnName) {
-            if (modalTitleSpan) {
-                modalTitleSpan.textContent = columnName; // تنظیم عنوان مدال
-            }
-            
-            // ذخیره columnId در فیلد hidden
-            const currentColumnIdField = document.getElementById('currentColumnIdModal');
-            if (currentColumnIdField) {
-                currentColumnIdField.value = columnId;
-            }
-            
-            if (currentOptionsList) currentOptionsList.innerHTML = ''; // پاک کردن لیست قبلی
-            if (noOptionsMessage) noOptionsMessage.style.display = 'none'; // مخفی کردن پیام پیش‌فرض
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const modal = document.getElementById('optionsModal');
+                const closeModalButton = document.getElementById('closeModalBtn');
+                const modalTitleSpan = document.querySelector('#modalTitle #columnNameDisplay');
+                const manageOptionsButtons = document.querySelectorAll('.manage-options-btn');
+                const currentOptionsList = document.getElementById('currentOptionsList');
+                const noOptionsMessage = document.getElementById('noOptionsMessage');
 
-            // نمایش یک پیام "در حال بارگذاری..." (اختیاری اما مفید)
-            if (currentOptionsList) currentOptionsList.innerHTML = '<li><em>در حال بارگذاری گزینه‌ها...</em></li>';
-
-            try {
-                const response = await fetch(`/api/custom_columns/${columnId}/options`); // ارسال درخواست به API
-                const data = await response.json();
-
-                if (currentOptionsList) currentOptionsList.innerHTML = ''; // پاک کردن پیام "در حال بارگذاری"
-
-                if (data.success && data.options) {
-                    if (data.options.length > 0) {
-                        data.options.forEach(optionObject => {
-                            const li = document.createElement('li');
-                            li.style.display = 'flex'; // برای چیدمان متن گزینه و دکمه‌ها در یک ردیف
-                            li.style.justifyContent = 'space-between'; // فاصله بین متن و دکمه‌ها
-                            li.style.alignItems = 'center'; // هم‌راستایی عمودی
-                            li.style.padding = '8px 12px';
-                            li.dataset.optionId = optionObject.id; // ذخیره شناسه گزینه
-                            li.dataset.optionValue = optionObject.value; // ذخیره مقدار گزینه
-
-                            const optionSpan = document.createElement('span');
-                            optionSpan.textContent = optionObject.value;
-                            li.appendChild(optionSpan);
-
-                            // ایجاد یک div برای دکمه‌های عملیات
-                            const actionsDiv = document.createElement('div');
-                            actionsDiv.className = 'option-item-actions';
-                            
-                            // افزودن دکمه ویرایش
-                            const editBtn = document.createElement('button');
-                            editBtn.innerHTML = '<i class="fas fa-edit"></i> ویرایش';
-                            editBtn.className = 'button info-button button-sm edit-option-btn';
-                            editBtn.type = 'button';
-                            editBtn.dataset.optionId = optionObject.id; // ذخیره شناسه برای ویرایش
-                            editBtn.dataset.currentValue = optionObject.value; // ذخیره مقدار فعلی
-                            editBtn.style.marginLeft = '5px'; // فاصله بین دکمه‌های ویرایش و حذف
-                            actionsDiv.appendChild(editBtn);
-                            
-                            // افزودن دکمه حذف
-                            const deleteBtn = document.createElement('button');
-                            deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> حذف';
-                            deleteBtn.className = 'button delete-button button-sm delete-option-btn';
-                            deleteBtn.type = 'button';
-                            deleteBtn.dataset.optionId = optionObject.id; // ذخیره شناسه برای حذف
-                            actionsDiv.appendChild(deleteBtn);
-
-                            li.appendChild(actionsDiv); // اضافه کردن div اکشن‌ها به آیتم لیست
-
-                            currentOptionsList.appendChild(li);
-                        });
-                        
-                        // !!! بخش رویداد کلیک حذف شده و به خارج از تابع منتقل شده است !!!
-                        
-                    } else {
-                        if (noOptionsMessage) noOptionsMessage.style.display = 'block'; // نمایش پیام "بدون گزینه"
+                // تابع برای باز کردن مدال
+                async function openModal(columnId, columnName) {
+                    if (modalTitleSpan) {
+                        modalTitleSpan.textContent = columnName; // تنظیم عنوان مدال
                     }
-                } else {
-                    if (currentOptionsList) currentOptionsList.innerHTML = `<li><em>خطا در بارگذاری گزینه‌ها: ${data.error || 'خطای نامشخص'}</em></li>`;
-                }
-            } catch (error) {
-                console.error('Fetch error:', error);
-                if (currentOptionsList) currentOptionsList.innerHTML = '<li><em>خطا در برقراری ارتباط با سرور.</em></li>';
-            }
-            
-            if (modal) {
-                modal.style.display = 'block';
-            }
-        }
 
-        // تابع برای بستن مدال
-        function closeModal() {
-            if (modal) {
-                modal.style.display = 'none';
-            }
-            if (modalTitleSpan) {
-                modalTitleSpan.textContent = ''; // پاک کردن عنوان
-            }
-            
-            // پاک کردن لیست گزینه‌ها و فیلد افزودن گزینه
-            const newOptionValueInput = document.getElementById('newOptionValue');
-            const currentColumnIdField = document.getElementById('currentColumnIdModal');
-            
-            if (currentOptionsList) currentOptionsList.innerHTML = '';
-            if (newOptionValueInput) newOptionValueInput.value = '';
-            if (currentColumnIdField) currentColumnIdField.value = '';
-            
-            // مخفی کردن پیام "بدون گزینه"
-            if (noOptionsMessage) noOptionsMessage.style.display = 'none';
-        }
+                    // ذخیره columnId در فیلد hidden
+                    const currentColumnIdField = document.getElementById('currentColumnIdModal');
+                    if (currentColumnIdField) {
+                        currentColumnIdField.value = columnId;
+                    }
 
-        // ***** رویداد حذف گزینه (منتقل شده به خارج از openModal) *****
-        if (currentOptionsList) {
-            currentOptionsList.addEventListener('click', async function(e) {
-                // بررسی اینکه آیا روی دکمه حذف کلیک شده
-                const deleteButton = e.target.closest('.delete-option-btn');
-                if (deleteButton) {
-                    const optionId = deleteButton.dataset.optionId;
-                    if (!optionId) return;
-                    
-                    // تأیید حذف از کاربر
-                    if (!confirm('آیا از حذف این گزینه اطمینان دارید؟')) return;
-                    
+                    if (currentOptionsList) currentOptionsList.innerHTML = ''; // پاک کردن لیست قبلی
+                    if (noOptionsMessage) noOptionsMessage.style.display = 'none'; // مخفی کردن پیام پیش‌فرض
+
+                    // نمایش یک پیام "در حال بارگذاری..." (اختیاری اما مفید)
+                    if (currentOptionsList) currentOptionsList.innerHTML = '<li><em>در حال بارگذاری گزینه‌ها...</em></li>';
+
                     try {
-                        const response = await fetch(`/api/custom_columns/options/${optionId}/delete`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            }
-                        });
-                        
+                        const response = await fetch(`/api/custom_columns/${columnId}/options`); // ارسال درخواست به API
                         const data = await response.json();
-                        
-                        if (data.success) {
-                            // حذف آیتم از لیست مدال
-                            const listItem = deleteButton.closest('li');
-                            const optionValue = listItem ? listItem.dataset.optionValue : '';
-                            if (listItem) listItem.remove();
-                            
-                            // چک کردن آیا لیست خالی شده
-                            if (currentOptionsList.children.length === 0 && noOptionsMessage) {
-                                noOptionsMessage.style.display = 'block';
-                            }
-                            
-                            // حذف گزینه از لیست در کارت اصلی ستون
-                            const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${data.column_id}"]`);
-                            if (columnCard) {
-                                const cardListItems = columnCard.querySelectorAll('ul li');
-                                cardListItems.forEach(item => {
-                                    if (item.textContent.trim() === optionValue) {
-                                        item.remove();
-                                    }
+
+                        if (currentOptionsList) currentOptionsList.innerHTML = ''; // پاک کردن پیام "در حال بارگذاری"
+
+                        if (data.success && data.options) {
+                            if (data.options.length > 0) {
+                                data.options.forEach(optionObject => {
+                                    const li = document.createElement('li');
+                                    li.style.display = 'flex'; // برای چیدمان متن گزینه و دکمه‌ها در یک ردیف
+                                    li.style.justifyContent = 'space-between'; // فاصله بین متن و دکمه‌ها
+                                    li.style.alignItems = 'center'; // هم‌راستایی عمودی
+                                    li.style.padding = '8px 12px';
+                                    li.dataset.optionId = optionObject.id; // ذخیره شناسه گزینه
+                                    li.dataset.optionValue = optionObject.value; // ذخیره مقدار گزینه
+
+                                    const optionSpan = document.createElement('span');
+                                    optionSpan.textContent = optionObject.value;
+                                    li.appendChild(optionSpan);
+
+                                    // ایجاد یک div برای دکمه‌های عملیات
+                                    const actionsDiv = document.createElement('div');
+                                    actionsDiv.className = 'option-item-actions';
+
+                                    // افزودن دکمه ویرایش
+                                    const editBtn = document.createElement('button');
+                                    editBtn.innerHTML = '<i class="fas fa-edit"></i> ویرایش';
+                                    editBtn.className = 'button info-button button-sm edit-option-btn';
+                                    editBtn.type = 'button';
+                                    editBtn.dataset.optionId = optionObject.id; // ذخیره شناسه برای ویرایش
+                                    editBtn.dataset.currentValue = optionObject.value; // ذخیره مقدار فعلی
+                                    editBtn.style.marginLeft = '5px'; // فاصله بین دکمه‌های ویرایش و حذف
+                                    actionsDiv.appendChild(editBtn);
+
+                                    // افزودن دکمه حذف
+                                    const deleteBtn = document.createElement('button');
+                                    deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> حذف';
+                                    deleteBtn.className = 'button delete-button button-sm delete-option-btn';
+                                    deleteBtn.type = 'button';
+                                    deleteBtn.dataset.optionId = optionObject.id; // ذخیره شناسه برای حذف
+                                    actionsDiv.appendChild(deleteBtn);
+
+                                    li.appendChild(actionsDiv); // اضافه کردن div اکشن‌ها به آیتم لیست
+
+                                    currentOptionsList.appendChild(li);
                                 });
-                                
-                                // اگر لیست خالی شد، پیام "هیچ گزینه‌ای تعریف نشده است" را نمایش بده
-                                if (columnCard.querySelector('ul').children.length === 0) {
-                                    const emptyMessageExists = columnCard.querySelector('em');
-                                    if (!emptyMessageExists) {
-                                        const emptyMessage = document.createElement('em');
-                                        emptyMessage.style.fontSize = '0.8em';
-                                        emptyMessage.style.color = '#777';
-                                        emptyMessage.style.display = 'block';
-                                        emptyMessage.style.paddingRight = '15px';
-                                        emptyMessage.textContent = 'هیچ گزینه‌ای تعریف نشده است.';
-                                        columnCard.appendChild(emptyMessage);
-                                    } else {
-                                        emptyMessageExists.style.display = 'block';
-                                    }
-                                }
-                            }
-                            
-                            alert('گزینه با موفقیت حذف شد');
-                        } else {
-                            alert(`خطا: ${data.error || 'خطای نامشخص'}`);
-                        }
-                    } catch (error) {
-                        console.error('Fetch error:', error);
-                        alert('خطا در برقراری ارتباط با سرور');
-                    }
-                }
-                
-                // بررسی اینکه آیا روی دکمه ویرایش کلیک شده
-                const editButton = e.target.closest('.edit-option-btn');
-                if (editButton) {
-                    const optionId = editButton.dataset.optionId;
-                    const currentValue = editButton.dataset.currentValue;
-                    
-                    if (!optionId) return;
-                    
-                    // دریافت متن جدید از کاربر با استفاده از prompt
-                    const newValueFromPrompt = prompt("متن جدید گزینه را وارد کنید:", currentValue);
-                    
-                    // بررسی ورودی کاربر
-                    if (newValueFromPrompt === null) return; // کاربر دکمه Cancel را زده
-                    
-                    const trimmedValue = newValueFromPrompt.trim();
-                    
-                    // بررسی خالی نبودن متن جدید
-                    if (!trimmedValue) {
-                        alert("مقدار گزینه نمی‌تواند خالی باشد.");
-                        return;
-                    }
-                    
-                    // بررسی تغییر در متن
-                    if (trimmedValue === currentValue) {
-                        alert("تغییری در مقدار گزینه ایجاد نشده است.");
-                        return;
-                    }
-                    
-                    try {
-                        // ارسال درخواست به API برای ویرایش گزینه
-                        const response = await fetch(`/api/custom_columns/options/${optionId}/edit`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ new_value: trimmedValue })
-                        });
-                        
-                        const data = await response.json();
-                        
-                        if (data.success) {
-                            // به‌روزرسانی متن گزینه در مدال
-                            const listItem = editButton.closest('li');
-                            if (listItem) {
-                                const optionSpan = listItem.querySelector('span');
-                                if (optionSpan) {
-                                    optionSpan.textContent = data.updated_option.value;
-                                }
-                                
-                                // به‌روزرسانی data attributes
-                                listItem.dataset.optionValue = data.updated_option.value;
-                                editButton.dataset.currentValue = data.updated_option.value;
-                            }
-                            
-                            // به‌روزرسانی متن گزینه در کارت اصلی ستون
-                            const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${data.column_id}"]`);
-                            if (columnCard) {
-                                const cardListItems = columnCard.querySelectorAll('ul li');
-                                cardListItems.forEach(item => {
-                                    if (item.textContent.trim() === currentValue) {
-                                        item.textContent = data.updated_option.value;
-                                    }
-                                });
-                            }
-                            
-                            alert(data.message || 'گزینه با موفقیت ویرایش شد');
-                        } else {
-                            alert(`خطا: ${data.error || 'خطای نامشخص'}`);
-                        }
-                    } catch (error) {
-                        console.error('Fetch error:', error);
-                        alert('خطا در برقراری ارتباط با سرور');
-                    }
-                }
-            });
-        }
 
-        // افزودن event listener به دکمه‌های "مدیریت گزینه‌ها"
-        manageOptionsButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const columnId = this.dataset.columnId;
-                const columnName = this.dataset.columnName;
-                openModal(columnId, columnName);
-            });
-        });
+                                // !!! بخش رویداد کلیک حذف شده و به خارج از تابع منتقل شده است !!!
 
-        // افزودن event listener به دکمه بستن مدال (ضربدر)
-        if (closeModalButton) {
-            closeModalButton.addEventListener('click', closeModal);
-        }
-        
-        // افزودن event listener به دکمه "بستن" در فوتر مدال
-        const closeModalFooterBtn = document.getElementById('closeModalFooterBtn');
-        if (closeModalFooterBtn) {
-            closeModalFooterBtn.addEventListener('click', closeModal);
-        }
-
-        // افزودن event listener برای دکمه افزودن گزینه جدید
-        const addOptionButton = document.getElementById('addOptionButton');
-        if (addOptionButton) {
-            addOptionButton.addEventListener('click', async function() {
-                const newOptionInput = document.getElementById('newOptionValue');
-                const columnIdField = document.getElementById('currentColumnIdModal');
-                
-                if (!newOptionInput || !columnIdField) return;
-                
-                const newOptionText = newOptionInput.value.trim();
-                const columnId = columnIdField.value;
-                
-                if (!newOptionText) {
-                    alert('لطفاً مقدار گزینه را وارد کنید');
-                    return;
-                }
-                
-                if (!columnId) {
-                    alert('خطا: شناسه ستون نامعتبر است');
-                    return;
-                }
-                
-                try {
-                    const response = await fetch(`/api/custom_columns/${columnId}/options/add`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ option_value: newOptionText })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        // پاک کردن فیلد ورودی
-                        newOptionInput.value = '';
-                        
-                        // درخواست مجدد به API برای دریافت لیست به‌روز شده با شناسه‌ها
-                        try {
-                            const refreshResponse = await fetch(`/api/custom_columns/${columnId}/options`);
-                            const refreshData = await refreshResponse.json();
-                            
-                            if (refreshData.success && refreshData.options) {
-                                // پیدا کردن گزینه جدید اضافه شده (آخرین گزینه در لیست)
-                                const addedOption = refreshData.options[refreshData.options.length - 1];
-                                
-                                // به‌روزرسانی لیست گزینه‌ها در مدال
-                                const currentOptionsList = document.getElementById('currentOptionsList');
-                                const noOptionsMessage = document.getElementById('noOptionsMessage');
-                                
-                                if (noOptionsMessage) noOptionsMessage.style.display = 'none';
-                                
-                                // اضافه کردن گزینه جدید به لیست
-                                const li = document.createElement('li');
-                                li.style.display = 'flex';
-                                li.style.justifyContent = 'space-between';
-                                li.style.alignItems = 'center';
-                                li.style.padding = '8px 12px';
-                                li.style.borderBottom = '1px solid #f0f0f0';
-                                li.dataset.optionId = addedOption.id;
-                                li.dataset.optionValue = addedOption.value;
-                                
-                                const optionSpan = document.createElement('span');
-                                optionSpan.textContent = addedOption.value;
-                                li.appendChild(optionSpan);
-                                
-                                const actionsDiv = document.createElement('div');
-                                actionsDiv.className = 'option-item-actions';
-                                
-                                // افزودن دکمه ویرایش
-                                const editBtn = document.createElement('button');
-                                editBtn.innerHTML = '<i class="fas fa-edit"></i> ویرایش';
-                                editBtn.className = 'button info-button button-sm edit-option-btn';
-                                editBtn.type = 'button';
-                                editBtn.dataset.optionId = addedOption.id;
-                                editBtn.dataset.currentValue = addedOption.value;
-                                editBtn.style.marginLeft = '5px';
-                                actionsDiv.appendChild(editBtn);
-                                
-                                // افزودن دکمه حذف
-                                const deleteBtn = document.createElement('button');
-                                deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> حذف';
-                                deleteBtn.className = 'button delete-button button-sm delete-option-btn';
-                                deleteBtn.type = 'button';
-                                deleteBtn.dataset.optionId = addedOption.id;
-                                actionsDiv.appendChild(deleteBtn);
-                                
-                                li.appendChild(actionsDiv);
-                                
-                                currentOptionsList.appendChild(li);
-                                
-                                // اضافه کردن گزینه به لیست در کارت اصلی ستون
-                                const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${columnId}"] ul`);
-                                if (columnCard) {
-                                    const cardLi = document.createElement('li');
-                                    cardLi.textContent = addedOption.value;
-                                    columnCard.appendChild(cardLi);
-                                    
-                                    // حذف پیام "هیچ گزینه‌ای تعریف نشده است" اگر وجود دارد
-                                    const emptyMessage = document.querySelector(`.column-item .column-options-container[data-column-id="${columnId}"] em`);
-                                    if (emptyMessage) {
-                                        emptyMessage.style.display = 'none';
-                                    }
-                                }
-                                
-                                alert('گزینه با موفقیت اضافه شد');
                             } else {
-                                alert(`خطا در به‌روزرسانی لیست: ${refreshData.error || 'خطای نامشخص'}`);
+                                if (noOptionsMessage) noOptionsMessage.style.display = 'block'; // نمایش پیام "بدون گزینه"
                             }
-                        } catch (refreshError) {
-                            console.error('Refresh error:', refreshError);
-                            alert('گزینه اضافه شد، اما خطا در به‌روزرسانی لیست رخ داد.');
+                        } else {
+                            if (currentOptionsList) currentOptionsList.innerHTML = `<li><em>خطا در بارگذاری گزینه‌ها: ${data.error || 'خطای نامشخص'}</em></li>`;
                         }
-                    } else {
-                        alert(`خطا: ${data.error || 'خطای نامشخص'}`);
+                    } catch (error) {
+                        console.error('Fetch error:', error);
+                        if (currentOptionsList) currentOptionsList.innerHTML = '<li><em>خطا در برقراری ارتباط با سرور.</em></li>';
                     }
-                } catch (error) {
-                    console.error('Fetch error:', error);
-                    alert('خطا در برقراری ارتباط با سرور');
-                }
-            });
-        }
 
-        // بستن مدال با کلیک در خارج از محتوای آن
-        window.addEventListener('click', function(event) {
-            if (event.target == modal) {
-                closeModal();
-            }
-        });
-    });
-    </script>
+                    if (modal) {
+                        modal.style.display = 'block';
+                    }
+                }
+
+                // تابع برای بستن مدال
+                function closeModal() {
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                    if (modalTitleSpan) {
+                        modalTitleSpan.textContent = ''; // پاک کردن عنوان
+                    }
+
+                    // پاک کردن لیست گزینه‌ها و فیلد افزودن گزینه
+                    const newOptionValueInput = document.getElementById('newOptionValue');
+                    const currentColumnIdField = document.getElementById('currentColumnIdModal');
+
+                    if (currentOptionsList) currentOptionsList.innerHTML = '';
+                    if (newOptionValueInput) newOptionValueInput.value = '';
+                    if (currentColumnIdField) currentColumnIdField.value = '';
+
+                    // مخفی کردن پیام "بدون گزینه"
+                    if (noOptionsMessage) noOptionsMessage.style.display = 'none';
+                }
+
+                // ***** رویداد حذف گزینه (منتقل شده به خارج از openModal) *****
+                if (currentOptionsList) {
+                    currentOptionsList.addEventListener('click', async function (e) {
+                        console.log('Clicked element:', e.target);
+
+                        // بررسی اینکه آیا روی دکمه حذف کلیک شده
+                        const deleteButton = e.target.closest('.delete-option-btn');
+                        if (deleteButton) {
+                            e.preventDefault(); // جلوگیری از رفتارهای پیش‌فرض
+                            const optionId = deleteButton.dataset.optionId;
+                            console.log('Delete button clicked for ID:', optionId);
+
+                            if (!optionId) {
+                                alert('خطا: شناسه گزینه یافت نشد.');
+                                return;
+                            }
+
+                            // تأیید حذف از کاربر
+                            if (!confirm('آیا از حذف این گزینه اطمینان دارید؟')) return;
+
+                            try {
+                                const response = await fetch(`/api/custom_columns/options/${optionId}/delete`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    }
+                                });
+
+                                const data = await response.json();
+
+                                if (data.success) {
+                                    // حذف آیتم از لیست مدال
+                                    const listItem = deleteButton.closest('li');
+                                    const optionValue = listItem ? listItem.dataset.optionValue : '';
+                                    if (listItem) listItem.remove();
+
+                                    // چک کردن آیا لیست خالی شده
+                                    if (currentOptionsList.children.length === 0 && noOptionsMessage) {
+                                        noOptionsMessage.style.display = 'block';
+                                    }
+
+                                    // حذف گزینه از لیست در کارت اصلی ستون
+                                    const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${data.column_id}"]`);
+                                    if (columnCard) {
+                                        const cardListItems = columnCard.querySelectorAll('ul li');
+                                        cardListItems.forEach(item => {
+                                            if (item.textContent.trim() === optionValue) {
+                                                item.remove();
+                                            }
+                                        });
+
+                                        // اگر لیست خالی شد، پیام "هیچ گزینه‌ای تعریف نشده است" را نمایش بده
+                                        if (columnCard.querySelector('ul').children.length === 0) {
+                                            const emptyMessageExists = columnCard.querySelector('em');
+                                            if (!emptyMessageExists) {
+                                                const emptyMessage = document.createElement('em');
+                                                emptyMessage.style.fontSize = '0.8em';
+                                                emptyMessage.style.color = '#777';
+                                                emptyMessage.style.display = 'block';
+                                                emptyMessage.style.paddingRight = '15px';
+                                                emptyMessage.textContent = 'هیچ گزینه‌ای تعریف نشده است.';
+                                                columnCard.appendChild(emptyMessage);
+                                            } else {
+                                                emptyMessageExists.style.display = 'block';
+                                            }
+                                        }
+                                    }
+
+                                    alert('گزینه با موفقیت حذف شد');
+                                } else {
+                                    alert(`خطا: ${data.error || 'خطای نامشخص'}`);
+                                }
+                            } catch (error) {
+                                console.error('Fetch error:', error);
+                                alert(`خطا در برقراری ارتباط با سرور: ${error.message}`);
+                            }
+                        }
+
+                        // بررسی اینکه آیا روی دکمه ویرایش کلیک شده
+                        const editButton = e.target.closest('.edit-option-btn');
+                        if (editButton) {
+                            e.preventDefault();
+                            const optionId = editButton.dataset.optionId;
+                            const currentValue = editButton.dataset.currentValue;
+
+                            console.log('Edit button clicked for ID:', optionId, 'Current Value:', currentValue);
+
+                            if (!optionId) {
+                                alert('خطا: شناسه گزینه یافت نشد.');
+                                return;
+                            }
+
+                            // دریافت متن جدید از کاربر با استفاده از prompt
+                            const newValueFromPrompt = prompt("متن جدید گزینه را وارد کنید:", currentValue);
+
+                            // بررسی ورودی کاربر
+                            if (newValueFromPrompt === null) return; // کاربر دکمه Cancel را زده
+
+                            const trimmedValue = newValueFromPrompt.trim();
+
+                            // بررسی خالی نبودن متن جدید
+                            if (!trimmedValue) {
+                                alert("مقدار گزینه نمی‌تواند خالی باشد.");
+                                return;
+                            }
+
+                            // بررسی تغییر در متن
+                            if (trimmedValue === currentValue) {
+                                alert("تغییری در مقدار گزینه ایجاد نشده است.");
+                                return;
+                            }
+
+                            try {
+                                // ارسال درخواست به API برای ویرایش گزینه
+                                const response = await fetch(`/api/custom_columns/options/${optionId}/edit`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({ new_value: trimmedValue })
+                                });
+
+                                const data = await response.json();
+
+                                if (data.success) {
+                                    // به‌روزرسانی متن گزینه در مدال
+                                    const listItem = editButton.closest('li');
+                                    if (listItem) {
+                                        const optionSpan = listItem.querySelector('span');
+                                        if (optionSpan) {
+                                            optionSpan.textContent = data.updated_option.value;
+                                        }
+
+                                        // به‌روزرسانی data attributes
+                                        listItem.dataset.optionValue = data.updated_option.value;
+                                        editButton.dataset.currentValue = data.updated_option.value;
+                                    }
+
+                                    // به‌روزرسانی متن گزینه در کارت اصلی ستون
+                                    const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${data.column_id}"]`);
+                                    if (columnCard) {
+                                        const cardListItems = columnCard.querySelectorAll('ul li');
+                                        cardListItems.forEach(item => {
+                                            if (item.textContent.trim() === currentValue) {
+                                                item.textContent = data.updated_option.value;
+                                            }
+                                        });
+                                    }
+
+                                    alert(data.message || 'گزینه با موفقیت ویرایش شد');
+                                } else {
+                                    alert(`خطا: ${data.error || 'خطای نامشخص'}`);
+                                }
+                            } catch (error) {
+                                console.error('Fetch error:', error);
+                                alert(`خطا در برقراری ارتباط با سرور: ${error.message}`);
+                            }
+                        }
+                    });
+                }
+
+                // افزودن event listener به دکمه‌های "مدیریت گزینه‌ها"
+                manageOptionsButtons.forEach(button => {
+                    button.addEventListener('click', function () {
+                        const columnId = this.dataset.columnId;
+                        const columnName = this.dataset.columnName;
+                        openModal(columnId, columnName);
+                    });
+                });
+
+                // افزودن event listener به دکمه بستن مدال (ضربدر)
+                if (closeModalButton) {
+                    closeModalButton.addEventListener('click', closeModal);
+                }
+
+                // افزودن event listener به دکمه "بستن" در فوتر مدال
+                const closeModalFooterBtn = document.getElementById('closeModalFooterBtn');
+                if (closeModalFooterBtn) {
+                    closeModalFooterBtn.addEventListener('click', closeModal);
+                }
+
+                // افزودن event listener برای دکمه افزودن گزینه جدید
+                const addOptionButton = document.getElementById('addOptionButton');
+                if (addOptionButton) {
+                    addOptionButton.addEventListener('click', async function () {
+                        const newOptionInput = document.getElementById('newOptionValue');
+                        const columnIdField = document.getElementById('currentColumnIdModal');
+
+                        if (!newOptionInput || !columnIdField) return;
+
+                        const newOptionText = newOptionInput.value.trim();
+                        const columnId = columnIdField.value;
+
+                        if (!newOptionText) {
+                            alert('لطفاً مقدار گزینه را وارد کنید');
+                            return;
+                        }
+
+                        if (!columnId) {
+                            alert('خطا: شناسه ستون نامعتبر است');
+                            return;
+                        }
+
+                        try {
+                            const response = await fetch(`/api/custom_columns/${columnId}/options/add`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ option_value: newOptionText })
+                            });
+
+                            const data = await response.json();
+
+                            if (data.success) {
+                                // پاک کردن فیلد ورودی
+                                newOptionInput.value = '';
+
+                                // درخواست مجدد به API برای دریافت لیست به‌روز شده با شناسه‌ها
+                                try {
+                                    const refreshResponse = await fetch(`/api/custom_columns/${columnId}/options`);
+                                    const refreshData = await refreshResponse.json();
+
+                                    if (refreshData.success && refreshData.options) {
+                                        // پیدا کردن گزینه جدید اضافه شده (آخرین گزینه در لیست)
+                                        const addedOption = refreshData.options[refreshData.options.length - 1];
+
+                                        // به‌روزرسانی لیست گزینه‌ها در مدال
+                                        const currentOptionsList = document.getElementById('currentOptionsList');
+                                        const noOptionsMessage = document.getElementById('noOptionsMessage');
+
+                                        if (noOptionsMessage) noOptionsMessage.style.display = 'none';
+
+                                        // اضافه کردن گزینه جدید به لیست
+                                        const li = document.createElement('li');
+                                        li.style.display = 'flex';
+                                        li.style.justifyContent = 'space-between';
+                                        li.style.alignItems = 'center';
+                                        li.style.padding = '8px 12px';
+                                        li.style.borderBottom = '1px solid #f0f0f0';
+                                        li.dataset.optionId = addedOption.id;
+                                        li.dataset.optionValue = addedOption.value;
+
+                                        const optionSpan = document.createElement('span');
+                                        optionSpan.textContent = addedOption.value;
+                                        li.appendChild(optionSpan);
+
+                                        const actionsDiv = document.createElement('div');
+                                        actionsDiv.className = 'option-item-actions';
+
+                                        // افزودن دکمه ویرایش
+                                        const editBtn = document.createElement('button');
+                                        editBtn.innerHTML = '<i class="fas fa-edit"></i> ویرایش';
+                                        editBtn.className = 'button info-button button-sm edit-option-btn';
+                                        editBtn.type = 'button';
+                                        editBtn.dataset.optionId = addedOption.id;
+                                        editBtn.dataset.currentValue = addedOption.value;
+                                        editBtn.style.marginLeft = '5px';
+                                        actionsDiv.appendChild(editBtn);
+
+                                        // افزودن دکمه حذف
+                                        const deleteBtn = document.createElement('button');
+                                        deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> حذف';
+                                        deleteBtn.className = 'button delete-button button-sm delete-option-btn';
+                                        deleteBtn.type = 'button';
+                                        deleteBtn.dataset.optionId = addedOption.id;
+                                        actionsDiv.appendChild(deleteBtn);
+
+                                        li.appendChild(actionsDiv);
+
+                                        currentOptionsList.appendChild(li);
+
+                                        // اضافه کردن گزینه به لیست در کارت اصلی ستون
+                                        const columnCard = document.querySelector(`.column-item .column-options-container[data-column-id="${columnId}"] ul`);
+                                        if (columnCard) {
+                                            const cardLi = document.createElement('li');
+                                            cardLi.textContent = addedOption.value;
+                                            columnCard.appendChild(cardLi);
+
+                                            // حذف پیام "هیچ گزینه‌ای تعریف نشده است" اگر وجود دارد
+                                            const emptyMessage = document.querySelector(`.column-item .column-options-container[data-column-id="${columnId}"] em`);
+                                            if (emptyMessage) {
+                                                emptyMessage.style.display = 'none';
+                                            }
+                                        }
+
+                                        alert('گزینه با موفقیت اضافه شد');
+                                    } else {
+                                        alert(`خطا در به‌روزرسانی لیست: ${refreshData.error || 'خطای نامشخص'}`);
+                                    }
+                                } catch (refreshError) {
+                                    console.error('Refresh error:', refreshError);
+                                    alert('گزینه اضافه شد، اما خطا در به‌روزرسانی لیست رخ داد.');
+                                }
+                            } else {
+                                alert(`خطا: ${data.error || 'خطای نامشخص'}`);
+                            }
+                        } catch (error) {
+                            console.error('Fetch error:', error);
+                            alert('خطا در برقراری ارتباط با سرور');
+                        }
+                    });
+                }
+
+                // بستن مدال با کلیک در خارج از محتوای آن
+                window.addEventListener('click', function (event) {
+                    if (event.target == modal) {
+                        closeModal();
+                    }
+                });
+            });
+        </script>
 </body>
-</html> 
+
+</html>

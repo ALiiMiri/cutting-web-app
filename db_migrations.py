@@ -3,15 +3,12 @@ import sqlite3
 def apply_migrations(conn):
     """
     Applies database migrations to the given SQLite connection,
-    with versioning.
-
-    Args:
-        conn: SQLite connection object.
+    with versioning to ensure schema consistency.
     """
     cursor = conn.cursor()
-    print("شروع اعمال مایگریشن‌های دیتابیس با نسخه‌بندی...")
+    print("Starting database migrations...")
 
-    # 0. ایجاد جدول schema_migrations اگر وجود نداشته باشد
+    # 0. Ensure schema_migrations table exists
     try:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -19,10 +16,11 @@ def apply_migrations(conn):
             )
         """)
         conn.commit()
-        print("جدول 'schema_migrations' بررسی/ایجاد شد.")
     except sqlite3.Error as e:
-        print(f"خطا در ایجاد جدول 'schema_migrations': {e}")
-        return # اگر جدول مایگریشن ایجاد نشود، ادامه نمی‌دهیم
+        print(f"Error creating 'schema_migrations' table: {e}")
+        return
+
+    # --- SQL Definitions ---
 
     sql_apply_000 = """
         CREATE TABLE IF NOT EXISTS projects (
@@ -96,196 +94,90 @@ def apply_migrations(conn):
         );
     """
 
+    sql_apply_002_seed = """
+        INSERT OR IGNORE INTO custom_columns (column_name, display_name, is_active) VALUES 
+        ('rang', 'رنگ پروفیل', 1),
+        ('noe_profile', 'نوع پروفیل', 1),
+        ('vaziat', 'وضعیت تولید درب', 1),
+        ('lola', 'لولا', 1),
+        ('ghofl', 'قفل', 1),
+        ('accessory', 'اکسسوری', 1),
+        ('kolaft', 'کلافت', 1),
+        ('dastgire', 'دستگیره', 1),
+        ('tozihat', 'توضیحات', 1);
+    """
+
     sql_apply_003_price_settings = """
         CREATE TABLE IF NOT EXISTS price_settings (
             key TEXT PRIMARY KEY,
-            value TEXT
+            value REAL
         );
     """
+
+    # --- Migrations List ---
 
     migrations = [
         {
             "name": "000_create_initial_tables",
-            "description": "ایجاد تمام جدول‌های پایه برای شروع برنامه",
+            "description": "Create base tables",
             "check_logic": lambda c: not c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").fetchone(),
             "sql_apply": sql_apply_000,
             "execution_type": "script",
         },
         {
             "name": "001_add_row_color_tag_to_doors",
-            "description": "اضافه کردن ستون row_color_tag به جدول doors",
+            "description": "Add row_color_tag column",
             "check_logic": lambda c: 'row_color_tag' not in [col[1] for col in c.execute("PRAGMA table_info(doors)").fetchall()],
             "sql_apply": "ALTER TABLE doors ADD COLUMN row_color_tag TEXT DEFAULT 'white'",
             "execution_type": "single",
         },
         {
             "name": "002_seed_base_custom_columns",
-            "description": "اضافه کردن ستون‌های پایه و گزینه‌های پیش‌فرض برای ستون‌های سفارشی",
-            "check_logic": lambda c: c.execute("SELECT COUNT(*) FROM custom_columns WHERE column_name IN ('rang', 'noe_profile', 'vaziat', 'lola', 'ghofl', 'accessory', 'kolaft', 'dastgire', 'tozihat')").fetchone()[0] < 9,
-            "sql_apply": None,
-            "execution_type": "python_module",
-            "module_path": "migrations.002_seed_base_custom_columns"
+            "description": "Seed default custom columns",
+            "check_logic": lambda c: c.execute("SELECT COUNT(*) FROM custom_columns").fetchone()[0] == 0,
+            "sql_apply": sql_apply_002_seed,
+            "execution_type": "script",
         },
         {
-            "name": "003_create_inventory_logs_table",
-            "description": "ایجاد جدول inventory_logs",
-            "check_logic": lambda c: not c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inventory_logs'").fetchone(),
-            "sql_apply": '''
-                CREATE TABLE inventory_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT,
-                    profile_id INTEGER,
-                    action TEXT,
-                    description TEXT
-                )
-            ''',
-            "execution_type": "single",
-        },
-        {
-            "name": "004_create_price_settings_table",
-            "description": "ایجاد جدول price_settings برای تنظیمات محاسبه قیمت",
+            "name": "003_create_price_settings",
+            "description": "Create price settings table",
             "check_logic": lambda c: not c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='price_settings'").fetchone(),
             "sql_apply": sql_apply_003_price_settings,
-            "execution_type": "single",
+            "execution_type": "script",
         }
     ]
 
+    # --- Execution Loop ---
+
     for migration in migrations:
         migration_name = migration["name"]
-        migration_desc = migration["description"]
-        print(f"\nبررسی مایگریشن: {migration_name} ({migration_desc})...")
-
+        
         try:
             cursor.execute("SELECT name FROM schema_migrations WHERE name = ?", (migration_name,))
-            is_already_applied_and_recorded = cursor.fetchone()
+            if cursor.fetchone():
+                continue # Already applied
 
-            if is_already_applied_and_recorded:
-                print(f"مایگریشن '{migration_name}' قبلاً اعمال و ثبت شده است. رد می‌شویم.")
-                continue
+            needs_execution = migration["check_logic"](cursor)
 
-            print(f"مایگریشن '{migration_name}' هنوز در schema_migrations ثبت نشده است.")
-            
-            needs_sql_execution = migration["check_logic"](cursor)
-
-            if needs_sql_execution:
-                print(f"شرایط مایگریشن '{migration_name}' نشان می‌دهد که باید اجرا شود. در حال اجرا...")
-                execution_type = migration.get("execution_type", "single")
+            if needs_execution:
+                print(f"-> Applying '{migration_name}'...")
+                exec_type = migration.get("execution_type", "single")
                 
-                if execution_type == "script":
+                if exec_type == "script":
                     cursor.executescript(migration["sql_apply"])
-                    conn.commit()
-                    print(f"SQL script برای مایگریشن '{migration_name}' با موفقیت اجرا شد.")
-                elif execution_type == "python_module":
-                    # import و اجرای ماژول پایتون
-                    module_path = migration["module_path"]
-                    try:
-                        module = __import__(module_path, fromlist=['apply'])
-                        module.apply(conn)
-                        print(f"ماژول پایتون برای مایگریشن '{migration_name}' با موفقیت اجرا شد.")
-                    except ImportError as e:
-                        print(f"خطا در import ماژول '{module_path}': {e}")
-                        raise e
-                    except Exception as e:
-                        print(f"خطا در اجرای ماژول '{module_path}': {e}")
-                        raise e
-                else:
+                elif exec_type == "single":
                     cursor.execute(migration["sql_apply"])
-                    conn.commit()
-                    print(f"SQL برای مایگریشن '{migration_name}' با موفقیت اجرا شد.")
-            else:
-                print(f"شرایط مایگریشن '{migration_name}' نشان می‌دهد که نیازی به اجرا ندارد (وضعیت دیتابیس از قبل مطابق است).")
-
+                
+                conn.commit()
+                print(f"   Success.")
+            
+            # Record migration
             cursor.execute("INSERT INTO schema_migrations (name) VALUES (?)", (migration_name,))
             conn.commit()
-            print(f"مایگریشن '{migration_name}' با موفقیت در schema_migrations ثبت شد.")
 
-        except sqlite3.Error as e:
-            print(f"خطا در اعمال مایگریشن '{migration_name}': {e}")
-            try:
-                conn.rollback()
-                print(f"تغییرات مربوط به مایگریشن '{migration_name}' بازگردانده شد (rollback).")
-            except sqlite3.Error as rb_err:
-                print(f"خطا در هنگام rollback برای مایگریشن '{migration_name}': {rb_err}")
-        except Exception as ex:
-            print(f"خطای پیش‌بینی نشده در اعمال مایگریشن '{migration_name}': {ex}")
-            try:
-                conn.rollback()
-                print(f"تغییرات مربوط به مایگریشن '{migration_name}' بازگردانده شد (rollback).")
-            except sqlite3.Error as rb_err:
-                print(f"خطا در هنگام rollback برای مایگریشن '{migration_name}': {rb_err}")
-                
-    print("\nپایان اعمال مایگریشن‌های دیتابیس.")
+        except Exception as e:
+            print(f"!!! Error applying '{migration_name}': {e}")
+            conn.rollback()
+            break 
 
-if __name__ == '__main__':
-    db_name = 'your_database_file.db' 
-    # For a clean test, you might want to delete the db file before running.
-    # import os
-    # if os.path.exists(db_name):
-    #     os.remove(db_name)
-    #     print(f"فایل دیتابیس تست '{db_name}' برای اجرای تمیز حذف شد.")
-
-    print(f"اتصال به دیتابیس {db_name} برای تست مایگریشن‌ها...")
-    
-    conn = None
-    try:
-        conn = sqlite3.connect(db_name)
-        print("اتصال به دیتابیس موفقیت آمیز بود.")
-        
-        cursor = conn.cursor()
-        # Optional: Drop schema_migrations for a full re-run during testing
-        # cursor.execute("DROP TABLE IF EXISTS schema_migrations")
-        # cursor.execute("DROP TABLE IF EXISTS projects") # Example for testing migration 000
-        # cursor.execute("DROP TABLE IF EXISTS doors")
-        # cursor.execute("DROP TABLE IF EXISTS custom_columns")
-        # cursor.execute("DROP TABLE IF EXISTS custom_column_options")
-        # cursor.execute("DROP TABLE IF EXISTS door_custom_values")
-        # cursor.execute("DROP TABLE IF EXISTS project_visible_columns")
-        # cursor.execute("DROP TABLE IF EXISTS batch_edit_checkbox_state")
-        # cursor.execute("DROP TABLE IF EXISTS saved_quotes")
-        # cursor.execute("DROP TABLE IF EXISTS inventory_logs")
-        # conn.commit()
-        # print("جداول تست (در صورت وجود) برای اجرای کامل مایگریشن‌ها پاک شدند.")
-
-        apply_migrations(conn)
-        
-        print("\nمحتوای جدول schema_migrations پس از اعمال:")
-        try:
-            cursor.execute("SELECT name FROM schema_migrations ORDER BY name")
-            applied_migrations = cursor.fetchall()
-            if applied_migrations:
-                for row in applied_migrations:
-                    print(f"- {row[0]}")
-            else:
-                print("جدول schema_migrations خالی است یا وجود ندارد.")
-        except sqlite3.Error as e:
-            print(f"خطا در خواندن جدول schema_migrations: {e}")
-
-        # Verify table creation (optional check for testing)
-        print("\nبررسی وجود جداول اصلی:")
-        tables_to_check = ["projects", "doors", "custom_columns", "custom_column_options", "door_custom_values", "project_visible_columns", "batch_edit_checkbox_state", "saved_quotes", "inventory_logs"]
-        for table_name in tables_to_check:
-            try:
-                cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'")
-                if cursor.fetchone():
-                    print(f"- جدول '{table_name}' وجود دارد.")
-                else:
-                    print(f"- جدول '{table_name}' وجود ندارد. (خطا!)")
-            except sqlite3.Error as e:
-                print(f"- خطا در بررسی جدول '{table_name}': {e}")
-
-
-    except sqlite3.Error as e:
-        print(f"خطا در اتصال به دیتابیس {db_name} یا اجرای مایگریشن‌ها: {e}")
-    finally:
-        if conn:
-            conn.close()
-            print("اتصال به دیتابیس بسته شد.")
-    
-    print("\nبرای استفاده واقعی، تابع apply_migrations را با اتصال دیتابیس خود فراخوانی کنید.")
-
-    print("مثال: ")
-    print("import sqlite3")
-    print("from db_migrations import apply_migrations")
-    print("conn = sqlite3.connect('your_actual_database.db')")
-    print("apply_migrations(conn)")
-    print("conn.close()") 
+    print("Database migrations completed.\n")

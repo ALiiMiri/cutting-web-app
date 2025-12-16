@@ -1,4 +1,4 @@
-import sqlite3
+
 from flask import Flask, render_template, request, redirect, url_for, flash, session, render_template_string, get_flashed_messages
 import os
 import traceback  # برای نمایش خطای کامل
@@ -10,7 +10,7 @@ from bidi.algorithm import get_display
 from weasyprint import HTML, CSS
 from datetime import datetime, date
 import jdatetime
-from inventory_init import initialize_inventory_database
+
 from math import ceil
 import json
 from collections import defaultdict
@@ -44,8 +44,31 @@ from database import (
     save_quote_db,
     get_all_saved_quotes_db,
     delete_quote_db,
-    delete_multiple_quotes_db
+    delete_multiple_quotes_db,
+    save_doors_batch_db,
+    batch_update_doors_db,
+    get_column_type_db,
+    get_column_id_from_option_db,
+    initialize_inventory_tables,
+    get_all_profile_types,
+    add_profile_type,
+    get_profile_details,
+    get_inventory_settings,
+    update_inventory_settings,
+    get_inventory_stats,
+    delete_profile_type,
+    update_profile_type,
+    get_profile_stock_details,
+    add_inventory_stock,
+    remove_inventory_stock,
+    add_inventory_piece,
+    remove_inventory_piece,
+    get_inventory_logs,
+    init_db
 )
+
+# Import blueprints
+from routes import register_blueprints
 
 # --- تنظیمات اولیه ---
 DB_NAME = Config.DB_NAME
@@ -62,7 +85,13 @@ app = Flask(__name__, template_folder='templates')
 app.secret_key = Config.SECRET_KEY
 
 # --- مقداردهی اولیه دیتابیس ---
-# initialize_database() # Removed this call
+# فراخوانی تابع ایجاد جداول انبار در شروع برنامه
+# فراخوانی تابع ایجاد جداول انبار در شروع برنامه
+print("DEBUG: Initializing database tables...")
+init_db()
+
+# Register blueprints
+register_blueprints(app)
 
 # --- بررسی وجود جداول بعد از مقداردهی اولیه ---
 print("\n--- شروع بررسی جداول ---")
@@ -301,72 +330,7 @@ def finish_adding_doors(project_id):
         f"DEBUG: شروع ذخیره {len(pending_doors)} درب از لیست موقت برای پروژه {project_id}..."
     )
     
-    # ایجاد یک اتصال دیتابیس برای تمام عملیات
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        for door_data in pending_doors:
-            try:
-                # اضافه کردن یک درب جدید و دریافت ID آن
-                cursor.execute(
-                    """
-                    INSERT INTO doors (project_id, location, width, height, quantity, direction, row_color_tag) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        project_id,
-                        door_data.get("location"),
-                        door_data.get("width"),
-                        door_data.get("height"),
-                        door_data.get("quantity"),
-                        door_data.get("direction"),
-                        door_data.get("row_color_tag", "white"),
-                    ),
-                )
-                door_id = cursor.lastrowid
-                print(
-                    f"DEBUG: درب جدید با ID {door_id} برای پروژه ID {project_id} ذخیره شد."
-                )
-
-                if door_id:
-                    saved_count += 1
-
-                    # ذخیره مقادیر ستون‌های سفارشی
-                    for key, value in door_data.items():
-                        # اگر کلید مربوط به ستون‌های پایه نباشد
-                        if key not in [
-                            "location",
-                            "width",
-                            "height",
-                            "quantity",
-                            "direction",
-                            "row_color_tag",
-                        ]:
-                            # ابتدا ID ستون را پیدا می‌کنیم
-                            column_id = get_column_id_by_key(key)
-                            if column_id:
-                                # مقدار ستون سفارشی را ذخیره می‌کنیم
-                                update_door_custom_value(cursor, door_id, column_id, value)
-            except sqlite3.Error as e:
-                error_count += 1
-                print(f"!!!!!! خطا در ذخیره درب: {e}")
-                traceback.print_exc()
-        
-        # commit تمام تغییرات در پایان
-        conn.commit()
-        print(f"DEBUG: تمام تغییرات برای پروژه {project_id} commit شد.")
-    except sqlite3.Error as e:
-        print(f"!!!!!! خطا در finish_adding_doors: {e}")
-        traceback.print_exc()
-        if conn:
-            conn.rollback()
-        error_count = len(pending_doors)
-        saved_count = 0
-    finally:
-        if conn:
-            conn.close()
+    saved_count, error_count = save_doors_batch_db(project_id, pending_doors)
 
     # <-- کلید session منحصر به فرد
     session.pop(f"pending_doors_{project_id}", None)
@@ -398,10 +362,13 @@ def initialize_visible_columns(project_id):
     # دریافت همه ستون‌های فعال
     active_columns = get_active_custom_columns()
     
-    # تنظیم ستون‌های پیش‌فرض (فقط ستون‌های سفارشی)
-    visible_columns = [
-        "rang", "noe_profile", "vaziat", "lola", "ghofl", "accessory", "kolaft", "dastgire", "tozihat"
-    ]
+    # تنظیم ستون‌های پیش‌فرض با استفاده از ستون‌های فعال در دیتابیس
+    visible_columns = [col['key'] for col in active_columns]
+    
+    # اگر لیست خالی بود (هیچ ستون سفارشی فعال نبود)، لیست خالی برمی‌گردانیم
+    # ستون‌های پایه در توابع دیگر (مثل export_to_excel) اضافه می‌شوند
+    if not visible_columns:
+        visible_columns = []
     
     # ذخیره در جلسه
     session[session_key] = visible_columns
@@ -1132,149 +1099,13 @@ def apply_batch_edit(project_id):
         return redirect(url_for("project_treeview", project_id=project_id))
 
     # اعمال تغییرات روی درب‌های انتخاب شده
-    successful_updates = 0
-    failed_updates = 0
-    success_messages = []
-    error_messages = []
+    successful_updates, failed_updates, success_messages, error_messages = batch_update_doors_db(
+        door_ids, base_fields_to_update, columns_to_update
+    )
     
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        for door_id in door_ids:
-            try:
-                door_id = int(door_id)
-                door_updated = False
-                
-                # دریافت اطلاعات کنونی درب برای استفاده در گزارش
-                cursor.execute(
-                    "SELECT location FROM doors WHERE id = ?", 
-                    (door_id,)
-                )
-                door_info = cursor.fetchone()
-                door_location = door_info[0] if door_info else f"ID: {door_id}"
-                
-                # به‌روزرسانی فیلدهای پایه
-                if base_fields_to_update:
-                    update_parts = []
-                    params = []
-                    field_updates = []
-                    
-                    for field, value in base_fields_to_update.items():
-                        if field == "width" or field == "height" or field == "quantity":
-                            try:
-                                # تبدیل به عدد
-                                value = float(value) if field != "quantity" else int(value)
-                                update_parts.append(f"{field} = ?")
-                                params.append(value)
-                                field_updates.append(f"{field} = {value}")
-                            except (ValueError, TypeError):
-                                error_msg = f"مقدار نامعتبر برای {field}: '{value}' در درب {door_location}"
-                                print(f"WARNING: {error_msg}")
-                                error_messages.append(error_msg)
-                                continue
-                        else:
-                            update_parts.append(f"{field} = ?")
-                            params.append(value)
-                            field_updates.append(f"{field} = '{value}'")
-                    
-                    if update_parts:
-                        query = f"UPDATE doors SET {', '.join(update_parts)} WHERE id = ?"
-                        params.append(door_id)
-                        
-                        try:
-                            cursor.execute(query, params)
-                            if cursor.rowcount > 0:
-                                door_updated = True
-                                msg = f"درب {door_location}: به‌روزرسانی {', '.join(field_updates)}"
-                                success_messages.append(msg)
-                                print(f"DEBUG: {msg}")
-                        except sqlite3.Error as e:
-                            error_msg = f"خطا در به‌روزرسانی فیلدهای پایه برای درب {door_location}: {str(e)}"
-                            error_messages.append(error_msg)
-                            print(f"ERROR: {error_msg}")
-                
-                # به‌روزرسانی فیلدهای سفارشی
-                for column_key, new_value in columns_to_update.items():
-                    try:
-                        # پیدا کردن ID ستون
-                        column_id = get_column_id_by_key(column_key)
-                        if not column_id:
-                            error_msg = f"ستون '{column_key}' یافت نشد برای درب {door_location}"
-                            error_messages.append(error_msg)
-                            print(f"ERROR: {error_msg}")
-                            continue
-                            
-                        # دریافت نام نمایشی ستون
-                        cursor.execute(
-                            "SELECT display_name FROM custom_columns WHERE id = ?", 
-                            (column_id,)
-                        )
-                        display_result = cursor.fetchone()
-                        column_display = display_result[0] if display_result else column_key
-                        
-                        # بررسی مقدار فعلی برای گزارش تغییرات
-                        cursor.execute(
-                            "SELECT value FROM door_custom_values WHERE door_id = ? AND column_id = ?",
-                            (door_id, column_id)
-                        )
-                        current_result = cursor.fetchone()
-                        current_value = current_result[0] if current_result else None
-                        
-                        # ذخیره مقدار جدید با استفاده از تابع update_door_custom_value
-                        update_door_custom_value(cursor, door_id, column_id, new_value)
-                        door_updated = True
-                        
-                        # ساختن پیام موفقیت
-                        if current_value:
-                            msg = f"ستون '{column_display}' از '{current_value}' به '{new_value}' تغییر کرد"
-                        else:
-                            msg = f"ستون '{column_display}' به '{new_value}' تنظیم شد"
-                            
-                        success_messages.append(f"درب {door_location}: {msg}")
-                        print(f"DEBUG: درب {door_location}: {msg}")
-                    
-                    except Exception as e:
-                        error_msg = f"خطا در به‌روزرسانی ستون '{column_key}' برای درب {door_location}: {str(e)}"
-                        error_messages.append(error_msg)
-                        print(f"ERROR: {error_msg}")
-                
-                # شمارش درب‌های به‌روزرسانی شده
-                if door_updated:
-                    successful_updates += 1
-                else:
-                    failed_updates += 1
-                    error_msg = f"هیچ فیلدی برای درب {door_location} به‌روزرسانی نشد"
-                    error_messages.append(error_msg)
-                    print(f"WARNING: {error_msg}")
-
-            except Exception as e:
-                failed_updates += 1
-                error_msg = f"خطا در به‌روزرسانی درب {door_id}: {str(e)}"
-                error_messages.append(error_msg)
-                print(f"ERROR: {error_msg}")
-                traceback.print_exc()
-        
-        # ذخیره تغییرات
-        conn.commit()
-        print(f"DEBUG: همه تغییرات با موفقیت ذخیره شد. {successful_updates} درب به‌روزرسانی شد.")
-        
-        # به‌روزرسانی ستون‌های قابل مشاهده بر اساس داده‌های جدید
-        if successful_updates > 0:
-            refresh_project_visible_columns(project_id)
-
-    except sqlite3.Error as e:
-        if conn:
-            conn.rollback()
-        failed_updates += len(door_ids)
-        error_msg = f"خطا در دیتابیس: {str(e)}"
-        error_messages.append(error_msg)
-        print(f"ERROR: {error_msg}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
+    # به‌روزرسانی ستون‌های قابل مشاهده بر اساس داده‌های جدید
+    if successful_updates > 0:
+        refresh_project_visible_columns(project_id)
 
     # نمایش پیام‌های مناسب
     if successful_updates > 0:
@@ -1374,23 +1205,11 @@ def check_column_can_hide(project_id):
 def inventory_route():
     """صفحه اصلی مدیریت انبار"""
     try:
-        # در اینجا اطلاعات مورد نیاز برای داشبورد انبار را استخراج می‌کنیم
-        # برای مثال، آمار کلی انبار و انواع پروفیل
+        # دریافت آمار واقعی از دیتابیس
+        stats = get_inventory_stats()
         
-        # آمار کلی انبار (فعلاً با مقادیر پیش‌فرض)
-        stats = {
-            "total_profiles": 0,
-            "total_complete_pieces": 0,
-            "total_cut_pieces": 0,
-            "total_weight": 0,
-            "total_complete_length": 0,
-            "total_cut_length": 0,
-            "total_length": 0,
-            "average_piece_length": 0
-        }
-        
-        # لیست انواع پروفیل (فعلاً خالی)
-        profiles = []
+        # دریافت لیست پروفیل‌ها برای نمایش در داشبورد
+        profiles = get_all_profile_types()
         
         return render_template("inventory_dashboard.html", stats=stats, profiles=profiles)
     except Exception as e:
@@ -1404,9 +1223,8 @@ def inventory_route():
 def profile_types_route():
     """صفحه مدیریت انواع پروفیل"""
     try:
-        # در اینجا لیست انواع پروفیل را از دیتابیس دریافت می‌کنیم
-        # فعلاً با لیست خالی کار می‌کنیم
-        profile_types = []
+        # دریافت لیست انواع پروفیل از دیتابیس
+        profile_types = get_all_profile_types()
         
         return render_template("profile_types.html", profile_types=profile_types)
     except Exception as e:
@@ -1415,18 +1233,124 @@ def profile_types_route():
         flash("خطایی در نمایش صفحه انواع پروفیل رخ داد.", "error")
         return redirect(url_for("inventory_route"))
 
+@app.route("/inventory/profile_types/add", methods=["GET", "POST"])
+def add_profile_type_route():
+    """افزودن نوع پروفیل جدید"""
+    try:
+        if request.method == "POST":
+            name = request.form.get("name")
+            color = request.form.get("color_hex") or request.form.get("color")
+            default_length = float(request.form.get("default_length") or 600)
+            weight_per_meter = float(request.form.get("weight_per_meter") or 1.9)
+            min_waste = float(request.form.get("min_waste") or 20)
+            description = request.form.get("description")
+            
+            if not name:
+                flash("نام پروفیل الزامی است.", "error")
+                return render_template("add_profile_type.html")
+            
+            success, result = add_profile_type(name, description, default_length, weight_per_meter, color, min_waste)
+            
+            if success:
+                flash("نوع پروفیل با موفقیت اضافه شد.", "success")
+                return redirect(url_for("profile_types_route"))
+            else:
+                flash(f"خطا در افزودن پروفیل: {result}", "error")
+        
+        return render_template("add_profile_type.html")
+    except Exception as e:
+        print(f"!!!!!! خطای غیرمنتظره در روت add_profile_type_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در نمایش صفحه افزودن پروفیل رخ داد.", "error")
+        return redirect(url_for("profile_types_route"))
 
-@app.route("/inventory/settings")
+@app.route("/inventory/profile_types/edit/<int:profile_id>", methods=["GET", "POST"])
+def edit_profile_type_route(profile_id):
+    """ویرایش نوع پروفیل"""
+    try:
+        profile = get_profile_details(profile_id)
+        if not profile:
+            flash("پروفیل مورد نظر یافت نشد.", "error")
+            return redirect(url_for("profile_types_route"))
+
+        if request.method == "POST":
+            name = request.form.get("name")
+            color = request.form.get("color_hex") or request.form.get("color")
+            default_length = float(request.form.get("default_length") or 600)
+            weight_per_meter = float(request.form.get("weight_per_meter") or 1.9)
+            min_waste = float(request.form.get("min_waste") or 20)
+            description = request.form.get("description")
+            
+            if not name:
+                flash("نام پروفیل الزامی است.", "error")
+                return render_template("edit_profile_type.html", profile=profile)
+            
+            # در اینجا باید تابع ویرایش را فراخوانی کنیم
+            success = update_profile_type(profile_id, name, description, default_length, weight_per_meter, color, min_waste)
+            
+            if success:
+                flash("پروفیل با موفقیت ویرایش شد.", "success")
+                return redirect(url_for("profile_types_route"))
+            else:
+                flash("خطا در ویرایش پروفیل.", "error")
+        
+        return render_template("edit_profile_type.html", profile=profile)
+    except Exception as e:
+        print(f"!!!!!! خطای غیرمنتظره در روت edit_profile_type_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در نمایش صفحه ویرایش پروفیل رخ داد.", "error")
+        return redirect(url_for("profile_types_route"))
+
+@app.route("/inventory/profile_types/delete/<int:profile_id>", methods=["POST"])
+def delete_profile_type_route(profile_id):
+    """حذف نوع پروفیل"""
+    try:
+        success = delete_profile_type(profile_id)
+        if success:
+            flash("پروفیل با موفقیت حذف شد.", "success")
+        else:
+            flash("خطا در حذف پروفیل.", "error")
+        return redirect(url_for("profile_types_route"))
+    except Exception as e:
+        print(f"!!!!!! خطای غیرمنتظره در روت delete_profile_type_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در انجام عملیات حذف رخ داد.", "error")
+        return redirect(url_for("profile_types_route"))
+
+
+@app.route("/inventory/settings", methods=["GET", "POST"])
 def inventory_settings_route():
     """صفحه تنظیمات انبار"""
     try:
-        # در اینجا تنظیمات فعلی را از دیتابیس دریافت می‌کنیم
-        # فعلاً با مقادیر پیش‌فرض کار می‌کنیم
-        settings = {
-            "waste_threshold": 70,
-            "use_inventory": True,
-            "prefer_pieces": True
-        }
+        if request.method == "POST":
+            # دریافت تنظیمات از فرم و ذخیره در دیتابیس
+            new_settings = {
+                "default_wastage": request.form.get("default_wastage", 20),
+                "min_remaining_length": request.form.get("min_remaining_length", 20),
+                "use_inventory_for_cutting": request.form.get("use_inventory_for_cutting") == "on",
+                "prefer_inventory_pieces": request.form.get("prefer_inventory_pieces") == "on",
+                "inventory_optimization_strategy": request.form.get("inventory_optimization_strategy", "minimize_waste"),
+                "show_inventory_warnings": request.form.get("show_inventory_warnings") == "on",
+                "low_inventory_threshold": request.form.get("low_inventory_threshold", 5)
+            }
+            
+            if update_inventory_settings(new_settings):
+                flash("تنظیمات انبار با موفقیت ذخیره شد.", "success")
+            else:
+                flash("خطا در ذخیره تنظیمات.", "error")
+            
+            return redirect(url_for("inventory_settings_route"))
+
+        # دریافت تنظیمات فعلی از دیتابیس
+        settings = get_inventory_settings()
+        
+        # اگر تنظیمات خالی بود (هنوز ست نشده)، مقادیر پیش‌فرض را نمایش بده
+        if not settings:
+            settings = {
+                "waste_threshold": 70,
+                "use_inventory": True,
+                "prefer_pieces": True
+            }
         
         return render_template("inventory_settings.html", settings=settings)
     except Exception as e:
@@ -1437,66 +1361,159 @@ def inventory_settings_route():
 
 
 @app.route("/inventory/logs")
-def inventory_logs_route():
+@app.route("/inventory/logs/<int:profile_id>")
+def inventory_logs_route(profile_id=None):
     """صفحه تاریخچه تغییرات انبار"""
     try:
-        # در اینجا لیست لاگ‌های تغییرات را از دیتابیس دریافت می‌کنیم
-        # فعلاً با لیست خالی کار می‌کنیم
-        logs = []
+        logs = get_inventory_logs(limit=100, profile_id=profile_id)
         
-        return render_template("inventory_logs.html", logs=logs)
+        # افزودن ترجمه نوع تغییر
+        change_type_map = {
+            "add_stock": "افزایش موجودی",
+            "remove_stock": "کاهش موجودی",
+            "add_piece": "افزودن تکه",
+            "remove_piece": "حذف تکه"
+        }
+        
+        logs_with_translation = []
+        for log in logs:
+            log_dict = dict(log)
+            log_dict["change_type_fa"] = change_type_map.get(log_dict["change_type"], log_dict["change_type"])
+            logs_with_translation.append(log_dict)
+            
+        return render_template("inventory_logs.html", logs=logs_with_translation, profile_id=profile_id)
     except Exception as e:
         print(f"!!!!!! خطای غیرمنتظره در روت inventory_logs_route: {e}")
         traceback.print_exc()
-        flash("خطایی در نمایش صفحه تاریخچه تغییرات انبار رخ داد.", "error")
+        flash("خطایی در نمایش تاریخچه رخ داد.", "error")
         return redirect(url_for("inventory_route"))
 
-
-@app.route("/inventory/profile/<int:profile_id>")
+@app.route("/inventory/details/<int:profile_id>")
 def inventory_details_route(profile_id):
-    """صفحه جزئیات موجودی یک نوع پروفیل"""
+    """صفحه جزئیات موجودی یک پروفیل"""
     try:
-        # در اینجا اطلاعات پروفیل و موجودی آن را از دیتابیس دریافت می‌کنیم
-        # فعلاً با مقادیر پیش‌فرض کار می‌کنیم
-        profile = {
-            "id": profile_id,
-            "name": "نوع پروفیل",
-            "description": "توضیحات",
-            "default_length": 600,
-            "weight_per_meter": 1.9,
-            "color": "#cccccc"
+        profile = get_profile_details(profile_id)
+        if not profile:
+            flash("پروفیل مورد نظر یافت نشد.", "error")
+            return redirect(url_for("inventory_route"))
+            
+        details = get_profile_stock_details(profile_id)
+        
+        # سازماندهی داده‌ها برای قالب
+        template_details = {
+            "profile": profile,
+            "full_items": details["complete_pieces"],
+            "pieces": details["pieces"],
+            "logs": details["logs"]
         }
         
-        items = {
-            "complete_pieces": 0,
-            "cut_pieces": []
+        # افزودن ترجمه نوع تغییر به لاگ‌ها
+        change_type_map = {
+            "add_stock": "افزایش موجودی",
+            "remove_stock": "کاهش موجودی",
+            "add_piece": "افزودن تکه",
+            "remove_piece": "حذف تکه"
         }
         
-        return render_template("profile_inventory_details.html", profile=profile, items=items)
+        logs_with_translation = []
+        for log in details["logs"]:
+            log_dict = dict(log)
+            log_dict["change_type_fa"] = change_type_map.get(log_dict["change_type"], log_dict["change_type"])
+            logs_with_translation.append(log_dict)
+            
+        return render_template("profile_inventory_details.html", details=template_details, logs=logs_with_translation)
     except Exception as e:
         print(f"!!!!!! خطای غیرمنتظره در روت inventory_details_route: {e}")
         traceback.print_exc()
-        flash("خطایی در نمایش صفحه جزئیات موجودی رخ داد.", "error")
-        return redirect(url_for("inventory_route"))
+        flash("خطایی در نمایش صفحه جزئیات انبار رخ داد.", "error")
+        return redirect(url_for("profile_types_route"))
 
-
-@app.route("/inventory/profile/<int:profile_id>/add")
+@app.route("/inventory/items/add/<int:profile_id>", methods=["POST"])
 def add_inventory_items_route(profile_id):
-    """صفحه افزودن موجودی برای یک نوع پروفیل"""
+    """افزودن شاخه کامل به انبار"""
     try:
-        # در اینجا اطلاعات پروفیل را از دیتابیس دریافت می‌کنیم
-        # فعلاً با مقادیر پیش‌فرض کار می‌کنیم
-        profile = {
-            "id": profile_id,
-            "name": "نوع پروفیل",
-            "default_length": 600
-        }
+        quantity = int(request.form.get("quantity", 0))
+        description = request.form.get("description", "")
         
-        return render_template("add_items.html", profile=profile)
+        if quantity <= 0:
+            flash("تعداد باید بزرگتر از صفر باشد.", "error")
+        else:
+            if add_inventory_stock(profile_id, quantity, description):
+                flash("موجودی با موفقیت اضافه شد.", "success")
+            else:
+                flash("خطا در افزودن موجودی.", "error")
+                
+        return redirect(url_for("inventory_details_route", profile_id=profile_id))
     except Exception as e:
         print(f"!!!!!! خطای غیرمنتظره در روت add_inventory_items_route: {e}")
         traceback.print_exc()
-        flash("خطایی در نمایش صفحه افزودن موجودی رخ داد.", "error")
+        flash("خطایی در انجام عملیات رخ داد.", "error")
+        return redirect(url_for("inventory_details_route", profile_id=profile_id))
+
+@app.route("/inventory/items/remove/<int:profile_id>", methods=["POST"])
+def remove_inventory_items_route(profile_id):
+    """کاهش شاخه کامل از انبار"""
+    try:
+        quantity = int(request.form.get("quantity", 0))
+        description = request.form.get("description", "")
+        
+        if quantity <= 0:
+            flash("تعداد باید بزرگتر از صفر باشد.", "error")
+        else:
+            success, msg = remove_inventory_stock(profile_id, quantity, description)
+            if success:
+                flash("موجودی با موفقیت کسر شد.", "success")
+            else:
+                flash(f"خطا در کسر موجودی: {msg}", "error")
+                
+        return redirect(url_for("inventory_details_route", profile_id=profile_id))
+    except Exception as e:
+        print(f"!!!!!! خطای غیرمنتظره در روت remove_inventory_items_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در انجام عملیات رخ داد.", "error")
+        return redirect(url_for("inventory_details_route", profile_id=profile_id))
+
+@app.route("/inventory/pieces/add/<int:profile_id>", methods=["POST"])
+def add_inventory_piece_route(profile_id):
+    """افزودن تکه شاخه به انبار"""
+    try:
+        length = float(request.form.get("length", 0))
+        description = request.form.get("description", "")
+        
+        if length <= 0:
+            flash("طول باید بزرگتر از صفر باشد.", "error")
+        else:
+            if add_inventory_piece(profile_id, length, description):
+                flash("تکه شاخه با موفقیت اضافه شد.", "success")
+            else:
+                flash("خطا در افزودن تکه شاخه.", "error")
+                
+        return redirect(url_for("inventory_details_route", profile_id=profile_id))
+    except Exception as e:
+        print(f"!!!!!! خطای غیرمنتظره در روت add_inventory_piece_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در انجام عملیات رخ داد.", "error")
+        return redirect(url_for("inventory_details_route", profile_id=profile_id))
+
+@app.route("/inventory/pieces/remove/<int:piece_id>", methods=["POST"])
+def remove_inventory_piece_route(piece_id):
+    """حذف تکه شاخه از انبار"""
+    try:
+        profile_id = request.form.get("profile_id")
+        
+        success, msg = remove_inventory_piece(piece_id, description="حذف دستی توسط کاربر")
+        if success:
+            flash("تکه شاخه با موفقیت حذف شد.", "success")
+        else:
+            flash(f"خطا در حذف تکه شاخه: {msg}", "error")
+            
+        if profile_id:
+            return redirect(url_for("inventory_details_route", profile_id=profile_id))
+        return redirect(url_for("inventory_route"))
+    except Exception as e:
+        print(f"!!!!!! خطای غیرمنتظره در روت remove_inventory_piece_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در انجام عملیات رخ داد.", "error")
         return redirect(url_for("inventory_route"))
 
 
@@ -1539,8 +1556,7 @@ def export_table_to_pdf_html(project_id):
 def settings_columns(project_id):
     """صفحه تنظیمات ستون‌های نمایشی جدول (برای سازگاری با قبل)"""
     # برای سازگاری با لینک‌های موجود در برنامه، به مسیر جدید ریدایرکت می‌کنیم
-    return redirect(url_for("manage_custom_columns"))
-
+    return redirect(url_for("manage_custom_columns", project_id=project_id))
 
 @app.route("/project/<int:project_id>/add_column", methods=["POST"])
 def add_column_route(project_id):
@@ -1559,14 +1575,14 @@ def add_column_route(project_id):
     }
     
     # ریدایرکت به روت جدید
-    return redirect(url_for("manage_custom_columns"))
+    return redirect(url_for("manage_custom_columns", project_id=project_id))
 
 
 @app.route("/project/<int:project_id>/update_column_display", methods=["POST"])
 def update_column_display(project_id):
     """به‌روزرسانی تنظیمات نمایش ستون‌ها (برای سازگاری با قبل)"""
     # ریدایرکت به روت جدید
-    return redirect(url_for("manage_custom_columns"))
+    return redirect(url_for("manage_custom_columns", project_id=project_id))
 
 
 @app.route("/column/<int:column_id>/delete/<int:project_id>", methods=["GET"])
@@ -1579,7 +1595,7 @@ def delete_column_route(column_id, project_id):
     }
     
     # ریدایرکت به روت جدید
-    return redirect(url_for("manage_custom_columns"))
+    return redirect(url_for("manage_custom_columns", project_id=project_id))
 
 
 @app.route('/save_batch_edit_checkbox_state', methods=['POST'])
@@ -1799,99 +1815,99 @@ def batch_remove_column_value_route(project_id):
 def manage_custom_columns():
     """صفحه مدیریت ستون‌های سفارشی"""
     try:
-        # پردازش درخواست‌های POST یا داده موقت از session
+        # دریافت شناسه پروژه برای بازگشت (در صورت وجود)
+        # ممکن است در query string یا form data باشد
+        project_id = request.args.get("project_id") or request.form.get("project_id")
+        
+        # بررسی وجود اطلاعات در session (برای سازگاری با روت‌های قدیمی)
         temp_data = session.pop('temp_column_data', None)
         
-        if request.method == "POST" or temp_data:
-            # تعیین منبع داده (POST یا temp_data)
-            action = request.form.get("action") if request.method == "POST" else temp_data.get("action") if temp_data else None
+        action = request.form.get("action") if request.method == "POST" else temp_data.get("action") if temp_data else None
+        
+        # افزودن ستون جدید
+        if action == "add_column":
+            if request.method == "POST":
+                display_name = request.form.get("display_name")
+                column_key = request.form.get("column_key")
+                column_type = request.form.get("column_type")
+            else:
+                display_name = temp_data.get("display_name")
+                column_key = temp_data.get("column_key")
+                column_type = temp_data.get("column_type")
+            
+            if not display_name or not column_key or not column_type:
+                flash("لطفاً نام نمایشی، کلید ستون و نوع ستون را وارد کنید.", "error")
+                return redirect(url_for("manage_custom_columns", project_id=project_id))
+            
+            if column_type not in ['text', 'dropdown']:
+                flash("نوع ستون انتخاب شده نامعتبر است. لطفاً 'متنی' یا 'دراپ‌داون' را انتخاب کنید.", "error")
+                return redirect(url_for("manage_custom_columns", project_id=project_id))
+            
+            # چک کردن اینکه آیا ستون با این کلید قبلاً وجود دارد
+            existing_column_id = get_column_id_by_key(column_key)
+            if existing_column_id:
+                flash("ستونی با این کلید قبلاً وجود دارد.", "error")
+                return redirect(url_for("manage_custom_columns", project_id=project_id))
             
             # افزودن ستون جدید
-            if action == "add_column":
-                if request.method == "POST":
-                    display_name = request.form.get("display_name")
-                    column_key = request.form.get("column_key")
-                    column_type = request.form.get("column_type")
-                else:
-                    display_name = temp_data.get("display_name")
-                    column_key = temp_data.get("column_key")
-                    column_type = temp_data.get("column_type")
-                
-                if not display_name or not column_key or not column_type:
-                    flash("لطفاً نام نمایشی، کلید ستون و نوع ستون را وارد کنید.", "error")
-                    return redirect(url_for("manage_custom_columns"))
-                
-                if column_type not in ['text', 'dropdown']:
-                    flash("نوع ستون انتخاب شده نامعتبر است. لطفاً 'متنی' یا 'دراپ‌داون' را انتخاب کنید.", "error")
-                    return redirect(url_for("manage_custom_columns"))
-                
-                # چک کردن اینکه آیا ستون با این کلید قبلاً وجود دارد
-                existing_column_id = get_column_id_by_key(column_key)
-                if existing_column_id:
-                    flash("ستونی با این کلید قبلاً وجود دارد.", "error")
-                    return redirect(url_for("manage_custom_columns"))
-                
-                # افزودن ستون جدید
-                new_column_id = add_custom_column(column_key, display_name, column_type)
-                if new_column_id:
-                    flash(f"ستون '{display_name}' با موفقیت اضافه شد.", "success")
-                else:
-                    flash("خطا در افزودن ستون جدید.", "error")
-                return redirect(url_for("manage_custom_columns"))
+            new_column_id = add_custom_column(column_key, display_name, column_type)
+            if new_column_id:
+                flash(f"ستون '{display_name}' با موفقیت اضافه شد.", "success")
+            else:
+                flash("خطا در افزودن ستون جدید.", "error")
+            return redirect(url_for("manage_custom_columns", project_id=project_id))
+        
+        # حذف ستون
+        elif action == "delete_column":
+            if request.method == "POST":
+                column_id = request.form.get("column_id")
+            else:
+                column_id = temp_data.get("column_id")
             
-            # حذف ستون
-            elif action == "delete_column":
-                if request.method == "POST":
-                    column_id = request.form.get("column_id")
-                else:
-                    column_id = temp_data.get("column_id")
-                
-                if column_id:
-                    column_id = int(column_id)
-                    conn = None
-                    try:
-                        conn = sqlite3.connect(DB_NAME)
-                        cursor = conn.cursor()
-                        
-                        # حذف مقادیر مربوط به این ستون
-                        cursor.execute("DELETE FROM door_custom_values WHERE column_id = ?", (column_id,))
-                        
-                        # حذف ستون
-                        cursor.execute("DELETE FROM custom_columns WHERE id = ?", (column_id,))
-                        
-                        conn.commit()
-                        flash("ستون با موفقیت حذف شد.", "success")
-                    except Exception as e:
-                        print(f"خطا در حذف ستون: {e}")
-                        flash("خطا در حذف ستون.", "error")
-                    finally:
-                        if conn:
-                            conn.close()
-                return redirect(url_for("manage_custom_columns"))
-            
-            # تغییر وضعیت فعال/غیرفعال ستون
-            elif action == "toggle_status":
-                column_id_str = request.form.get("column_id")
-                if column_id_str:
-                    column_id = int(column_id_str)
-                    # اگر کلید 'is_active' در request.form وجود داشت و مقدارش '1' بود، یعنی چک‌باکس تیک خورده است.
-                    # در غیر این صورت (یعنی کلید 'is_active' اصلاً در فرم نبود چون تیک نخورده)، مقدار آن False خواهد بود.
-                    is_active_bool = request.form.get("is_active") == "1"
+            if column_id:
+                column_id = int(column_id)
+                conn = None
+                try:
+                    conn = sqlite3.connect(DB_NAME)
+                    cursor = conn.cursor()
                     
-                    success = update_custom_column_status(column_id, is_active_bool)
-                    if success:
-                        status_text = "فعال" if is_active_bool else "غیرفعال"
-                        flash(f"وضعیت ستون با موفقیت به {status_text} تغییر کرد.", "success")
-                    else:
-                        flash(f"خطا در تغییر وضعیت ستون با شناسه {column_id}.", "error")
+                    # حذف مقادیر مربوط به این ستون
+                    cursor.execute("DELETE FROM door_custom_values WHERE column_id = ?", (column_id,))
+                    
+                    # حذف ستون
+                    cursor.execute("DELETE FROM custom_columns WHERE id = ?", (column_id,))
+                    
+                    conn.commit()
+                    flash("ستون با موفقیت حذف شد.", "success")
+                except Exception as e:
+                    print(f"خطا در حذف ستون: {e}")
+                    flash("خطا در حذف ستون.", "error")
+                finally:
+                    if conn:
+                        conn.close()
+            return redirect(url_for("manage_custom_columns", project_id=project_id))
+        
+        # تغییر وضعیت فعال/غیرفعال ستون
+        elif action == "toggle_status":
+            column_id_str = request.form.get("column_id")
+            if column_id_str:
+                column_id = int(column_id_str)
+                # اگر کلید 'is_active' در request.form وجود داشت و مقدارش '1' بود، یعنی چک‌باکس تیک خورده است.
+                # در غیر این صورت (یعنی کلید 'is_active' اصلاً در فرم نبود چون تیک نخورده)، مقدار آن False خواهد بود.
+                is_active_bool = request.form.get("is_active") == "1"
+                
+                success = update_custom_column_status(column_id, is_active_bool)
+                if success:
+                    status_text = "فعال" if is_active_bool else "غیرفعال"
+                    flash(f"وضعیت ستون با موفقیت به {status_text} تغییر کرد.", "success")
                 else:
-                    flash("شناسه ستون برای تغییر وضعیت ارسال نشده است.", "error")
-                return redirect(url_for("manage_custom_columns"))
+                    flash(f"خطا در تغییر وضعیت ستون با شناسه {column_id}.", "error")
+            else:
+                flash("شناسه ستون برای تغییر وضعیت ارسال نشده است.", "error")
+            return redirect(url_for("manage_custom_columns", project_id=project_id))
         
         # پردازش درخواست GET (نمایش صفحه)
         all_columns = get_all_custom_columns()
-        # حذف print برای جلوگیری از خطای encoding در Windows
-        # print(f"DEBUG: All columns from DB: {all_columns}")
         
         column_type_display_map = {
             'text': 'متنی',
@@ -1900,20 +1916,17 @@ def manage_custom_columns():
         processed_columns = []
         for col in all_columns:
             col_copy = col.copy() 
-            # حذف print برای جلوگیری از خطای encoding در Windows
-            # print(f"DEBUG: Processing column: {col_copy}")
             col_copy['type_display'] = column_type_display_map.get(col_copy.get('type'), col_copy.get('type', 'نامشخص'))
             if col_copy.get('type') == 'dropdown':
                 col_copy['options'] = get_custom_column_options(col_copy['id'])
-                # حذف print برای جلوگیری از خطای encoding در Windows
-                # print(f"DEBUG: Options for {col_copy['key']}: {col_copy['options']}")
             else:
-                col_copy['options'] = [] # برای ستون‌های غیر دراپ‌داون، لیست گزینه‌ها خالی است
+                col_copy['options'] = []
             processed_columns.append(col_copy)
         
         return render_template(
             "column_settings.html",
-            all_columns=processed_columns
+            all_columns=processed_columns,
+            project_id=project_id
         )
     except Exception as e:
         print(f"!!!!!! خطای غیرمنتظره در روت manage_custom_columns: {e}")
@@ -1947,16 +1960,12 @@ def add_column_option_api(column_id):
             return jsonify({"success": False, "error": "مقدار گزینه نمی‌تواند خالی باشد"}), 400
         
         # بررسی نوع ستون قبل از افزودن گزینه
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT column_type FROM custom_columns WHERE id = ?", (column_id,))
-        column = cursor.fetchone()
-        conn.close()
+        column_type = get_column_type_db(column_id)
         
-        if not column:
+        if not column_type:
             return jsonify({"success": False, "error": "ستون مورد نظر یافت نشد"}), 404
         
-        if column[0] != 'dropdown':
+        if column_type != 'dropdown':
             return jsonify({"success": False, "error": "فقط می‌توان به ستون‌های دراپ‌داون گزینه اضافه کرد"}), 400
             
         # افزودن گزینه با استفاده از تابع موجود
@@ -1983,20 +1992,16 @@ def delete_column_option_api(option_id):
     """حذف یک گزینه از ستون دراپ‌داون براساس شناسه گزینه"""
     try:
         # بررسی وجود گزینه قبل از حذف
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT column_id FROM custom_column_options WHERE id = ?", (option_id,))
-        result = cursor.fetchone()
-        conn.close()
+        column_id = get_column_id_from_option_db(option_id)
         
-        if not result:
+        if not column_id:
             return jsonify({"success": False, "error": "گزینه مورد نظر یافت نشد"}), 404
             
         # حذف گزینه با استفاده از تابع موجود
         success = delete_column_option(option_id)
         
         if success:
-            return jsonify({"success": True, "message": "گزینه با موفقیت حذف شد", "column_id": result[0]})
+            return jsonify({"success": True, "message": "گزینه با موفقیت حذف شد", "column_id": column_id})
         else:
             return jsonify({"success": False, "error": "خطا در حذف گزینه"}), 500
             
@@ -2021,17 +2026,10 @@ def edit_column_option_api(option_id):
             return jsonify({"success": False, "error": "مقدار گزینه نمی‌تواند خالی باشد"}), 400
         
         # بررسی وجود گزینه قبل از ویرایش
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT column_id FROM custom_column_options WHERE id = ?", (option_id,))
-        result = cursor.fetchone()
+        column_id = get_column_id_from_option_db(option_id)
         
-        if not result:
-            conn.close()
+        if not column_id:
             return jsonify({"success": False, "error": "گزینه مورد نظر یافت نشد"}), 404
-        
-        column_id = result[0]
-        conn.close()
         
         # ویرایش گزینه با استفاده از تابع موجود
         success = update_custom_column_option(option_id, new_value)
@@ -2933,12 +2931,6 @@ if __name__ == "__main__":
     print("DEBUG: تلاش برای اجرای ensure_default_custom_columns()")
     ensure_default_custom_columns()
     print("DEBUG: ensure_default_custom_columns() اجرا شد.")
-    initialize_inventory_database() # اضافه شده برای مقداردهی اولیه Inventory
-    print("DEBUG: initialize_inventory_database() فراخوانی شد.")
-    
-    # اتصال اولیه برای اجرای مهاجرت‌ها
-    conn = get_db_connection()
-    if conn:
-        conn.close()
+
         
     app.run(debug=True, host='0.0.0.0', port=5000)
