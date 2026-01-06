@@ -281,7 +281,7 @@
                     </div>
                     <div class="piece-info-item">
                         <div class="piece-info-label">تاریخ ثبت</div>
-                        <div class="piece-info-value">{{ piece.date_added.strftime('%Y-%m-%d') }}</div>
+                        <div class="piece-info-value">{{ piece.date_added|shamsi_date }}</div>
                     </div>
                     <div class="piece-info-item">
                         <div class="piece-info-label">منبع</div>

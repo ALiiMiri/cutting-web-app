@@ -374,10 +374,16 @@
                     </form>
 
                     {% if column.type == 'dropdown' %}
-                    <button type="button" class="button info-button button-sm manage-options-btn"
-                        data-column-id="{{ column.id }}" data-column-name="{{ column.display }}">
-                        <i class="fas fa-edit"></i> مدیریت گزینه‌ها
-                    </button>
+                        {% if column.key == 'noe_profile' %}
+                        <a href="{{ url_for('profile_types_route') }}" class="button info-button button-sm" title="مدیریت نوع پروفیل از طریق بخش انبار">
+                            <i class="fas fa-warehouse"></i> مدیریت در انبار
+                        </a>
+                        {% else %}
+                        <button type="button" class="button info-button button-sm manage-options-btn"
+                            data-column-id="{{ column.id }}" data-column-name="{{ column.display }}">
+                            <i class="fas fa-edit"></i> مدیریت گزینه‌ها
+                        </button>
+                        {% endif %}
                     {% endif %}
 
                     {% if column.key not in ['rang', 'noe_profile', 'vaziat', 'lola', 'ghofl', 'accessory', 'kolaft',
@@ -483,6 +489,8 @@
                     const currentColumnIdField = document.getElementById('currentColumnIdModal');
                     if (currentColumnIdField) {
                         currentColumnIdField.value = columnId;
+                        // ذخیره نام ستون نیز برای بررسی بعدی
+                        currentColumnIdField.setAttribute('data-column-name', columnName);
                     }
 
                     if (currentOptionsList) currentOptionsList.innerHTML = ''; // پاک کردن لیست قبلی
@@ -587,6 +595,15 @@
                         const deleteButton = e.target.closest('.delete-option-btn');
                         if (deleteButton) {
                             e.preventDefault(); // جلوگیری از رفتارهای پیش‌فرض
+                            
+                            // بررسی اینکه آیا ستون "نوع پروفیل" است
+                            const columnIdField = document.getElementById('currentColumnIdModal');
+                            const columnName = columnIdField ? columnIdField.getAttribute('data-column-name') : '';
+                            if (columnName && columnName.includes('نوع پروفیل')) {
+                                alert('نوع پروفیل فقط از طریق بخش مدیریت انبار قابل مدیریت است.');
+                                return;
+                            }
+                            
                             const optionId = deleteButton.dataset.optionId;
                             console.log('Delete button clicked for ID:', optionId);
 
@@ -660,6 +677,15 @@
                         const editButton = e.target.closest('.edit-option-btn');
                         if (editButton) {
                             e.preventDefault();
+                            
+                            // بررسی اینکه آیا ستون "نوع پروفیل" است
+                            const columnIdField = document.getElementById('currentColumnIdModal');
+                            const columnName = columnIdField ? columnIdField.getAttribute('data-column-name') : '';
+                            if (columnName && columnName.includes('نوع پروفیل')) {
+                                alert('نوع پروفیل فقط از طریق بخش مدیریت انبار قابل مدیریت است.');
+                                return;
+                            }
+                            
                             const optionId = editButton.dataset.optionId;
                             const currentValue = editButton.dataset.currentValue;
 
@@ -767,6 +793,13 @@
                         const columnIdField = document.getElementById('currentColumnIdModal');
 
                         if (!newOptionInput || !columnIdField) return;
+                        
+                        // بررسی اینکه آیا ستون "نوع پروفیل" است
+                        const columnName = columnIdField.getAttribute('data-column-name');
+                        if (columnName && columnName.includes('نوع پروفیل')) {
+                            alert('نوع پروفیل فقط از طریق بخش مدیریت انبار قابل مدیریت است.');
+                            return;
+                        }
 
                         const newOptionText = newOptionInput.value.trim();
                         const columnId = columnIdField.value;

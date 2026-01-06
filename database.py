@@ -1,15 +1,24 @@
 import sqlite3
 import traceback
 import os
+import random
 from config import Config
 from db_migrations import apply_migrations
 from datetime import datetime
+from date_utils import get_shamsi_datetime_str, get_shamsi_datetime_iso
 
 DB_NAME = Config.DB_NAME
 
 def get_db_connection():
     """Create and return a database connection."""
     conn = sqlite3.connect(DB_NAME)
+    # Ensure consistent behavior across all connections (SQLite defaults can be surprising)
+    try:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA busy_timeout = 5000")
+    except sqlite3.Error:
+        # Non-fatal; keep going with best-effort defaults
+        pass
     conn.row_factory = sqlite3.Row
     # apply_migrations(conn)  <-- Removed for performance
     return conn
@@ -19,7 +28,7 @@ def init_db():
     print("DEBUG: Initializing database system...")
     
     # 1. Run Core Migrations (projects, doors, pricing, etc.)
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     try:
         apply_migrations(conn)
         print("DEBUG: Core schema migrations applied successfully.")
@@ -64,6 +73,26 @@ def check_table_exists(table_name):
             conn_check.close()
     return exists
 
+def generate_unique_project_code():
+    """Generate a unique 4-digit project code."""
+    conn = None
+    max_attempts = 100
+    for _ in range(max_attempts):
+        code = f"{random.randint(1000, 9999)}"
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM projects WHERE project_code = ?", (code,))
+            if not cursor.fetchone():
+                return code
+        except sqlite3.Error:
+            pass
+        finally:
+            if conn:
+                conn.close()
+    # Fallback: if all attempts fail, use timestamp-based code
+    return f"{random.randint(1000, 9999)}"
+
 def get_all_projects():
     """Return all projects."""
     conn = None
@@ -73,10 +102,10 @@ def get_all_projects():
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, customer_name, order_ref, date_shamsi FROM projects ORDER BY id DESC"
+            "SELECT id, customer_name, order_ref, date_shamsi, project_code FROM projects ORDER BY id DESC"
         )
         projects = [
-            {"id": row[0], "cust_name": row[1], "order_ref": row[2], "date_shamsi": row[3]}
+            {"id": row[0], "cust_name": row[1], "order_ref": row[2], "date_shamsi": row[3], "project_code": row[4] if len(row) > 4 else None}
             for row in cursor.fetchall()
         ]
         print(f"DEBUG: get_all_projects found {len(projects)} projects.")
@@ -88,20 +117,150 @@ def get_all_projects():
             conn.close()
     return projects
 
-def add_project_db(customer_name, order_ref, date_shamsi=""):
-    """Add a new project."""
-    print(f"DEBUG: Entering add_project_db, customer_name: {customer_name}, order_ref: {order_ref}")
+def get_projects_paginated(page=1, per_page=15, search="", sort_by="id", sort_order="DESC", 
+                           date_from="", date_to="", customer_filter=""):
+    """
+    Get projects with pagination, search, filtering and sorting.
+    
+    Args:
+        page: Page number (1-indexed)
+        per_page: Number of items per page
+        search: Search term (searches in customer_name, order_ref)
+        sort_by: Column to sort by (id, customer_name, order_ref, date_shamsi)
+        sort_order: ASC or DESC
+        date_from: Filter by date from (Shamsi format: YYYY/MM/DD)
+        date_to: Filter by date to (Shamsi format: YYYY/MM/DD)
+        customer_filter: Filter by specific customer name
+    
+    Returns:
+        dict with keys: projects (list), total (int), page (int), per_page (int), pages (int)
+    """
     conn = None
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+        
+        # Build WHERE clause
+        where_conditions = []
+        params = []
+        
+        # Search filter
+        if search:
+            where_conditions.append("(customer_name LIKE ? OR order_ref LIKE ?)")
+            search_param = f"%{search}%"
+            params.extend([search_param, search_param])
+        
+        # Customer filter
+        if customer_filter:
+            where_conditions.append("customer_name = ?")
+            params.append(customer_filter)
+        
+        # Date filters (simple string comparison for Shamsi dates)
+        if date_from:
+            where_conditions.append("date_shamsi >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            where_conditions.append("date_shamsi <= ?")
+            params.append(date_to)
+        
+        where_clause = " WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        # Validate sort_by
+        valid_sort_columns = ["id", "customer_name", "order_ref", "date_shamsi"]
+        if sort_by not in valid_sort_columns:
+            sort_by = "id"
+        
+        # Validate sort_order
+        if sort_order.upper() not in ["ASC", "DESC"]:
+            sort_order = "DESC"
+        
+        # Get total count
+        count_query = f"SELECT COUNT(*) FROM projects{where_clause}"
+        cursor.execute(count_query, params)
+        total = cursor.fetchone()[0]
+        
+        # Calculate pagination
+        offset = (page - 1) * per_page
+        total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+        
+        # Get paginated results
+        query = f"""
+            SELECT id, customer_name, order_ref, date_shamsi, project_code 
+            FROM projects
+            {where_clause}
+            ORDER BY {sort_by} {sort_order}
+            LIMIT ? OFFSET ?
+        """
+        params.extend([per_page, offset])
+        cursor.execute(query, params)
+        
+        projects = [
+            {
+                "id": row[0],
+                "cust_name": row[1],
+                "order_ref": row[2],
+                "date_shamsi": row[3],
+                "project_code": row[4] if len(row) > 4 else None
+            }
+            for row in cursor.fetchall()
+        ]
+        
+        return {
+            "projects": projects,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": total_pages
+        }
+        
+    except sqlite3.Error as e:
+        print(f"!!!!!! Error in get_projects_paginated: {e}")
+        traceback.print_exc()
+        return {
+            "projects": [],
+            "total": 0,
+            "page": 1,
+            "per_page": per_page,
+            "pages": 1
+        }
+    finally:
+        if conn:
+            conn.close()
+
+def get_unique_customers():
+    """Get list of unique customer names for filter dropdown."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT customer_name FROM projects WHERE customer_name IS NOT NULL AND customer_name != '' ORDER BY customer_name")
+        customers = [row[0] for row in cursor.fetchall()]
+        return customers
+    except sqlite3.Error as e:
+        print(f"!!!!!! Error in get_unique_customers: {e}")
+        traceback.print_exc()
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def add_project_db(customer_name, order_ref, date_shamsi="", project_code=None):
+    """Add a new project."""
+    print(f"DEBUG: Entering add_project_db, customer_name: {customer_name}, order_ref: {order_ref}, project_code: {project_code}")
+    conn = None
+    try:
+        if not project_code:
+            project_code = generate_unique_project_code()
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO projects (customer_name, order_ref, date_shamsi) VALUES (?, ?, ?)",
-            (customer_name, order_ref, date_shamsi),
+            "INSERT INTO projects (customer_name, order_ref, date_shamsi, project_code) VALUES (?, ?, ?, ?)",
+            (customer_name, order_ref, date_shamsi, project_code),
         )
         project_id = cursor.lastrowid
         conn.commit()
-        print(f"DEBUG: New project added with ID {project_id}.")
+        print(f"DEBUG: New project added with ID {project_id}, code: {project_code}, name: '{customer_name}', date: {date_shamsi}.")
         return project_id
     except sqlite3.Error as e:
         print(f"!!!!!! Error in add_project_db: {e}")
@@ -120,7 +279,7 @@ def get_project_details_db(project_id):
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, customer_name, order_ref, date_shamsi FROM projects WHERE id = ?",
+            "SELECT id, customer_name, order_ref, date_shamsi, project_code FROM projects WHERE id = ?",
             (project_id,),
         )
         row = cursor.fetchone()
@@ -129,9 +288,12 @@ def get_project_details_db(project_id):
                 "id": row[0],
                 "customer_name": row[1],
                 "order_ref": row[2],
-                "date_shamsi": row[3]
+                "date_shamsi": row[3],
+                "project_code": row[4] if len(row) > 4 else None
             }
-            print(f"DEBUG: Project details found for ID {project_id}.")
+            project_code = project_details.get("project_code", "N/A")
+            customer_name = project_details.get("customer_name", "N/A")
+            print(f"DEBUG: Project details found for ID {project_id}, code: {project_code}, name: '{customer_name}'.")
         else:
             print(f"DEBUG: Project ID {project_id} not found.")
     except sqlite3.Error as e:
@@ -471,13 +633,19 @@ def update_project_db(project_id, customer_name, order_ref, date_shamsi=""):
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+        # Get project code for logging
+        cursor.execute("SELECT project_code FROM projects WHERE id = ?", (project_id,))
+        project_code_row = cursor.fetchone()
+        project_code = project_code_row[0] if project_code_row and project_code_row[0] else None
+        
         cursor.execute(
             "UPDATE projects SET customer_name = ?, order_ref = ?, date_shamsi = ? WHERE id = ?",
             (customer_name, order_ref, date_shamsi, project_id),
         )
         conn.commit()
         success = cursor.rowcount > 0
-        print(f"DEBUG: Update project ID {project_id} {'successful' if success else 'failed'}.")
+        project_display = f"{customer_name} ({project_code})" if project_code else customer_name
+        print(f"DEBUG: Update project ID {project_id} ({project_display}) {'successful' if success else 'failed'}.")
     except sqlite3.Error as e:
         print(f"!!!!!! Error in update_project_db: {e}")
         traceback.print_exc()
@@ -487,17 +655,136 @@ def update_project_db(project_id, customer_name, order_ref, date_shamsi=""):
     return success
 
 def delete_project_db(project_id):
-    """Delete a project."""
+    """
+    Delete a project and its dependent data.
+
+    Notes:
+    - The schema does not consistently use ON DELETE CASCADE, and SQLite foreign keys
+      are often disabled unless explicitly enabled. So we manually delete dependent
+      rows to avoid orphaned data and to work regardless of FK settings.
+    - Inventory logs are preserved, but their project_id reference is cleared.
+    - Deducted profiles are automatically returned to inventory when project is deleted.
+    """
     conn = None
     success = False
+    project_name = f"Project #{project_id}"
+    project_code = None
     print(f"DEBUG: Entering delete_project_db for ID: {project_id}")
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
+
+        # 0) Before deleting, return any deducted profiles to inventory
+        try:
+            # Get project name and code for logging
+            cursor.execute("SELECT customer_name, project_code FROM projects WHERE id = ?", (project_id,))
+            project_row = cursor.fetchone()
+            if project_row:
+                project_name = project_row['customer_name'] if project_row['customer_name'] else f"Project #{project_id}"
+                try:
+                    project_code = project_row['project_code'] if project_row['project_code'] else None
+                except (KeyError, IndexError):
+                    project_code = None
+            project_display = f"{project_name} ({project_code})" if project_code else project_name
+            
+            # Get all deductions for this project
+            cursor.execute("""
+                SELECT d.profile_type_id, d.quantity_deducted, pt.name as profile_name
+                FROM inventory_deductions d
+                JOIN profile_types pt ON d.profile_type_id = pt.id
+                WHERE d.project_id = ?
+            """, (project_id,))
+            
+            deductions = cursor.fetchall()
+            
+            if deductions:
+                print(f"DEBUG: Found {len(deductions)} deduction(s) to return to inventory")
+                
+                for ded in deductions:
+                    profile_id = ded['profile_type_id']
+                    quantity = ded['quantity_deducted']
+                    profile_name = ded['profile_name']
+                    
+                    # Ensure inventory row exists (older DBs may miss inventory_items for a profile)
+                    cursor.execute(
+                        "INSERT OR IGNORE INTO inventory_items (profile_type_id, quantity) VALUES (?, 0)",
+                        (profile_id,),
+                    )
+
+                    # Return stock to inventory
+                    cursor.execute("""
+                        UPDATE inventory_items 
+                        SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP 
+                        WHERE profile_type_id = ?
+                    """, (quantity, profile_id))
+                    
+                    # Log the return in inventory_logs
+                    cursor.execute("""
+                        INSERT INTO inventory_logs
+                        (profile_type_id, change_type, quantity, description, timestamp)
+                        VALUES (?, 'return_on_delete', ?, ?, ?)
+                    """, (
+                        profile_id,
+                        quantity,
+                        f"بازگشت {quantity} شاخه به خاطر حذف پروژه: {project_display}",
+                        get_shamsi_datetime_iso()  # تاریخ شمسی
+                    ))
+                    
+                    print(f"DEBUG: Returned {quantity} units (profile_id={profile_id}) to inventory")
+                
+                # Delete deduction records (will happen via CASCADE anyway, but being explicit)
+                cursor.execute("DELETE FROM inventory_deductions WHERE project_id = ?", (project_id,))
+            else:
+                print(f"DEBUG: No inventory deductions found for project {project_id}")
+                
+        except sqlite3.Error as e:
+            print(f"WARNING: Error returning inventory (might not exist in older DBs): {e}")
+            # Continue with deletion even if inventory return fails
+
+        # Reset row_factory for the rest of the operations
+        conn.row_factory = None
+        cursor = conn.cursor()
+
+        # 1) Gather door ids for this project (for door_custom_values cleanup)
+        cursor.execute("SELECT id FROM doors WHERE project_id = ?", (project_id,))
+        door_ids = [row[0] for row in cursor.fetchall()]
+
+        # 2) Delete door_custom_values for those doors (if any)
+        if door_ids:
+            placeholders = ",".join(["?"] * len(door_ids))
+            cursor.execute(
+                f"DELETE FROM door_custom_values WHERE door_id IN ({placeholders})",
+                door_ids,
+            )
+
+        # 3) Delete doors
+        cursor.execute("DELETE FROM doors WHERE project_id = ?", (project_id,))
+
+        # 4) Delete per-project UI/settings tables
+        cursor.execute(
+            "DELETE FROM project_visible_columns WHERE project_id = ?", (project_id,)
+        )
+        cursor.execute(
+            "DELETE FROM batch_edit_checkbox_state WHERE project_id = ?", (project_id,)
+        )
+
+        # 5) Keep inventory logs, but detach them from this project
+        try:
+            cursor.execute(
+                "UPDATE inventory_logs SET project_id = NULL WHERE project_id = ?",
+                (project_id,),
+            )
+        except sqlite3.Error:
+            # inventory_logs table might not exist in older DBs
+            pass
+
+        # 6) Finally, delete the project row
         cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        deleted_projects = cursor.rowcount
         conn.commit()
-        success = cursor.rowcount > 0
-        print(f"DEBUG: Delete project ID {project_id} {'successful' if success else 'failed'}.")
+        success = deleted_projects > 0
+        project_display_final = f"{project_name} ({project_code})" if project_code else project_name
+        print(f"DEBUG: Delete project ID {project_id} ({project_display_final}) {'successful' if success else 'failed'}.")
     except sqlite3.Error as e:
         print(f"!!!!!! Error in delete_project_db: {e}")
         traceback.print_exc()
@@ -506,53 +793,9 @@ def delete_project_db(project_id):
             conn.close()
     return success
 
-def ensure_default_custom_columns():
-    """Ensure default custom columns exist."""
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT COUNT(*) FROM custom_columns WHERE is_active = 1")
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
-            print("DEBUG: No active custom columns found. Adding defaults...")
-            default_columns = [
-                ("rang", "رنگ پروفیل"),
-                ("noe_profile", "نوع پروفیل"),
-                ("vaziat", "وضعیت تولید درب"),
-                ("lola", "لولا"),
-                ("ghofl", "قفل"),
-                ("accessory", "اکسسوری"),
-                ("kolaft", "کلافت"),
-                ("dastgire", "دستگیره"),
-                ("tozihat", "توضیحات")
-            ]
-            
-            for column_key, display_name in default_columns:
-                cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
-                column = cursor.fetchone()
-                
-                if column:
-                    cursor.execute("UPDATE custom_columns SET is_active = 1 WHERE id = ?", (column[0],))
-                    print(f"DEBUG: Column '{column_key}' activated")
-                else:
-                    cursor.execute(
-                        "INSERT INTO custom_columns (column_name, display_name, is_active) VALUES (?, ?, 1)",
-                        (column_key, display_name)
-                    )
-                    print(f"DEBUG: Column '{column_key}' added")
-            
-            conn.commit()
-            print("DEBUG: Default columns added/activated successfully")
-        
-    except sqlite3.Error as e:
-        print(f"ERROR: Error in ensure_default_custom_columns: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
+# تابع ensure_default_custom_columns() حذف شد.
+# این تابع قدیمی با مایگریشن 002 تداخل داشت و ستون‌ها را بدون column_type اضافه می‌کرد.
+# مایگریشن 002_seed_base_custom_columns این کار را به درستی انجام می‌دهد.
 
 def check_column_can_hide_internal(project_id, column_key):
     """Check if a column can be hidden."""
@@ -669,7 +912,7 @@ def save_quote_db(data):
             data.get('customer_name'), data.get('customer_mobile'), data.get('input_width'), 
             data.get('input_height'), data.get('profile_type'), data.get('aluminum_color'), 
             data.get('door_material'), data.get('paint_condition'), data.get('paint_brand'), 
-            data.get('selections_details'), data.get('final_price'), datetime.now(), 
+            data.get('selections_details'), data.get('final_price'), get_shamsi_datetime_iso(),  # تاریخ شمسی
             data.get('shamsi_order_date')
         ))
         conn.commit()
@@ -966,109 +1209,26 @@ def batch_update_doors_db(door_ids, base_fields_to_update, columns_to_update):
 # -------------------------------------------------------------------
 
 def initialize_inventory_tables():
-    """ایجاد جداول مورد نیاز برای سیستم انبار"""
-    print("DEBUG: Creating inventory tables...")
-    conn = None
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        
-        # جدول انواع پروفیل
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS profile_types (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            description TEXT,
-            default_length REAL DEFAULT 600,
-            weight_per_meter REAL DEFAULT 1.9,
-            color TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
-        
-        # جدول موجودی شاخه‌های کامل
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS inventory_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_type_id INTEGER NOT NULL,
-            quantity INTEGER DEFAULT 0,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE
-        )
-        ''')
-        
-        # جدول شاخه‌های برش‌خورده
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS inventory_pieces (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_type_id INTEGER NOT NULL,
-            length REAL NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE
-        )
-        ''')
-        
-        # جدول سوابق تغییرات انبار
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS inventory_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_type_id INTEGER NOT NULL,
-            change_type TEXT NOT NULL,
-            quantity INTEGER,
-            length REAL,
-            piece_id INTEGER,
-            project_id INTEGER,
-            description TEXT,
-            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (profile_type_id) REFERENCES profile_types (id) ON DELETE CASCADE,
-            FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
-        )
-        ''')
-        
-        # جدول تنظیمات محاسبه برش
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS cutting_settings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            value TEXT,
-            description TEXT
-        )
-        ''')
-        
-        # داده‌های پیش‌فرض برای تنظیمات
-        cursor.execute('''
-        INSERT OR IGNORE INTO cutting_settings (name, value, description) 
-        VALUES 
-            ('waste_threshold', '70', 'آستانه اندازه ضایعات کوچک (سانتی‌متر)'),
-            ('use_inventory', 'true', 'استفاده از سیستم انبار در محاسبات'),
-            ('prefer_pieces', 'true', 'اولویت استفاده از شاخه‌های نیمه بر کامل'),
-            ('inventory_optimization_strategy', 'minimize_waste', 'استراتژی بهینه‌سازی'),
-            ('show_inventory_warnings', 'true', 'نمایش هشدارهای موجودی'),
-            ('low_inventory_threshold', '5', 'آستانه هشدار موجودی کم')
-        ''')
-        
-        # بررسی و افزودن ستون min_waste در صورت عدم وجود (Migration)
-        try:
-            cursor.execute("SELECT min_waste FROM profile_types LIMIT 1")
-        except sqlite3.OperationalError:
-            print("DEBUG: Adding min_waste column to profile_types table...")
-            cursor.execute("ALTER TABLE profile_types ADD COLUMN min_waste REAL DEFAULT 20")
-            
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"!!!!!! Error in initialize_inventory_tables: {e}")
-        traceback.print_exc()
-    finally:
-        if conn:
-            conn.close()
+    """
+    بررسی وجود جداول انبار (برای سازگاری با کدهای قدیمی)
+    
+    NOTE: جداول انبار اکنون از طریق سیستم مایگریشن ایجاد می‌شوند:
+    - Migration 010_create_inventory_tables: ایجاد جداول اصلی
+    - Migration 011_add_min_waste_to_profile_types: افزودن ستون min_waste
+    
+    این تابع فقط برای سازگاری با کدهای قدیمی نگه داشته شده است
+    و در واقع کاری انجام نمی‌دهد چون مایگریشن‌ها قبلاً اجرا شده‌اند.
+    """
+    print("DEBUG: Inventory tables are managed by migrations (010, 011).")
+    # جداول انبار توسط مایگریشن‌های 010 و 011 ایجاد می‌شوند
+    # این تابع فقط برای سازگاری با کدهای قدیمی نگه داشته شده است
 
 def get_all_profile_types():
     """دریافت تمام انواع پروفیل"""
     conn = None
     profiles = []
     try:
-        conn = sqlite3.connect(DB_NAME)
-        conn.row_factory = sqlite3.Row
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # دریافت اطلاعات پروفیل به همراه آمار موجودی
@@ -1077,8 +1237,16 @@ def get_all_profile_types():
             pt.*,
             COALESCE(SUM(ii.quantity), 0) as complete_count,
             (SELECT COUNT(*) FROM inventory_pieces ip WHERE ip.profile_type_id = pt.id) as cut_count,
-            (COALESCE(SUM(ii.quantity), 0) * pt.default_length) + 
-            COALESCE((SELECT SUM(length) FROM inventory_pieces ip WHERE ip.profile_type_id = pt.id), 0) as total_length
+            -- total_length is returned in meters (default_length/length are stored in centimeters)
+            ((COALESCE(SUM(ii.quantity), 0) * pt.default_length) / 100.0) +
+            (COALESCE((SELECT SUM(length) FROM inventory_pieces ip WHERE ip.profile_type_id = pt.id), 0) / 100.0) as total_length,
+            -- total_weight is returned in kg (weight_per_meter is kg/m, lengths are centimeters)
+            ((COALESCE(SUM(ii.quantity), 0) * pt.default_length * pt.weight_per_meter) / 100.0) +
+            COALESCE((
+                SELECT SUM(ip.length * pt.weight_per_meter / 100.0)
+                FROM inventory_pieces ip
+                WHERE ip.profile_type_id = pt.id
+            ), 0) as total_weight
         FROM profile_types pt
         LEFT JOIN inventory_items ii ON pt.id = ii.profile_type_id
         GROUP BY pt.id
@@ -1095,6 +1263,73 @@ def get_all_profile_types():
         if conn:
             conn.close()
     return profiles
+
+def _sync_profile_to_dropdown(cursor, profile_name, old_name=None):
+    """
+    همگام‌سازی نام پروفیل با dropdown نوع پروفیل
+    اگر old_name داده شود، گزینه قبلی را آپدیت می‌کند
+    اگر old_name نباشد، گزینه جدید اضافه می‌کند
+    """
+    try:
+        # پیدا کردن column_id برای "نوع پروفیل"
+        cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", ("noe_profile",))
+        result = cursor.fetchone()
+        
+        if not result:
+            print("WARNING: Column 'noe_profile' not found. Skipping sync.")
+            return
+            
+        column_id = result[0]
+        
+        if old_name:
+            # آپدیت گزینه موجود
+            cursor.execute(
+                "UPDATE custom_column_options SET option_value = ? WHERE column_id = ? AND option_value = ?",
+                (profile_name, column_id, old_name)
+            )
+            print(f"DEBUG: Updated dropdown option from '{old_name}' to '{profile_name}'")
+        else:
+            # بررسی وجود گزینه (جلوگیری از تکراری)
+            cursor.execute(
+                "SELECT id FROM custom_column_options WHERE column_id = ? AND option_value = ?",
+                (column_id, profile_name)
+            )
+            if cursor.fetchone():
+                print(f"DEBUG: Option '{profile_name}' already exists in dropdown")
+                return
+            
+            # اضافه کردن گزینه جدید
+            cursor.execute(
+                "INSERT INTO custom_column_options (column_id, option_value) VALUES (?, ?)",
+                (column_id, profile_name)
+            )
+            print(f"DEBUG: Added '{profile_name}' to dropdown")
+            
+    except sqlite3.Error as e:
+        print(f"ERROR: Failed to sync profile to dropdown: {e}")
+
+def _remove_profile_from_dropdown(cursor, profile_name):
+    """حذف نام پروفیل از dropdown نوع پروفیل"""
+    try:
+        # پیدا کردن column_id برای "نوع پروفیل"
+        cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", ("noe_profile",))
+        result = cursor.fetchone()
+        
+        if not result:
+            print("WARNING: Column 'noe_profile' not found. Skipping removal.")
+            return
+            
+        column_id = result[0]
+        
+        # حذف گزینه
+        cursor.execute(
+            "DELETE FROM custom_column_options WHERE column_id = ? AND option_value = ?",
+            (column_id, profile_name)
+        )
+        print(f"DEBUG: Removed '{profile_name}' from dropdown")
+        
+    except sqlite3.Error as e:
+        print(f"ERROR: Failed to remove profile from dropdown: {e}")
 
 def add_profile_type(name, description, default_length=600, weight_per_meter=1.9, color='#cccccc', min_waste=20):
     """افزودن نوع پروفیل جدید"""
@@ -1114,11 +1349,20 @@ def add_profile_type(name, description, default_length=600, weight_per_meter=1.9
             (profile_id,)
         )
         
+        # همگام‌سازی با dropdown نوع پروفیل
+        _sync_profile_to_dropdown(cursor, name)
+        
         conn.commit()
         return True, profile_id
+    except sqlite3.IntegrityError as e:
+        error_msg = str(e)
+        print(f"!!!!!! Integrity error in add_profile_type: {e}")
+        if "UNIQUE constraint failed: profile_types.name" in error_msg or "UNIQUE constraint failed" in error_msg:
+            return False, f"پروفیل با نام '{name}' قبلاً در سیستم وجود دارد. لطفاً نام دیگری انتخاب کنید."
+        return False, f"خطای محدودیت دیتابیس: {error_msg}"
     except sqlite3.Error as e:
         print(f"!!!!!! Error in add_profile_type: {e}")
-        return False, str(e)
+        return False, f"خطا در افزودن پروفیل: {str(e)}"
     finally:
         if conn:
             conn.close()
@@ -1129,6 +1373,12 @@ def update_profile_type(profile_id, name, description, default_length, weight_pe
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+        
+        # دریافت نام قبلی برای همگام‌سازی
+        cursor.execute("SELECT name FROM profile_types WHERE id = ?", (profile_id,))
+        result = cursor.fetchone()
+        old_name = result[0] if result else None
+        
         cursor.execute(
             """
             UPDATE profile_types 
@@ -1137,6 +1387,11 @@ def update_profile_type(profile_id, name, description, default_length, weight_pe
             """,
             (name, description, default_length, weight_per_meter, color, min_waste, profile_id)
         )
+        
+        # همگام‌سازی با dropdown نوع پروفیل (فقط اگر نام تغییر کرده)
+        if old_name and old_name != name:
+            _sync_profile_to_dropdown(cursor, name, old_name)
+        
         conn.commit()
         return True
     except sqlite3.Error as e:
@@ -1150,13 +1405,38 @@ def delete_profile_type(profile_id):
     """حذف نوع پروفیل"""
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # دریافت نام پروفیل برای حذف از dropdown
+        cursor.execute("SELECT name FROM profile_types WHERE id = ?", (profile_id,))
+        result = cursor.fetchone()
+        profile_name = result[0] if result else None
+        
+        # با فعال بودن foreign keys و ON DELETE CASCADE، 
+        # رکوردهای inventory_items و inventory_pieces به صورت خودکار حذف می‌شوند
         cursor.execute("DELETE FROM profile_types WHERE id = ?", (profile_id,))
+        
+        # حذف از dropdown نوع پروفیل
+        if profile_name:
+            _remove_profile_from_dropdown(cursor, profile_name)
+        
+        # پاک کردن رکوردهای orphaned (اگر وجود داشته باشند)
+        # این برای اطمینان از پاک شدن رکوردهای قدیمی است
+        cursor.execute("""
+            DELETE FROM inventory_items 
+            WHERE profile_type_id NOT IN (SELECT id FROM profile_types)
+        """)
+        cursor.execute("""
+            DELETE FROM inventory_pieces 
+            WHERE profile_type_id NOT IN (SELECT id FROM profile_types)
+        """)
+        
         conn.commit()
         return True
     except sqlite3.Error as e:
         print(f"!!!!!! Error in delete_profile_type: {e}")
+        traceback.print_exc()
         return False
     finally:
         if conn:
@@ -1245,8 +1525,20 @@ def get_inventory_stats():
         "average_piece_length": 0
     }
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # پاک کردن رکوردهای orphaned قبل از محاسبه آمار
+        # این برای اطمینان از صحت آمار است
+        cursor.execute("""
+            DELETE FROM inventory_items 
+            WHERE profile_type_id NOT IN (SELECT id FROM profile_types)
+        """)
+        cursor.execute("""
+            DELETE FROM inventory_pieces 
+            WHERE profile_type_id NOT IN (SELECT id FROM profile_types)
+        """)
+        conn.commit()
         
         # تعداد کل انواع پروفیل
         cursor.execute("SELECT COUNT(*) FROM profile_types")
@@ -1300,8 +1592,14 @@ def add_inventory_stock(profile_id, quantity, description=""):
     """افزودن موجودی شاخه کامل"""
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Ensure inventory row exists
+        cursor.execute(
+            "INSERT OR IGNORE INTO inventory_items (profile_type_id, quantity) VALUES (?, 0)",
+            (profile_id,),
+        )
         
         # به‌روزرسانی موجودی
         cursor.execute(
@@ -1312,10 +1610,10 @@ def add_inventory_stock(profile_id, quantity, description=""):
         # ثبت در لاگ
         cursor.execute(
             """
-            INSERT INTO inventory_logs (profile_type_id, change_type, quantity, description)
-            VALUES (?, 'add_stock', ?, ?)
+            INSERT INTO inventory_logs (profile_type_id, change_type, quantity, description, timestamp)
+            VALUES (?, 'add_stock', ?, ?, ?)
             """,
-            (profile_id, quantity, description)
+            (profile_id, quantity, description, get_shamsi_datetime_iso())  # تاریخ شمسی
         )
         
         conn.commit()
@@ -1331,8 +1629,18 @@ def remove_inventory_stock(profile_id, quantity, description="", project_id=None
     """کسر موجودی شاخه کامل"""
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # بررسی آیا این پروفیل قبلاً برای این پروژه کسر شده؟
+        if project_id:
+            cursor.execute(
+                "SELECT quantity_deducted FROM inventory_deductions WHERE project_id = ? AND profile_type_id = ?",
+                (project_id, profile_id)
+            )
+            existing_deduction = cursor.fetchone()
+            if existing_deduction:
+                return False, f"این پروفیل قبلاً برای این پروژه کسر شده است ({existing_deduction[0]} شاخه)."
         
         # بررسی موجودی فعلی
         cursor.execute("SELECT quantity FROM inventory_items WHERE profile_type_id = ?", (profile_id,))
@@ -1351,11 +1659,21 @@ def remove_inventory_stock(profile_id, quantity, description="", project_id=None
         # ثبت در لاگ
         cursor.execute(
             """
-            INSERT INTO inventory_logs (profile_type_id, change_type, quantity, project_id, description)
-            VALUES (?, 'remove_stock', ?, ?, ?)
+            INSERT INTO inventory_logs (profile_type_id, change_type, quantity, project_id, description, timestamp)
+            VALUES (?, 'remove_stock', ?, ?, ?, ?)
             """,
-            (profile_id, quantity, project_id, description)
+            (profile_id, quantity, project_id, description, get_shamsi_datetime_iso())  # تاریخ شمسی
         )
+        
+        # ثبت در جدول کسرهای انبار برای جلوگیری از کسر دوباره
+        if project_id:
+            cursor.execute(
+                """
+                INSERT INTO inventory_deductions (project_id, profile_type_id, quantity_deducted)
+                VALUES (?, ?, ?)
+                """,
+                (project_id, profile_id, quantity)
+            )
         
         conn.commit()
         return True, ""
@@ -1366,11 +1684,11 @@ def remove_inventory_stock(profile_id, quantity, description="", project_id=None
         if conn:
             conn.close()
 
-def add_inventory_piece(profile_id, length, description=""):
+def add_inventory_piece(profile_id, length, description="", project_id=None):
     """افزودن تکه شاخه (برش خورده/ضایعات مفید)"""
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute(
@@ -1379,13 +1697,13 @@ def add_inventory_piece(profile_id, length, description=""):
         )
         piece_id = cursor.lastrowid
         
-        # ثبت در لاگ
+        # ثبت در لاگ (با project_id اگر ارائه شده باشد)
         cursor.execute(
             """
-            INSERT INTO inventory_logs (profile_type_id, change_type, length, piece_id, description)
-            VALUES (?, 'add_piece', ?, ?, ?)
+            INSERT INTO inventory_logs (profile_type_id, change_type, length, piece_id, project_id, description, timestamp)
+            VALUES (?, 'add_piece', ?, ?, ?, ?, ?)
             """,
-            (profile_id, length, piece_id, description)
+            (profile_id, length, piece_id, project_id, description, get_shamsi_datetime_iso())  # تاریخ شمسی
         )
         
         conn.commit()
@@ -1401,7 +1719,7 @@ def remove_inventory_piece(piece_id, description="", project_id=None):
     """حذف تکه شاخه (استفاده شده)"""
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # دریافت اطلاعات قطعه قبل از حذف
@@ -1417,10 +1735,10 @@ def remove_inventory_piece(piece_id, description="", project_id=None):
         # ثبت در لاگ
         cursor.execute(
             """
-            INSERT INTO inventory_logs (profile_type_id, change_type, length, piece_id, project_id, description)
-            VALUES (?, 'remove_piece', ?, ?, ?, ?)
+            INSERT INTO inventory_logs (profile_type_id, change_type, length, piece_id, project_id, description, timestamp)
+            VALUES (?, 'remove_piece', ?, ?, ?, ?, ?)
             """,
-            (profile_id, length, piece_id, project_id, description)
+            (profile_id, length, piece_id, project_id, description, get_shamsi_datetime_iso())  # تاریخ شمسی
         )
         
         conn.commit()
@@ -1442,7 +1760,11 @@ def get_inventory_logs(limit=100, profile_id=None):
         cursor = conn.cursor()
         
         query = """
-            SELECT il.*, pt.name as profile_name, p.customer_name as project_customer
+            SELECT
+                il.*,
+                pt.name as profile_name,
+                pt.color as profile_color,
+                p.customer_name as project_customer
             FROM inventory_logs il
             JOIN profile_types pt ON il.profile_type_id = pt.id
             LEFT JOIN projects p ON il.project_id = p.id
@@ -1498,3 +1820,205 @@ def get_profile_stock_details(profile_id):
         if conn:
             conn.close()
     return details
+
+def get_available_inventory_pieces(profile_name):
+    """
+    دریافت لیست قطعات برش‌خورده موجود برای یک پروفیل
+    
+    Args:
+        profile_name (str): نام پروفیل
+        
+    Returns:
+        list: لیست دیکشنری‌های حاوی id و length قطعات برش‌خورده، مرتب‌شده به صورت نزولی بر اساس length
+              در صورت عدم یافتن پروفیل یا خطا، لیست خالی برمی‌گرداند
+    """
+    conn = None
+    pieces = []
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # یافتن profile_id بر اساس نام
+        cursor.execute("SELECT id FROM profile_types WHERE name = ?", (profile_name,))
+        row = cursor.fetchone()
+        
+        if not row:
+            # پروفیل یافت نشد
+            return pieces
+        
+        profile_id = row['id']
+        
+        # دریافت قطعات برش‌خورده مرتب‌شده به صورت نزولی
+        cursor.execute(
+            "SELECT id, length FROM inventory_pieces WHERE profile_type_id = ? ORDER BY length DESC",
+            (profile_id,)
+        )
+        pieces = [{"id": row['id'], "length": row['length']} for row in cursor.fetchall()]
+        
+    except sqlite3.Error as e:
+        print(f"!!!!!! Error in get_available_inventory_pieces: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+    return pieces
+
+def get_mapped_profile_id(order_profile_name):
+    """
+    Map order profile name to inventory profile_type_id.
+    
+    This function bridges the Price Calculator (Order System) and the Inventory System.
+    The Order System uses specific Persian names for profiles, while the Inventory System
+    uses IDs and might have slightly different names.
+    
+    Args:
+        order_profile_name (str): Profile name from the order/price calculator
+        
+    Returns:
+        int or None: The profile_type_id if found, None otherwise
+    """
+    print(f"DEBUG: get_mapped_profile_id called with order_profile_name='{order_profile_name}'")
+    
+    if not order_profile_name:
+        print("DEBUG: Empty profile name provided, returning None")
+        return None
+    
+    # Hardcoded mapping dictionary for variations and alternative names
+    profile_name_mapping = {
+        "فریم لس قدیمی": ["فریم لس قدیمی", "Frameless Old", "frameless old"],
+        "فریم لس قالب جدید": ["فریم لس قالب جدید", "Frameless New", "frameless new"],
+        "توچوب دار": ["توچوب دار"],
+        "دور آلومینیوم": ["دور آلومینیوم"]
+    }
+    
+    conn = None
+    profile_id = None
+    
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Step 1: Try exact match first
+        print(f"DEBUG: Attempting exact match for '{order_profile_name}'...")
+        cursor.execute("SELECT id, name FROM profile_types WHERE name = ?", (order_profile_name,))
+        row = cursor.fetchone()
+        
+        if row:
+            profile_id = row['id']
+            print(f"DEBUG: ✓ Exact match found! profile_type_id={profile_id} (name='{row['name']}')")
+            return profile_id
+        
+        print(f"DEBUG: No exact match found for '{order_profile_name}'")
+        
+        # Step 2: Try variations from mapping dictionary
+        variations = profile_name_mapping.get(order_profile_name, [])
+        
+        if variations:
+            print(f"DEBUG: Checking {len(variations)} variation(s) from mapping dictionary...")
+            
+            for variant in variations:
+                print(f"DEBUG: Trying variant '{variant}'...")
+                cursor.execute("SELECT id, name FROM profile_types WHERE name = ?", (variant,))
+                row = cursor.fetchone()
+                
+                if row:
+                    profile_id = row['id']
+                    print(f"DEBUG: ✓ Match found via variant '{variant}'! profile_type_id={profile_id} (name='{row['name']}')")
+                    return profile_id
+            
+            print(f"DEBUG: No match found for any variations of '{order_profile_name}'")
+        else:
+            print(f"DEBUG: No variations defined in mapping dictionary for '{order_profile_name}'")
+        
+        # Step 3: No match found
+        print(f"DEBUG: ✗ Profile '{order_profile_name}' NOT found in inventory system")
+        return None
+        
+    except sqlite3.Error as e:
+        print(f"!!!!!! Error in get_mapped_profile_id: {e}")
+        traceback.print_exc()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+def get_project_deductions(project_id):
+    """
+    دریافت لیست کسرهای انبار برای یک پروژه
+    
+    Args:
+        project_id: شماره پروژه
+        
+    Returns:
+        list: لیست دیکشنری‌های حاوی اطلاعات کسرها
+    """
+    conn = None
+    deductions = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                d.id,
+                d.project_id,
+                d.profile_type_id,
+                d.quantity_deducted,
+                d.deduction_date,
+                pt.name as profile_name
+            FROM inventory_deductions d
+            JOIN profile_types pt ON d.profile_type_id = pt.id
+            WHERE d.project_id = ?
+            ORDER BY d.deduction_date DESC
+        """, (project_id,))
+        
+        deductions = [dict(row) for row in cursor.fetchall()]
+        
+    except sqlite3.Error as e:
+        print(f"!!!!!! Error in get_project_deductions: {e}")
+        traceback.print_exc()
+    finally:
+        if conn:
+            conn.close()
+    
+    return deductions
+
+def check_if_already_deducted(project_id, profile_id=None):
+    """
+    بررسی اینکه آیا پروژه قبلاً کسر شده یا نه
+    
+    Args:
+        project_id: شماره پروژه
+        profile_id: شماره پروفیل (اختیاری) - اگر داده نشه کلی پروژه رو چک می‌کنه
+        
+    Returns:
+        bool: True اگه قبلاً کسر شده باشه
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        if profile_id:
+            cursor.execute(
+                "SELECT COUNT(*) FROM inventory_deductions WHERE project_id = ? AND profile_type_id = ?",
+                (project_id, profile_id)
+            )
+        else:
+            cursor.execute(
+                "SELECT COUNT(*) FROM inventory_deductions WHERE project_id = ?",
+                (project_id,)
+            )
+        
+        count = cursor.fetchone()[0]
+        return count > 0
+        
+    except sqlite3.Error as e:
+        print(f"!!!!!! Error in check_if_already_deducted: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+

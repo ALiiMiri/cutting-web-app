@@ -5,6 +5,7 @@ from datetime import datetime
 
 from config import Config
 from database import init_db
+from date_utils import get_shamsi_timestamp
 
 
 def main():
@@ -13,7 +14,7 @@ def main():
 
     # 1. Backup existing DB if it exists
     if os.path.exists(db_path):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_shamsi_timestamp()  # تاریخ شمسی
         base, ext = os.path.splitext(db_path)
         backup_path = f"{base}_backup_{timestamp}{ext or '.db'}"
         try:

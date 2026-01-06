@@ -37,7 +37,7 @@ def add_default_options_if_needed(cursor):
     """
     default_options_map = {
         "rang": ["سفید", "آنادایز", "مشکی", "شامپاینی", "طلایی", "نقره‌ای", "قهوه‌ای"],
-        "noe_profile": ["فریم لس آلومینیومی", "فریم قدیمی", "داخل چوب دار", "فریم دار", "ساده"],
+        # "noe_profile" removed - options should only come from profile_types table in inventory
         "vaziat": ["همزمان با تولید چهارچوب", "تولید درب در آینده", "بدون درب", "درب دار", "نصب شده"],
         "lola": ["OTLAV", "HTH", "NHN", "سه تیکه", "مخفی", "متفرقه"],
         "ghofl": ["STV", "ایزدو", "NHN", "HTN", "یونی", "مگنتی", "بدون قفل"],

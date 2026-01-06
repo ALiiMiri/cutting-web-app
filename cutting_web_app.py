@@ -1,15 +1,26 @@
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, render_template_string, get_flashed_messages
+from flask_login import LoginManager, login_required, current_user
 import os
+import sqlite3
 import traceback  # برای نمایش خطای کامل
 from flask import send_file, jsonify
 import time
-from fpdf import FPDF
 import arabic_reshaper
 from bidi.algorithm import get_display
 from weasyprint import HTML, CSS
 from datetime import datetime, date
 import jdatetime
+import random
+
+# Import date utilities
+from date_utils import (
+    get_shamsi_timestamp, 
+    get_shamsi_datetime_str, 
+    get_shamsi_datetime_iso,
+    gregorian_to_shamsi,
+    gregorian_to_shamsi_date
+)
 
 from math import ceil
 import json
@@ -19,8 +30,11 @@ from database import (
     get_db_connection,
     check_table_exists,
     get_all_projects,
+    get_projects_paginated,
+    get_unique_customers,
     add_project_db,
     get_project_details_db,
+    generate_unique_project_code,
     get_doors_for_project_db,
     add_door_db,
     get_all_custom_columns,
@@ -37,7 +51,6 @@ from database import (
     update_project_db,
     delete_project_db,
     check_column_can_hide_internal,
-    ensure_default_custom_columns,
     update_custom_column_option,
     get_non_empty_custom_columns_for_project,
     get_price_settings_db,
@@ -64,11 +77,23 @@ from database import (
     add_inventory_piece,
     remove_inventory_piece,
     get_inventory_logs,
-    init_db
+    get_project_deductions,
+    check_if_already_deducted,
+    init_db,
+    get_available_inventory_pieces
 )
 
 # Import blueprints
 from routes import register_blueprints
+
+# Import backup manager
+import backup_manager
+
+# Import auth utilities
+from auth_utils import get_user_by_id
+
+# Import decorators
+from decorators import admin_required, staff_or_admin_required, prevent_read_only
 
 # --- تنظیمات اولیه ---
 DB_NAME = Config.DB_NAME
@@ -84,6 +109,76 @@ DB_NAME = Config.DB_NAME
 app = Flask(__name__, template_folder='templates')
 app.secret_key = Config.SECRET_KEY
 
+# Configure Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'auth.login'
+login_manager.login_message = 'لطفاً برای دسترسی به این صفحه وارد شوید.'
+login_manager.login_message_category = 'warning'
+
+# Configure Flask to use UTF-8 encoding
+@app.after_request
+def set_charset(response):
+    """Ensure all responses use UTF-8 encoding"""
+    if 'Content-Type' in response.headers:
+        content_type = response.headers['Content-Type']
+        if 'charset=' not in content_type:
+            response.headers['Content-Type'] = content_type + '; charset=utf-8'
+    else:
+        response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
+
+# Configure Jinja2 to use UTF-8
+app.jinja_env.autoescape = True
+app.jinja_env.auto_reload = True
+
+# اضافه کردن فیلتر شمسی به Jinja2
+@app.template_filter('shamsi')
+def shamsi_filter(dt):
+    """تبدیل تاریخ میلادی به شمسی برای استفاده در template ها"""
+    return gregorian_to_shamsi(dt)
+
+@app.template_filter('shamsi_date')
+def shamsi_date_filter(dt):
+    """تبدیل تاریخ میلادی به شمسی (فقط تاریخ) برای استفاده در template ها"""
+    return gregorian_to_shamsi_date(dt)
+
+# Flask-Login user loader
+@login_manager.user_loader
+def load_user(user_id):
+    return get_user_by_id(user_id)
+
+# Global before_request to protect all routes
+@app.before_request
+def require_login():
+    """نیاز به لاگین برای همه routeها به جز login و static"""
+    # مسیرهای استثنا (که نیاز به لاگین ندارند)
+    allowed_endpoints = ['auth.login', 'static']
+    
+    # در حالت اضطراری (وقتی جدول users وجود ندارد)، اجازه دسترسی به backup restore
+    emergency_endpoints = ['backup_restore', 'backup_management']
+    if request.endpoint in emergency_endpoints:
+        try:
+            from database import check_table_exists
+            if not check_table_exists('users'):
+                # در حالت اضطراری، اجازه دسترسی به backup restore
+                allowed_endpoints.extend(emergency_endpoints)
+        except:
+            pass  # در صورت خطا، از احراز هویت استفاده می‌کنیم
+    
+    # اگر کاربر لاگین نیست و مسیر جاری در لیست استثنا نیست
+    if not current_user.is_authenticated:
+        if request.endpoint not in allowed_endpoints:
+            flash('لطفاً برای دسترسی به سیستم وارد شوید.', 'warning')
+            return redirect(url_for('auth.login'))
+    
+    # اگر کاربر لاگین است ولی باید رمز تغییر دهد
+    if current_user.is_authenticated and hasattr(current_user, 'must_change_password') and current_user.must_change_password:
+        # فقط به صفحات change_password و logout اجازه دسترسی
+        if request.endpoint not in ['auth.change_password', 'auth.logout', 'static']:
+            flash('لطفاً ابتدا رمز عبور خود را تغییر دهید.', 'warning')
+            return redirect(url_for('auth.change_password'))
+
 # --- مقداردهی اولیه دیتابیس ---
 # فراخوانی تابع ایجاد جداول انبار در شروع برنامه
 # فراخوانی تابع ایجاد جداول انبار در شروع برنامه
@@ -94,13 +189,13 @@ init_db()
 register_blueprints(app)
 
 # --- بررسی وجود جداول بعد از مقداردهی اولیه ---
-print("\n--- شروع بررسی جداول ---")
+print("\n--- Starting table checks ---")
 check_table_exists("projects")
 check_table_exists("doors")
 check_table_exists("custom_columns")
 check_table_exists("custom_column_options")
 check_table_exists("door_custom_values")
-print("--- پایان بررسی جداول ---\n")
+print("--- Table checks completed ---\n")
 
 
 # --- Routes (آدرس‌های وب) ---
@@ -108,15 +203,67 @@ print("--- پایان بررسی جداول ---\n")
 
 @app.route("/")
 def index():
-    print("DEBUG: روت / (index) فراخوانی شد.")
+    print("DEBUG: Route / (index) called.")
     try:
-        projects_list = get_all_projects()
-        return render_template("index.html", projects=projects_list)
+        # Get query parameters
+        page = request.args.get('page', 1, type=int)
+        search = request.args.get('search', '', type=str).strip()
+        sort_by = request.args.get('sort_by', 'id', type=str)
+        sort_order = request.args.get('sort_order', 'DESC', type=str)
+        date_from = request.args.get('date_from', '', type=str).strip()
+        date_to = request.args.get('date_to', '', type=str).strip()
+        customer_filter = request.args.get('customer_filter', '', type=str).strip()
+        per_page = request.args.get('per_page', 15, type=int)
+        
+        # Validate per_page
+        if per_page not in [10, 15, 20, 30, 50]:
+            per_page = 15
+        
+        # Get paginated projects
+        result = get_projects_paginated(
+            page=page,
+            per_page=per_page,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            date_from=date_from,
+            date_to=date_to,
+            customer_filter=customer_filter
+        )
+        
+        # Get unique customers for filter dropdown
+        unique_customers = get_unique_customers()
+        
+        return render_template(
+            "index.html",
+            projects=result['projects'],
+            pagination=result,
+            search=search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            date_from=date_from,
+            date_to=date_to,
+            customer_filter=customer_filter,
+            per_page=per_page,
+            unique_customers=unique_customers
+        )
     except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت index: {e}")
+        print(f"!!!!!! Unexpected error in index route: {e}")
         traceback.print_exc()
         flash("خطایی در نمایش لیست پروژه‌ها رخ داد.", "error")
-        return render_template("index.html", projects=[])
+        return render_template(
+            "index.html",
+            projects=[],
+            pagination={"total": 0, "page": 1, "pages": 1, "per_page": 15},
+            search="",
+            sort_by="id",
+            sort_order="DESC",
+            date_from="",
+            date_to="",
+            customer_filter="",
+            per_page=15,
+            unique_customers=[]
+        )
 
 
 @app.route("/home")
@@ -127,37 +274,112 @@ def home():
 
 @app.route("/project/add", methods=["GET"])
 def add_project_form():
-    print("DEBUG: روت /project/add (GET - add_project_form) فراخوانی شد.")
-    return render_template("add_project.html")
+    print("DEBUG: Route /project/add (GET - add_project_form) called.")
+    order_ref = generate_unique_project_code()
+    print(f"DEBUG: Generated order_ref (project code): {order_ref}")
+    return render_template("add_project.html", order_ref=order_ref)
 
 
 @app.route("/project/add", methods=["POST"])
+@staff_or_admin_required
 def add_project_route():
-    print("DEBUG: روت /project/add (POST - add_project_route) فراخوانی شد.")
+    print("DEBUG: Route /project/add (POST - add_project_route) called.")
     customer_name = request.form.get("customer_name")
-    order_ref = request.form.get("order_ref")
-    date_shamsi = request.form.get("date_shamsi", "")
+    order_ref = request.form.get("order_ref", "").strip()
+    date_shamsi = request.form.get("date_shamsi", "").strip()
     
-    if not customer_name and not order_ref:
-        flash("لطفاً حداقل نام مشتری یا شماره سفارش را وارد کنید.", "error")
-        return render_template("add_project.html")
+    # Validate date is required
+    if not date_shamsi:
+        flash("لطفاً تاریخ را انتخاب کنید. انتخاب تاریخ اجباری است.", "error")
+        return render_template("add_project.html", order_ref=order_ref or generate_unique_project_code())
     
-    new_id = add_project_db(customer_name, order_ref, date_shamsi)
+    if not customer_name:
+        flash("لطفاً نام مشتری را وارد کنید.", "error")
+        return render_template("add_project.html", order_ref=order_ref or generate_unique_project_code())
+    
+    # If order_ref is empty, generate a new one
+    if not order_ref:
+        order_ref = generate_unique_project_code()
+    
+    # Use order_ref as project_code (they are the same)
+    project_code = order_ref
+    
+    new_id = add_project_db(customer_name, order_ref, date_shamsi, project_code)
     if new_id:
         flash(
             f"پروژه جدید برای مشتری '{customer_name}' (شماره سفارش: {order_ref}) با موفقیت اضافه شد.",
             "success",
         )
-        print(f"DEBUG: پروژه ID {new_id} اضافه شد، ریدایرکت به index.")
+        print(f"DEBUG: Project ID {new_id} added with order_ref/project_code {order_ref}, name: '{customer_name}', date: {date_shamsi}, redirecting to index.")
         return redirect(url_for("index"))
     else:
         flash("خطایی در ذخیره پروژه رخ داد.", "error")
-        return render_template("add_project.html")
+        return render_template("add_project.html", order_ref=order_ref or generate_unique_project_code())
+
+
+@app.route("/project/<int:project_id>/update", methods=["POST"])
+@staff_or_admin_required
+def update_project_route(project_id):
+    """ویرایش پروژه از صفحه خانه (فرم مودال)"""
+    try:
+        customer_name = request.form.get("customer_name")
+        order_ref = request.form.get("order_ref")
+        date_shamsi = request.form.get("date_shamsi", "")
+
+        if not customer_name and not order_ref:
+            flash("لطفاً حداقل نام مشتری یا شماره سفارش را وارد کنید.", "error")
+            return redirect(url_for("index"))
+
+        success = update_project_db(project_id, customer_name, order_ref, date_shamsi)
+        if success:
+            flash("پروژه با موفقیت ویرایش شد.", "success")
+        else:
+            flash("خطا در ویرایش پروژه.", "error")
+        return redirect(url_for("index"))
+    except Exception as e:
+        print(f"!!!!!! Unexpected error in update_project_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در ویرایش پروژه رخ داد.", "error")
+        return redirect(url_for("index"))
+
+
+@app.route("/project/<int:project_id>/delete", methods=["POST", "GET"])
+@admin_required
+def delete_project_route(project_id):
+    """حذف پروژه (از صفحه خانه). GET فقط ریدایرکت می‌کند؛ حذف واقعی با POST انجام می‌شود."""
+    try:
+        if request.method == "GET":
+            flash("برای حذف پروژه، از دکمه حذف در صفحه خانه استفاده کنید.", "warning")
+            return redirect(url_for("index"))
+
+        # 🔄 بکاپ خودکار قبل از حذف پروژه
+        print(f"ایجاد بکاپ خودکار قبل از حذف پروژه {project_id}...")
+        backup_success, backup_result = backup_manager.create_backup(
+            reason=f"before_delete_project",
+            user="system",
+            metadata={"project_id": project_id, "action": "delete_project"}
+        )
+        if backup_success:
+            print(f"✓ بکاپ قبل از حذف پروژه ایجاد شد: {backup_result}")
+        else:
+            print(f"⚠ خطا در ایجاد بکاپ (ادامه می‌دهیم): {backup_result}")
+
+        success = delete_project_db(project_id)
+        if success:
+            flash("پروژه با موفقیت حذف شد.", "success")
+        else:
+            flash("خطا در حذف پروژه.", "error")
+        return redirect(url_for("index"))
+    except Exception as e:
+        print(f"!!!!!! Unexpected error in delete_project_route: {e}")
+        traceback.print_exc()
+        flash("خطایی در حذف پروژه رخ داد.", "error")
+        return redirect(url_for("index"))
 
 
 @app.route("/project/<int:project_id>")
 def view_project(project_id):
-    print(f"DEBUG: >>>>>>> ورود به روت /project/{project_id} (view_project) <<<<<<<")
+    print(f"DEBUG: >>>>>>> Entering route /project/{project_id} (view_project) <<<<<<<")
     print(f"DEBUG: Request Headers (view_project):\n{request.headers}")
     
     # بررسی پارامتر force_refresh برای تازه‌سازی کامل صفحه
@@ -482,7 +704,7 @@ def set_door_color(project_id, door_id):
     # اتصال به دیتابیس
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
         # به‌روزرسانی رنگ در جدول درب‌ها
         cursor.execute(
@@ -500,6 +722,7 @@ def set_door_color(project_id, door_id):
 
 
 @app.route("/project/<int:project_id>/delete_door/<int:door_id>", methods=["POST"])
+@staff_or_admin_required
 def delete_door(project_id, door_id):
     """حذف یک درب از پروژه"""
     print(f"DEBUG: درخواست برای حذف درب با ID {door_id} از پروژه {project_id}")
@@ -507,7 +730,7 @@ def delete_door(project_id, door_id):
     # اتصال به دیتابیس
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         # ابتدا بررسی می‌کنیم که آیا درب متعلق به این پروژه است
@@ -632,36 +855,67 @@ def export_to_excel(project_id):
         )
         
         # نام مشتری و تاریخ در بالای اکسل - اصلاح بخش ادغام سلول‌ها
-        today_jalali = jdatetime.datetime.now().strftime("%A, %d %B %Y")
+        # فرمت تاریخ شمسی به فارسی
+        now_jalali = jdatetime.datetime.now()
+        # نام ماه‌های فارسی
+        persian_months = {
+            1: 'فروردین', 2: 'اردیبهشت', 3: 'خرداد', 4: 'تیر', 5: 'مرداد', 6: 'شهریور',
+            7: 'مهر', 8: 'آبان', 9: 'آذر', 10: 'دی', 11: 'بهمن', 12: 'اسفند'
+        }
+        # نام روزهای هفته فارسی
+        persian_weekdays = {
+            0: 'شنبه', 1: 'یکشنبه', 2: 'دوشنبه', 3: 'سه‌شنبه', 
+            4: 'چهارشنبه', 5: 'پنج‌شنبه', 6: 'جمعه'
+        }
+        weekday_name = persian_weekdays.get(now_jalali.weekday(), '')
+        month_name = persian_months.get(now_jalali.month, '')
+        today_jalali = f"{weekday_name}، {now_jalali.day} {month_name} {now_jalali.year}"
         
-        # باید ابتدا مقدار را به سلول اصلی بدهیم، سپس ادغام کنیم
+        # دریافت اطلاعات پروژه
+        customer_name = project_info.get("customer_name", "")
+        order_ref = project_info.get("order_ref", "")
+        
+        # ردیف 1: تاریخ
         ws['A1'] = "تاریخ"
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
         ws['A1'].font = Font(bold=True, size=12)
         ws['A1'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
-        ws.merge_cells('A1:C1')
+        ws.merge_cells('A1:B1')
         
-        # ابتدا مقدار را به سلول اول می‌دهیم
-        ws['D1'] = today_jalali
-        ws['D1'].alignment = Alignment(horizontal='center', vertical='center')
-        ws['D1'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
-        ws.merge_cells('D1:F1')
+        ws['C1'] = today_jalali
+        ws['C1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws['C1'].font = Font(bold=True, size=11)
+        ws['C1'].fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+        ws.merge_cells('C1:E1')
         
-        # ابتدا مقدار را به سلول اول می‌دهیم
-        ws['G1'] = "کد"
-        ws['G1'].alignment = Alignment(horizontal='center', vertical='center')
-        ws['G1'].font = Font(bold=True, size=12)
-        ws['G1'].fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
-        ws.merge_cells('G1:I1')
+        # ردیف 2: نام پروژه
+        ws['A2'] = "نام پروژه"
+        ws['A2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws['A2'].font = Font(bold=True, size=12)
+        ws['A2'].fill = PatternFill(start_color="E6F0FF", end_color="E6F0FF", fill_type="solid")
+        ws.merge_cells('A2:B2')
         
-        # ابتدا مقدار را به سلول اول می‌دهیم
-        ws['J1'] = project_id
-        ws['J1'].alignment = Alignment(horizontal='center', vertical='center')
-        ws['J1'].font = Font(bold=True, size=14)
-        ws.merge_cells('J1:K1')
+        ws['C2'] = customer_name if customer_name else "نامشخص"
+        ws['C2'].alignment = Alignment(horizontal='center', vertical='center')
+        ws['C2'].font = Font(bold=True, size=11)
+        ws['C2'].fill = PatternFill(start_color="E6F0FF", end_color="E6F0FF", fill_type="solid")
+        ws.merge_cells('C2:E2')
+        
+        # ردیف 3: شماره سفارش و کد پروژه
+        ws['A3'] = "شماره سفارش"
+        ws['A3'].alignment = Alignment(horizontal='center', vertical='center')
+        ws['A3'].font = Font(bold=True, size=12)
+        ws['A3'].fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        ws.merge_cells('A3:B3')
+        
+        ws['C3'] = order_ref if order_ref else "ندارد"
+        ws['C3'].alignment = Alignment(horizontal='center', vertical='center')
+        ws['C3'].font = Font(bold=True, size=11)
+        ws['C3'].fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        ws.merge_cells('C3:E3')
         
         # فاصله بین جدول اصلی و هدر
-        row_offset = 2
+        row_offset = 4
         
         # --- شروع ستون‌های نمایشی ---
         # ابتدا ستون شماره ردیف را به عنوان اولین ستون اضافه می‌کنیم
@@ -722,12 +976,260 @@ def export_to_excel(project_id):
                 if col_key == "vaziat" and value and "درآینده" in str(value):
                     cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # قرمز کمرنگ
         
+        # ========== ایجاد شیت نتایج برش ==========
+        try:
+            # محاسبه برش (منطق مشابه calculate_cutting)
+            STOCK_LENGTH = 600
+            WEIGHT_PER_METER = 1.9
+            
+            # جمع‌آوری قطعات مورد نیاز به تفکیک نوع پروفیل
+            profile_requirements = {}
+            for door in doors:
+                try:
+                    width = float(door["width"])
+                    height = float(door["height"])
+                    quantity = int(door["quantity"])
+                    profile_type = door.get("noe_profile", "پیش‌فرض")
+                    
+                    if width <= 0 or height <= 0 or quantity <= 0:
+                        continue
+                    
+                    if profile_type not in profile_requirements:
+                        profile_requirements[profile_type] = []
+                    
+                    profile_requirements[profile_type].append((height, quantity * 2))
+                    profile_requirements[profile_type].append((width, quantity * 1))
+                except (ValueError, TypeError, KeyError):
+                    continue
+            
+            if profile_requirements:
+                # دریافت تنظیمات
+                settings = get_inventory_settings()
+                use_inventory = settings.get('use_inventory_for_cutting', False)
+                prefer_pieces = settings.get('prefer_inventory_pieces', False)
+                
+                # دریافت min_waste برای هر پروفیل
+                profiles = get_all_profile_types()
+                profile_min_waste = {}
+                for p in profiles:
+                    profile_min_waste[p['name']] = float(p.get('min_waste', 70))
+                
+                # محاسبه برش برای هر نوع پروفیل
+                all_new_bins = []  # شاخه‌های جدید 6 متری
+                all_inventory_bins = []  # شاخه‌های برش‌خورده از انبار
+                
+                for profile_type, required_pieces in profile_requirements.items():
+                    bins = []
+                    used_pieces_for_profile = []
+                    
+                    # دریافت قطعات برش‌خورده موجود
+                    available_inventory_pieces = []
+                    if use_inventory:
+                        available_inventory_pieces = get_available_inventory_pieces(profile_type)
+                        available_inventory_pieces = available_inventory_pieces.copy()
+                    
+                    # تبدیل به لیست صاف
+                    flat_pieces = []
+                    for length, count in required_pieces:
+                        flat_pieces.extend([length] * count)
+                    
+                    sorted_pieces = sorted(flat_pieces, reverse=True)
+                    
+                    for piece_length in sorted_pieces:
+                        if piece_length > STOCK_LENGTH:
+                            continue
+                        
+                        placed = False
+                        
+                        # اولویت با قطعات برش‌خورده
+                        if use_inventory and prefer_pieces and available_inventory_pieces:
+                            for idx, inv_piece in enumerate(available_inventory_pieces):
+                                if inv_piece['length'] >= piece_length:
+                                    remaining = inv_piece['length'] - piece_length
+                                    used_pieces_for_profile.append(inv_piece['id'])
+                                    available_inventory_pieces.pop(idx)
+                                    
+                                    bins.append({
+                                        "pieces": [piece_length],
+                                        "remaining": remaining,
+                                        "profile_type": profile_type,
+                                        "from_inventory_piece": True,
+                                        "inventory_piece_id": inv_piece['id'],
+                                        "initial_length": inv_piece['length']
+                                    })
+                                    placed = True
+                                    break
+                        
+                        # قرار دادن در شاخه‌های موجود (هم جدید و هم برش‌خورده)
+                        if not placed:
+                            for bin_data in bins:
+                                if bin_data["remaining"] >= piece_length:
+                                    bin_data["pieces"].append(piece_length)
+                                    bin_data["remaining"] -= piece_length
+                                    placed = True
+                                    break
+                        
+                        # شاخه جدید
+                        if not placed:
+                            bins.append({
+                                "pieces": [piece_length],
+                                "remaining": STOCK_LENGTH - piece_length,
+                                "profile_type": profile_type,
+                                "from_inventory_piece": False,
+                                "initial_length": STOCK_LENGTH
+                            })
+                    
+                    # تفکیک شاخه‌های جدید و برش‌خورده
+                    for bin_data in bins:
+                        if bin_data["from_inventory_piece"]:
+                            all_inventory_bins.append(bin_data)
+                        else:
+                            all_new_bins.append(bin_data)
+                
+                # ایجاد شیت نتایج برش
+                ws_cutting = wb.create_sheet("نتایج برش")
+                
+                # استایل‌ها
+                title_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+                header_fill_new = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")  # سبز برای شاخه‌های جدید
+                header_fill_inv = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")  # زرد برای برش‌خورده
+                data_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+                
+                # عنوان
+                ws_cutting['A1'] = "نتایج محاسبه برش"
+                ws_cutting['A1'].font = Font(bold=True, size=16, color="FFFFFF")
+                ws_cutting['A1'].fill = title_fill
+                ws_cutting['A1'].alignment = Alignment(horizontal='center', vertical='center')
+                ws_cutting.merge_cells('A1:E1')
+                ws_cutting.row_dimensions[1].height = 30
+                
+                current_row = 3
+                
+                # بخش شاخه‌های جدید 6 متری
+                if all_new_bins:
+                    ws_cutting[f'A{current_row}'] = f"شاخه‌های جدید 6 متری ({len(all_new_bins)} عدد)"
+                    ws_cutting[f'A{current_row}'].font = Font(bold=True, size=14, color="FFFFFF")
+                    ws_cutting[f'A{current_row}'].fill = header_fill_new
+                    ws_cutting[f'A{current_row}'].alignment = Alignment(horizontal='center', vertical='center')
+                    ws_cutting.merge_cells(f'A{current_row}:E{current_row}')
+                    current_row += 1
+                    
+                    # هدر جدول
+                    headers = ["شاخه", "نوع پروفیل", "قطعات برش (cm)", "باقی‌مانده (cm)", "نوع برش"]
+                    for col_idx, header in enumerate(headers, 1):
+                        cell = ws_cutting.cell(row=current_row, column=col_idx, value=header)
+                        cell.font = Font(bold=True, size=11, color="000000")
+                        cell.fill = header_fill_new
+                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                        cell.border = thin_border
+                    current_row += 1
+                    
+                    # داده‌های شاخه‌های جدید
+                    for idx, bin_data in enumerate(all_new_bins, 1):
+                        profile_type = bin_data.get("profile_type", "پیش‌فرض")
+                        pieces = bin_data["pieces"]
+                        remaining = round(bin_data["remaining"], 1)
+                        min_waste = profile_min_waste.get(profile_type, 70)
+                        
+                        # تعیین نوع برش
+                        if remaining < min_waste:
+                            cut_type = "ضایعات کوچک"
+                        elif remaining < (STOCK_LENGTH / 2):
+                            cut_type = "قطعه متوسط"
+                        else:
+                            cut_type = "قطعه بزرگ"
+                        
+                        pieces_str = " + ".join([f"{p:.1f}" for p in pieces])
+                        
+                        ws_cutting.cell(row=current_row, column=1, value=idx).border = thin_border
+                        ws_cutting.cell(row=current_row, column=2, value=profile_type).border = thin_border
+                        ws_cutting.cell(row=current_row, column=3, value=pieces_str).border = thin_border
+                        ws_cutting.cell(row=current_row, column=4, value=remaining).border = thin_border
+                        ws_cutting.cell(row=current_row, column=5, value=cut_type).border = thin_border
+                        
+                        # رنگ پس‌زمینه برای ردیف‌های زوج
+                        if idx % 2 == 0:
+                            for col in range(1, 6):
+                                ws_cutting.cell(row=current_row, column=col).fill = data_fill
+                        
+                        # تراز وسط برای همه سلول‌ها
+                        for col in range(1, 6):
+                            ws_cutting.cell(row=current_row, column=col).alignment = Alignment(horizontal='center', vertical='center')
+                        
+                        current_row += 1
+                    
+                    current_row += 2
+                
+                # بخش شاخه‌های برش‌خورده از انبار
+                if all_inventory_bins:
+                    ws_cutting[f'A{current_row}'] = f"شاخه‌های برش‌خورده از پروژه‌های قبلی ({len(all_inventory_bins)} عدد)"
+                    ws_cutting[f'A{current_row}'].font = Font(bold=True, size=14, color="000000")
+                    ws_cutting[f'A{current_row}'].fill = header_fill_inv
+                    ws_cutting[f'A{current_row}'].alignment = Alignment(horizontal='center', vertical='center')
+                    ws_cutting.merge_cells(f'A{current_row}:E{current_row}')
+                    current_row += 1
+                    
+                    # هدر جدول
+                    for col_idx, header in enumerate(headers, 1):
+                        cell = ws_cutting.cell(row=current_row, column=col_idx, value=header)
+                        cell.font = Font(bold=True, size=11, color="000000")
+                        cell.fill = header_fill_inv
+                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                        cell.border = thin_border
+                    current_row += 1
+                    
+                    # داده‌های شاخه‌های برش‌خورده
+                    for idx, bin_data in enumerate(all_inventory_bins, 1):
+                        profile_type = bin_data.get("profile_type", "پیش‌فرض")
+                        pieces = bin_data["pieces"]
+                        remaining = round(bin_data["remaining"], 1)
+                        initial_length = bin_data.get("initial_length", STOCK_LENGTH)
+                        min_waste = profile_min_waste.get(profile_type, 70)
+                        
+                        # تعیین نوع برش
+                        if remaining < min_waste:
+                            cut_type = "ضایعات کوچک"
+                        elif remaining < (initial_length / 2):
+                            cut_type = "قطعه متوسط"
+                        else:
+                            cut_type = "قطعه بزرگ"
+                        
+                        pieces_str = " + ".join([f"{p:.1f}" for p in pieces])
+                        
+                        ws_cutting.cell(row=current_row, column=1, value=idx).border = thin_border
+                        ws_cutting.cell(row=current_row, column=2, value=profile_type).border = thin_border
+                        ws_cutting.cell(row=current_row, column=3, value=pieces_str).border = thin_border
+                        ws_cutting.cell(row=current_row, column=4, value=remaining).border = thin_border
+                        ws_cutting.cell(row=current_row, column=5, value=cut_type).border = thin_border
+                        
+                        # رنگ پس‌زمینه برای ردیف‌های زوج
+                        if idx % 2 == 0:
+                            for col in range(1, 6):
+                                ws_cutting.cell(row=current_row, column=col).fill = data_fill
+                        
+                        # تراز وسط برای همه سلول‌ها
+                        for col in range(1, 6):
+                            ws_cutting.cell(row=current_row, column=col).alignment = Alignment(horizontal='center', vertical='center')
+                        
+                        current_row += 1
+                
+                # تنظیم عرض ستون‌ها
+                ws_cutting.column_dimensions['A'].width = 10
+                ws_cutting.column_dimensions['B'].width = 25
+                ws_cutting.column_dimensions['C'].width = 30
+                ws_cutting.column_dimensions['D'].width = 18
+                ws_cutting.column_dimensions['E'].width = 18
+                
+        except Exception as e:
+            print(f"خطا در ایجاد شیت نتایج برش: {e}")
+            traceback.print_exc()
+        
         # تنظیم مسیر فایل خروجی
         export_dir = "static/exports"
         if not os.path.exists(export_dir):
             os.makedirs(export_dir)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = get_shamsi_timestamp()  # تاریخ شمسی
         customer_name = project_info.get("customer_name", "unknown")
         
         # ایجاد نام فایل با حروف انگلیسی برای ذخیره سازی
@@ -769,7 +1271,6 @@ def calculate_cutting(project_id):
     """محاسبه برش بهینه با پیش‌پردازش مقادیر برای قالب"""
     STOCK_LENGTH = 600  # طول استاندارد شاخه
     WEIGHT_PER_METER = 1.9  # وزن هر متر
-    WASTE_THRESHOLD = 70  # آستانه ضایعات کوچک (سانتی‌متر)
 
     project_info = get_project_details_db(project_id)
     if not project_info:
@@ -781,8 +1282,8 @@ def calculate_cutting(project_id):
         flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
         return redirect(url_for("view_project", project_id=project_id))
 
-    # --- جمع‌آوری قطعات مورد نیاز ---
-    required_pieces = []  # لیست (طول، تعداد)
+    # --- جمع‌آوری قطعات مورد نیاز به تفکیک نوع پروفیل ---
+    profile_requirements = {}  # {profile_name: [(length, count), ...]}
 
     valid_rows = 0
     for door in doors:
@@ -790,15 +1291,18 @@ def calculate_cutting(project_id):
             width = float(door["width"])
             height = float(door["height"])
             quantity = int(door["quantity"])
+            profile_type = door.get("noe_profile", "پیش‌فرض")  # نوع پروفیل از ستون سفارشی
 
             if width <= 0 or height <= 0 or quantity <= 0:
                 continue  # رد کردن داده‌های نامعتبر
 
-            # محاسبه مشابه نسخه دسکتاپ
+            if profile_type not in profile_requirements:
+                profile_requirements[profile_type] = []
+
             # دو قطعه عمودی برای هر درب
-            required_pieces.append((height, quantity * 2))
+            profile_requirements[profile_type].append((height, quantity * 2))
             # یک قطعه افقی برای هر درب
-            required_pieces.append((width, quantity * 1))
+            profile_requirements[profile_type].append((width, quantity * 1))
 
             valid_rows += 1
 
@@ -806,7 +1310,7 @@ def calculate_cutting(project_id):
             print(f"خطا در پردازش درب {door.get('id')}: {e}")
             continue
 
-    if not required_pieces:
+    if not profile_requirements:
         flash(
             "هیچ درب معتبری (با عرض، ارتفاع و تعداد عددی مثبت) در جدول برای محاسبه برش یافت نشد.",
             "warning",
@@ -819,61 +1323,136 @@ def calculate_cutting(project_id):
             "warning",
         )
 
-    # --- الگوریتم بسته‌بندی (First Fit Decreasing) ---
-    bins = []  # هر شاخه به صورت: {"pieces": [], "remaining": float}
-
-    # تبدیل به لیست صاف: [(length1, 1), (length1, 1), ... (length2, 1), ...]
-    flat_pieces = []
-    for length, count in required_pieces:
-        flat_pieces.extend([length] * count)
-
-    # مرتب‌سازی نزولی براساس طول
-    sorted_pieces = sorted(flat_pieces, reverse=True)
-
-    for piece_length in sorted_pieces:
-        if piece_length > STOCK_LENGTH:
-            flash(
-                f"امکان برش قطعه‌ای به طول {piece_length}cm از شاخه {STOCK_LENGTH}cm وجود ندارد!",
-                "error",
-            )
-            return redirect(url_for("view_project", project_id=project_id))
-
-        placed = False
-        # سعی در قرار دادن در شاخه‌های موجود
+    # --- دریافت تنظیمات استفاده از انبار ---
+    settings = get_inventory_settings()
+    use_inventory = settings.get('use_inventory_for_cutting', False)
+    prefer_pieces = settings.get('prefer_inventory_pieces', False)
+    
+    # --- دریافت min_waste برای هر پروفیل ---
+    profiles = get_all_profile_types()
+    profile_min_waste = {}  # {profile_name: min_waste}
+    for p in profiles:
+        profile_min_waste[p['name']] = float(p.get('min_waste', 70))
+    
+    # --- محاسبه برش برای هر نوع پروفیل ---
+    results_by_profile = {}
+    all_bins = []  # برای نمایش کلی (سازگاری با template فعلی)
+    used_inventory_pieces = {}  # {profile_type: [piece_ids]} برای ردیابی قطعات استفاده شده
+    
+    for profile_type, required_pieces in profile_requirements.items():
+        bins = []
+        used_pieces_for_profile = []  # لیست ID قطعات برش‌خورده استفاده شده برای این پروفیل
+        
+        # دریافت قطعات برش‌خورده موجود در انبار (اگر تنظیمات فعال باشد)
+        available_inventory_pieces = []
+        if use_inventory:
+            available_inventory_pieces = get_available_inventory_pieces(profile_type)
+            # ایجاد یک کپی برای استفاده (تا بتوانیم از آن کم کنیم)
+            available_inventory_pieces = available_inventory_pieces.copy()
+        
+        # تبدیل به لیست صاف
+        flat_pieces = []
+        for length, count in required_pieces:
+            flat_pieces.extend([length] * count)
+        
+        # مرتب‌سازی نزولی براساس طول
+        sorted_pieces = sorted(flat_pieces, reverse=True)
+        
+        for piece_length in sorted_pieces:
+            if piece_length > STOCK_LENGTH:
+                flash(
+                    f"امکان برش قطعه‌ای به طول {piece_length}cm از شاخه {STOCK_LENGTH}cm وجود ندارد! (پروفیل: {profile_type})",
+                    "error",
+                )
+                return redirect(url_for("view_project", project_id=project_id))
+            
+            placed = False
+            
+            # اگر تنظیمات استفاده از قطعات برش‌خورده فعال باشد و اولویت با آن‌ها باشد
+            if use_inventory and prefer_pieces and available_inventory_pieces:
+                # جستجو در قطعات برش‌خورده موجود
+                for idx, inv_piece in enumerate(available_inventory_pieces):
+                    if inv_piece['length'] >= piece_length:
+                        # استفاده از قطعه برش‌خورده موجود
+                        remaining = inv_piece['length'] - piece_length
+                        used_pieces_for_profile.append(inv_piece['id'])
+                        # حذف این قطعه از لیست موجود (تا دوباره استفاده نشود)
+                        available_inventory_pieces.pop(idx)
+                        
+                        # اضافه کردن bin با قطعه استفاده شده
+                        bins.append({
+                            "pieces": [piece_length],
+                            "remaining": remaining,
+                            "profile_type": profile_type,
+                            "from_inventory_piece": True,
+                            "inventory_piece_id": inv_piece['id'],
+                            "initial_length": inv_piece['length']  # طول اولیه برای محاسبات
+                        })
+                        
+                        placed = True
+                        break
+            
+            # اگر هنوز جای داده نشده، سعی در قرار دادن در شاخه‌های موجود (bins)
+            if not placed:
+                for bin_data in bins:
+                    if bin_data["remaining"] >= piece_length:
+                        bin_data["pieces"].append(piece_length)
+                        bin_data["remaining"] -= piece_length
+                        placed = True
+                        break
+            
+            # اگر در هیچ شاخه‌ای جا نشد، یک شاخه جدید ایجاد کن
+            if not placed:
+                bins.append({
+                    "pieces": [piece_length],
+                    "remaining": STOCK_LENGTH - piece_length,
+                    "profile_type": profile_type,
+                    "from_inventory_piece": False,
+                    "initial_length": STOCK_LENGTH  # طول اولیه برای محاسبات
+                })
+        
+        # ذخیره لیست قطعات استفاده شده برای این پروفیل
+        if used_pieces_for_profile:
+            used_inventory_pieces[profile_type] = used_pieces_for_profile
+        
+        results_by_profile[profile_type] = {
+            "bins": bins,
+            "total_bins": len(bins)
+        }
+        
+        # اضافه کردن min_waste به هر bin برای استفاده در محاسبات بعدی
+        min_waste_for_profile = profile_min_waste.get(profile_type, 70)
         for bin_data in bins:
-            if bin_data["remaining"] >= piece_length:
-                bin_data["pieces"].append(piece_length)
-                bin_data["remaining"] -= piece_length
-                placed = True
-                break
+            bin_data["min_waste"] = min_waste_for_profile
+        
+        # اضافه کردن به لیست کلی برای نمایش
+        all_bins.extend(bins)
 
-        # اگر در هیچ شاخه‌ای جا نشد، یک شاخه جدید ایجاد کن
-        if not placed:
-            bins.append(
-                {"pieces": [piece_length], "remaining": STOCK_LENGTH - piece_length}
-            )
-
-    # --- محاسبه آمار ---
+    # --- محاسبه آمار کلی ---
+    bins = all_bins  # برای سازگاری با کد بعدی
     total_bins_used = len(bins)
 
-    # اطلاعات قطعات کوچک (ضایعات)
-    small_pieces_info = [
-        (i + 1, bin_data["remaining"])
-        for i, bin_data in enumerate(bins)
-        if 0 < bin_data["remaining"] < WASTE_THRESHOLD
-    ]
+    # اطلاعات قطعات کوچک (ضایعات) - استفاده از min_waste هر پروفیل
+    small_pieces_info = []
+    for i, bin_data in enumerate(bins):
+        min_waste_threshold = bin_data.get("min_waste", 70)
+        remaining = bin_data["remaining"]
+        if 0 < remaining < min_waste_threshold:
+            small_pieces_info.append((i + 1, remaining))
+    
     small_pieces_count = len(small_pieces_info)
     total_small_waste_length = sum(rem for _, rem in small_pieces_info)
     total_small_waste_weight = (
         total_small_waste_length / 100
     ) * WEIGHT_PER_METER  # تبدیل سانتی‌متر به متر
 
-    # مشاهده اطلاعات ضایعات متوسط و بزرگ برای تحلیل بیشتر
-    medium_pieces_info = [
-        (i + 1, bin_data["remaining"])
-        for i, bin_data in enumerate(bins)
-        if WASTE_THRESHOLD <= bin_data["remaining"] < (STOCK_LENGTH / 2)
-    ]
+    # مشاهده اطلاعات ضایعات متوسط و بزرگ برای تحلیل بیشتر - استفاده از min_waste هر پروفیل
+    medium_pieces_info = []
+    for i, bin_data in enumerate(bins):
+        min_waste_threshold = bin_data.get("min_waste", 70)
+        remaining = bin_data["remaining"]
+        if min_waste_threshold <= remaining < (STOCK_LENGTH / 2):
+            medium_pieces_info.append((i + 1, remaining))
     large_pieces_info = [
         (i + 1, bin_data["remaining"])
         for i, bin_data in enumerate(bins)
@@ -888,9 +1467,13 @@ def calculate_cutting(project_id):
     # محاسبه کل ضایعات
     total_waste_length = sum(bin_data["remaining"] for bin_data in bins)
     total_waste_weight = (total_waste_length / 100) * WEIGHT_PER_METER
+    # محاسبه طول کل اولیه (با در نظر گرفتن bins برش‌خورده)
+    total_initial_length = sum(
+        bin_data.get('initial_length', STOCK_LENGTH) for bin_data in bins
+    )
     total_waste_percentage = (
-        total_waste_length / (STOCK_LENGTH * total_bins_used)
-    ) * 100
+        (total_waste_length / total_initial_length) * 100
+    ) if total_initial_length > 0 else 0
 
     # ---------- پیش‌پردازش داده‌ها برای قالب ----------
     # این بخش به منظور جلوگیری از خطای سینتکسی در قالب اضافه شده است
@@ -903,15 +1486,26 @@ def calculate_cutting(project_id):
     # پیش‌پردازش داده‌های شاخه‌ها
     processed_bins = []
     for i, bin_data in enumerate(bins):
-        used_length = STOCK_LENGTH - bin_data["remaining"]
-        used_percent = int((used_length / STOCK_LENGTH) * 100)
-        waste_percent = int((bin_data["remaining"] / STOCK_LENGTH) * 100)
+        # استفاده از طول اولیه برای محاسبات (STOCK_LENGTH برای bins جدید، initial_length برای bins برش‌خورده)
+        initial_length = bin_data.get('initial_length', STOCK_LENGTH)
+        used_length = initial_length - bin_data["remaining"]
+        used_percent = int((used_length / initial_length) * 100) if initial_length > 0 else 0
+        waste_percent = int((bin_data["remaining"] / initial_length) * 100) if initial_length > 0 else 0
         # فرمت‌بندی درصدها به صورت رشته‌ای با % برای CSS
         used_percent_style = f"{used_percent}%"
         waste_percent_style = f"{waste_percent}%"
         # گرد کردن اعداد قطعات
         rounded_pieces = [round(piece, 1) for piece in bin_data["pieces"]]
+        
+        # استفاده از min_waste پروفیل برای تعیین نوع ضایعات
+        min_waste_threshold = bin_data.get("min_waste", 70)
+        remaining = bin_data["remaining"]
 
+        # تعیین منبع شاخه
+        from_inventory = bin_data.get("from_inventory_piece", False)
+        source_text = "از قطعه برش‌خورده موجود در انبار" if from_inventory else "از شاخه جدید 6 متری"
+        source_class = "source-inventory" if from_inventory else "source-new"
+        
         processed_bins.append(
             {
                 "index": i + 1,
@@ -924,15 +1518,34 @@ def calculate_cutting(project_id):
                 "waste_percent_style": waste_percent_style,  # این خط اضافه شده
                 "waste_type": (
                     "small"
-                    if bin_data["remaining"] < WASTE_THRESHOLD
+                    if remaining < min_waste_threshold
                     else (
                         "medium"
-                        if bin_data["remaining"] < (STOCK_LENGTH / 2)
+                        if remaining < (STOCK_LENGTH / 2)
                         else "large"
                     )
                 ),
+                "from_inventory_piece": from_inventory,
+                "source_text": source_text,
+                "source_class": source_class,
+                "initial_length": round(initial_length, 1),  # طول اولیه برای نمایش
             }
         )
+    # محاسبه waste_threshold برای نمایش (میانگین min_waste پروفیل‌های استفاده شده)
+    if profile_requirements:
+        avg_min_waste = sum(profile_min_waste.get(name, 70) for name in profile_requirements.keys()) / len(profile_requirements)
+        display_waste_threshold = round(avg_min_waste, 1)
+    else:
+        display_waste_threshold = 70  # پیش‌فرض
+    
+    # ذخیره نتایج در session برای استفاده در کسر از انبار
+    session[f'cutting_result_{project_id}'] = {
+        'profile_requirements': results_by_profile,  # {profile_name: {bins: [], total_bins: X}}
+        'stock_length': STOCK_LENGTH,
+        'timestamp': get_shamsi_datetime_iso(),  # تاریخ شمسی
+        'used_inventory_pieces': used_inventory_pieces  # {profile_name: [piece_ids]} - قطعات برش‌خورده استفاده شده
+    }
+    
     # رندر نتیجه در قالب HTML با مقادیر از پیش محاسبه شده
     return render_template(
         "cutting_result.html",
@@ -940,7 +1553,7 @@ def calculate_cutting(project_id):
         bins=processed_bins,
         total_bins=total_bins_used,
         stock_length=STOCK_LENGTH,
-        waste_threshold=WASTE_THRESHOLD,
+        waste_threshold=display_waste_threshold,
         small_pieces_count=small_pieces_count,
         small_waste_length=small_waste_length_rounded,
         small_waste_weight=small_waste_weight_rounded,
@@ -952,6 +1565,215 @@ def calculate_cutting(project_id):
         total_waste_weight=round(total_waste_weight, 2),
         total_waste_percentage=total_waste_percentage_rounded,
     )
+
+
+@app.route("/project/<int:project_id>/apply_cutting_plan", methods=["POST"])
+def apply_cutting_plan(project_id):
+    """
+    اعمال طرح برش در انبار - کسر خودکار بر اساس نوع پروفیل درب‌ها
+    """
+    # دریافت اطلاعات پروژه
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
+        return redirect(url_for("index"))
+    
+    # ⭐ بررسی اینکه آیا این پروژه قبلاً کسر شده یا نه
+    if check_if_already_deducted(project_id):
+        existing_deductions = get_project_deductions(project_id)
+        deduction_details = "<br>".join([
+            f"• {d['profile_name']}: {d['quantity_deducted']} شاخه در تاریخ {d['deduction_date']}"
+            for d in existing_deductions
+        ])
+        flash(
+            f"⚠️ این پروژه قبلاً از انبار کسر شده است!<br><br><strong>جزئیات کسرهای قبلی:</strong><br>{deduction_details}",
+            "warning"
+        )
+        return redirect(url_for("view_project", project_id=project_id))
+    
+    # بررسی وجود نتایج محاسبه در session
+    cutting_data = session.get(f'cutting_result_{project_id}')
+    if not cutting_data:
+        flash("ابتدا باید محاسبه برش را انجام دهید.", "warning")
+        return redirect(url_for("calculate_cutting", project_id=project_id))
+    
+    profile_requirements = cutting_data.get('profile_requirements', {})
+    used_inventory_pieces = cutting_data.get('used_inventory_pieces', {})  # {profile_name: [piece_ids]}
+    
+    if not profile_requirements:
+        flash("اطلاعات پروفیل‌های مورد نیاز یافت نشد.", "error")
+        return redirect(url_for("calculate_cutting", project_id=project_id))
+    
+    # لیست خطاها و موفقیت‌ها
+    errors = []
+    success_messages = []
+    total_deducted = {}
+    
+    try:
+        # برای هر نوع پروفیل
+        for profile_name, profile_data in profile_requirements.items():
+            bins_data = profile_data.get('bins', [])
+            
+            # پیدا کردن profile_id و min_waste از انبار بر اساس نام
+            profiles = get_all_profile_types()
+            profile_id = None
+            min_waste_threshold = 70  # پیش‌فرض در صورت عدم دسترسی
+            
+            for p in profiles:
+                if p['name'] == profile_name:
+                    profile_id = p['id']
+                    # خواندن حداقل ضایعات از تنظیمات پروفیل
+                    min_waste_threshold = float(p.get('min_waste', 70))
+                    break
+            
+            # اگر پروفیل در انبار تعریف نشده
+            if not profile_id:
+                errors.append(f"⚠️ پروفیل '{profile_name}' در انبار تعریف نشده است. لطفاً ابتدا آن را در مدیریت انبار اضافه کنید.")
+                continue
+            
+            # حذف قطعات برش‌خورده استفاده شده از انبار
+            pieces_removed = 0
+            if profile_name in used_inventory_pieces:
+                # دریافت نام و کد پروژه فعلی برای استفاده در description
+                current_project_name = project_info.get('customer_name', f'پروژه {project_id}')
+                current_project_code = project_info.get('project_code', None)
+                current_project_display = f"{current_project_name} ({current_project_code})" if current_project_code else current_project_name
+                
+                for piece_id in used_inventory_pieces[profile_name]:
+                    # تلاش برای یافتن نام پروژه قبلی که این قطعه از آن آمده
+                    source_project_name = None
+                    try:
+                        conn = get_db_connection()
+                        cursor = conn.cursor()
+                        # یافتن آخرین لاگ add_piece برای این قطعه و دریافت project_id و نام پروژه
+                        cursor.execute("""
+                            SELECT il.project_id, p.customer_name, p.project_code, il.description
+                            FROM inventory_logs il
+                            LEFT JOIN projects p ON il.project_id = p.id
+                            WHERE il.piece_id = ? AND il.change_type = 'add_piece'
+                            ORDER BY il.timestamp DESC
+                            LIMIT 1
+                        """, (piece_id,))
+                        row = cursor.fetchone()
+                        if row:
+                            # اولویت با نام پروژه از جدول projects (با کد)
+                            source_project_code = row['project_code'] if row['project_code'] else None
+                            if row['customer_name']:
+                                source_project_name = f"{row['customer_name']} ({source_project_code})" if source_project_code else row['customer_name']
+                            elif row['project_id']:
+                                source_project_name = f'پروژه {row["project_id"]}' + (f" ({source_project_code})" if source_project_code else "")
+                            # اگر project_id نداشت، از description استخراج کن
+                            elif row['description']:
+                                desc = row['description']
+                                if "از پروژه '" in desc:
+                                    try:
+                                        start = desc.index("از پروژه '") + len("از پروژه '")
+                                        end = desc.index("'", start)
+                                        source_project_name = desc[start:end]
+                                    except ValueError:
+                                        pass
+                        conn.close()
+                    except Exception as e:
+                        print(f"خطا در یافتن نام پروژه قبلی برای قطعه {piece_id}: {e}")
+                    
+                    # ایجاد description با نام پروژه‌ها
+                    if source_project_name:
+                        description = f"استفاده شده در پروژه '{current_project_display}' - قبلاً از پروژه '{source_project_name}'"
+                    else:
+                        description = f"استفاده شده در پروژه '{current_project_display}'"
+                    
+                    success_remove, msg_remove = remove_inventory_piece(
+                        piece_id,
+                        description=description,
+                        project_id=project_id
+                    )
+                    if success_remove:
+                        pieces_removed += 1
+                    else:
+                        errors.append(f"⚠️ خطا در حذف قطعه برش‌خورده {piece_id} از '{profile_name}': {msg_remove}")
+            
+            # محاسبه تعداد bins جدید (نه bins هایی که از قطعات برش‌خورده استفاده کرده‌اند)
+            new_bins_count = sum(
+                1 for bin_data in bins_data
+                if not bin_data.get('from_inventory_piece', False)
+            )
+            
+            if new_bins_count == 0:
+                # فقط قطعات برش‌خورده استفاده شده، نیاز به کسر شاخه جدید نیست
+                if pieces_removed > 0:
+                    success_messages.append(
+                        f"✓ {profile_name}: {pieces_removed} قطعه برش‌خورده استفاده شد"
+                    )
+                continue
+            
+            # بررسی موجودی برای شاخه‌های جدید
+            stock_details = get_profile_stock_details(profile_id)
+            current_stock = stock_details.get("complete_pieces", 0)
+            
+            if current_stock < new_bins_count:
+                errors.append(f"⚠️ موجودی '{profile_name}' کافی نیست! نیاز: {new_bins_count} شاخه جدید، موجودی: {current_stock} شاخه")
+                continue
+            
+            # کسر شاخه‌های جدید از انبار
+            description = f"کسر بابت پروژه: {project_info.get('customer_name', 'نامشخص')} - محاسبه برش"
+            success, msg = remove_inventory_stock(
+                profile_id, 
+                new_bins_count, 
+                description=description,
+                project_id=project_id
+            )
+            
+            if success:
+                total_deducted[profile_name] = new_bins_count
+                
+                # افزودن تکه‌های باقی‌مانده از شاخه‌های جدید به انبار بر اساس min_waste پروفیل
+                added_pieces = 0
+                discarded_pieces = 0
+                for bin_data in bins_data:
+                    # فقط bins جدید (نه bins هایی که از قطعات برش‌خورده استفاده کرده‌اند)
+                    if not bin_data.get('from_inventory_piece', False):
+                        remaining = bin_data.get('remaining', 0)
+                        # استفاده از حداقل ضایعات تعریف‌شده برای این پروفیل
+                        if remaining > min_waste_threshold:
+                            # استفاده از نام پروژه در description
+                            project_name = project_info.get('customer_name', f'پروژه {project_id}')
+                            if add_inventory_piece(profile_id, remaining, f"باقی‌مانده از پروژه '{project_name}'", project_id=project_id):
+                                added_pieces += 1
+                        elif remaining > 0:
+                            discarded_pieces += 1
+                
+                msg_parts = []
+                if new_bins_count > 0:
+                    msg_parts.append(f"{new_bins_count} شاخه کسر شد")
+                if pieces_removed > 0:
+                    msg_parts.append(f"{pieces_removed} قطعه برش‌خورده استفاده شد")
+                if added_pieces > 0:
+                    msg_parts.append(f"{added_pieces} تکه (>{min_waste_threshold:.0f}cm) به انبار برگشت")
+                if discarded_pieces > 0:
+                    msg_parts.append(f"{discarded_pieces} تکه پرت شد")
+                
+                success_messages.append(f"✓ {profile_name}: {', '.join(msg_parts)}")
+            else:
+                errors.append(f"⚠️ خطا در کسر '{profile_name}': {msg}")
+        
+        # نمایش نتایج
+        if success_messages:
+            flash("<br>".join(success_messages), "success")
+        
+        if errors:
+            flash("<br>".join(errors), "error")
+        
+        # اگر حداقل یک پروفیل موفق کسر شد، session رو پاک کن
+        if total_deducted:
+            session.pop(f'cutting_result_{project_id}', None)
+        
+        return redirect(url_for("view_project", project_id=project_id))
+        
+    except Exception as e:
+        print(f"!!!!!! Error in apply_cutting_plan: {e}")
+        traceback.print_exc()
+        flash(f"خطا در اعمال طرح برش: {str(e)}", "error")
+        return redirect(url_for("calculate_cutting", project_id=project_id))
 
 
 
@@ -985,8 +1807,7 @@ def batch_edit_form(project_id):
         # بازخوانی مجدد از سشن
         visible_columns = session.get(session_key, [])
     
-    # بررسی و اضافه کردن ستون‌های پیش‌فرض اگر لازم باشد
-    ensure_default_custom_columns()
+    # تابع ensure_default_custom_columns() حذف شد - مایگریشن 002 این کار را انجام می‌دهد
     
     # اضافه کردن ستون‌های پایه پیش‌فرض اگر در لیست نباشند
     default_visible_columns = [
@@ -1053,12 +1874,9 @@ def batch_edit_form(project_id):
 
 
 @app.route("/project/<int:project_id>/batch_edit", methods=["POST"])
+@staff_or_admin_required
 def apply_batch_edit(project_id):
     """اعمال تغییرات گروهی روی درب‌های انتخاب شده"""
-    
-    # حذف بررسی احراز هویت کاربر چون flask_login استفاده نشده
-    # if not current_user.is_authenticated:
-    #    return redirect(url_for("login"))
     
     door_ids = request.form.get("door_ids")
     if not door_ids:
@@ -1097,6 +1915,18 @@ def apply_batch_edit(project_id):
     if not columns_to_update and not base_fields_to_update:
         flash("هیچ فیلدی برای به‌روزرسانی انتخاب نشده است.", "warning")
         return redirect(url_for("project_treeview", project_id=project_id))
+
+    # 🔄 بکاپ خودکار قبل از ویرایش گروهی
+    print(f"ایجاد بکاپ خودکار قبل از ویرایش گروهی پروژه {project_id}...")
+    backup_success, backup_result = backup_manager.create_backup(
+        reason=f"before_batch_edit",
+        user="system",
+        metadata={"project_id": project_id, "action": "batch_edit", "door_count": len(door_ids)}
+    )
+    if backup_success:
+        print(f"✓ بکاپ قبل از ویرایش گروهی ایجاد شد: {backup_result}")
+    else:
+        print(f"⚠ خطا در ایجاد بکاپ (ادامه می‌دهیم): {backup_result}")
 
     # اعمال تغییرات روی درب‌های انتخاب شده
     successful_updates, failed_updates, success_messages, error_messages = batch_update_doors_db(
@@ -1213,7 +2043,7 @@ def inventory_route():
         
         return render_template("inventory_dashboard.html", stats=stats, profiles=profiles)
     except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت inventory_route: {e}")
+        print(f"!!!!!! Unexpected error in inventory_route: {e}")
         traceback.print_exc()
         flash("خطایی در نمایش صفحه مدیریت انبار رخ داد.", "error")
         return redirect(url_for("index"))
@@ -1255,7 +2085,8 @@ def add_profile_type_route():
                 flash("نوع پروفیل با موفقیت اضافه شد.", "success")
                 return redirect(url_for("profile_types_route"))
             else:
-                flash(f"خطا در افزودن پروفیل: {result}", "error")
+                # result already contains a user-friendly Persian message
+                flash(result, "error")
         
         return render_template("add_profile_type.html")
     except Exception as e:
@@ -1460,6 +2291,18 @@ def remove_inventory_items_route(profile_id):
         if quantity <= 0:
             flash("تعداد باید بزرگتر از صفر باشد.", "error")
         else:
+            # 🔄 بکاپ خودکار قبل از کسر موجودی انبار
+            print(f"ایجاد بکاپ خودکار قبل از کسر موجودی انبار (profile_id={profile_id})...")
+            backup_success, backup_result = backup_manager.create_backup(
+                reason=f"before_inventory_deduction",
+                user="system",
+                metadata={"profile_id": profile_id, "action": "remove_stock", "quantity": quantity}
+            )
+            if backup_success:
+                print(f"✓ بکاپ قبل از کسر موجودی ایجاد شد: {backup_result}")
+            else:
+                print(f"⚠ خطا در ایجاد بکاپ (ادامه می‌دهیم): {backup_result}")
+            
             success, msg = remove_inventory_stock(profile_id, quantity, description)
             if success:
                 flash("موجودی با موفقیت کسر شد.", "success")
@@ -1741,7 +2584,7 @@ def batch_remove_column_value_route(project_id):
 
     conn = None
     try:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         # دریافت ID ستون از روی کلید (column_key)
@@ -1868,7 +2711,7 @@ def manage_custom_columns():
                 column_id = int(column_id)
                 conn = None
                 try:
-                    conn = sqlite3.connect(DB_NAME)
+                    conn = get_db_connection()
                     cursor = conn.cursor()
                     
                     # حذف مقادیر مربوط به این ستون
@@ -1933,6 +2776,31 @@ def manage_custom_columns():
         traceback.print_exc()
         flash("خطایی در نمایش صفحه تنظیمات ستون‌ها رخ داد.", "error")
         return redirect(url_for("index"))
+
+@app.route("/project/<int:project_id>/settings_combos", methods=["GET"])
+def settings_combos(project_id):
+    """صفحه مدیریت گزینه‌های کمبوباکس (dropdown) برای پروژه"""
+    try:
+        # دریافت اطلاعات پروژه
+        project_info = get_project_details_db(project_id)
+        if not project_info:
+            flash("پروژه مورد نظر یافت نشد.", "error")
+            return redirect(url_for("index"))
+        
+        # دریافت تمام ستون‌های dropdown
+        all_columns = get_all_custom_columns()
+        dropdown_columns = [col for col in all_columns if col.get('type') == 'dropdown']
+        
+        return render_template(
+            "settings_combos.html",
+            project=project_info,
+            columns=dropdown_columns
+        )
+    except Exception as e:
+        print(f"!!!!!! خطای غیرمنتظره در روت settings_combos: {e}")
+        traceback.print_exc()
+        flash("خطایی در نمایش صفحه مدیریت گزینه‌ها رخ داد.", "error")
+        return redirect(url_for("project_treeview", project_id=project_id))
 
 @app.route("/api/custom_columns/<int:column_id>/options", methods=["GET"])
 def get_column_options_api(column_id):
@@ -2551,6 +3419,7 @@ def price_calculator():
         return redirect(url_for("index"))
 
 @app.route("/price_calculator_settings", methods=["GET", "POST"])
+@admin_required
 def price_calculator_settings():
     """صفحه تنظیمات قیمت پایه"""
     # print("\\n--- Initiating price_calculator_settings ---") # Removed
@@ -2601,7 +3470,7 @@ def price_calculator_settings():
                 conn = get_db_connection()
                 # print("DEBUG: Database connection obtained for POST.") # Removed
                 cursor = conn.cursor()
-                cursor.execute("CREATE TABLE IF NOT EXISTS price_settings (key TEXT PRIMARY KEY, value REAL)")
+                # price_settings table is created by migration 003_create_price_settings
                 # print("DEBUG: 'price_settings' table ensured.") # Removed
                 
                 # print("DEBUG: Attempting to save to DB:") # Removed
@@ -2632,8 +3501,7 @@ def price_calculator_settings():
             conn = get_db_connection()
             # print("DEBUG: Database connection obtained for GET.") # Removed
             cursor = conn.cursor()
-            # اطمینان از وجود جدول قبل از خواندن (اگرچه در POST هم ایجاد می‌شود)
-            cursor.execute("CREATE TABLE IF NOT EXISTS price_settings (key TEXT PRIMARY KEY, value REAL)")
+            # price_settings table is created by migration 003_create_price_settings
             # print("DEBUG: 'price_settings' table ensured for GET.") # Removed
             cursor.execute("SELECT key, value FROM price_settings")
             rows = cursor.fetchall()
@@ -2926,11 +3794,159 @@ def delete_multiple_quotes():
         flash("خطایی در پاک کردن قیمت‌دهی‌ها رخ داد.", "error")
         return redirect(url_for("saved_quotes"))
 
+# ============================================================================
+# مدیریت بکاپ (Backup Management Routes)
+# ============================================================================
+
+@app.route("/backup")
+def backup_management():
+    """صفحه مدیریت بکاپ"""
+    try:
+        backups = backup_manager.list_backups()
+        stats = backup_manager.get_backup_stats()
+        
+        return render_template(
+            "backup_manager.html",
+            backups=backups,
+            stats=stats,
+            message=session.pop('backup_message', None),
+            message_type=session.pop('backup_message_type', None)
+        )
+    except Exception as e:
+        print(f"خطا در صفحه مدیریت بکاپ: {e}")
+        traceback.print_exc()
+        flash("خطا در بارگذاری صفحه مدیریت بکاپ", "error")
+        return redirect(url_for("index"))
+
+@app.route("/backup/create")
+def backup_create():
+    """ایجاد بکاپ دستی"""
+    try:
+        success, result = backup_manager.create_backup(
+            reason="manual_backup",
+            user="admin",
+            metadata={"source": "web_interface"}
+        )
+        
+        if success:
+            session['backup_message'] = f"بکاپ با موفقیت ایجاد شد."
+            session['backup_message_type'] = "success"
+        else:
+            session['backup_message'] = f"خطا در ایجاد بکاپ: {result}"
+            session['backup_message_type'] = "error"
+            
+    except Exception as e:
+        print(f"خطا در ایجاد بکاپ: {e}")
+        traceback.print_exc()
+        session['backup_message'] = f"خطا در ایجاد بکاپ: {str(e)}"
+        session['backup_message_type'] = "error"
+    
+    return redirect(url_for("backup_management"))
+
+@app.route("/backup/restore/<filename>")
+def backup_restore(filename):
+    """بازگردانی از بکاپ"""
+    try:
+        success, message = backup_manager.restore_backup(filename, create_pre_restore_backup=True)
+        
+        if success:
+            session['backup_message'] = "دیتابیس با موفقیت بازگردانی شد. رمز عبور admin به 'admin' بازنشانی شد. لطفاً برنامه را مجدداً راه‌اندازی کنید."
+            session['backup_message_type'] = "success"
+        else:
+            session['backup_message'] = f"خطا در بازگردانی: {message}"
+            session['backup_message_type'] = "error"
+            
+    except Exception as e:
+        print(f"خطا در بازگردانی بکاپ: {e}")
+        traceback.print_exc()
+        session['backup_message'] = f"خطا در بازگردانی: {str(e)}"
+        session['backup_message_type'] = "error"
+    
+    return redirect(url_for("backup_management"))
+
+@app.route("/backup/delete/<filename>")
+def backup_delete(filename):
+    """حذف بکاپ"""
+    try:
+        success, message = backup_manager.delete_backup(filename)
+        
+        if success:
+            session['backup_message'] = "بکاپ با موفقیت حذف شد."
+            session['backup_message_type'] = "success"
+        else:
+            session['backup_message'] = f"خطا در حذف بکاپ: {message}"
+            session['backup_message_type'] = "error"
+            
+    except Exception as e:
+        print(f"خطا در حذف بکاپ: {e}")
+        traceback.print_exc()
+        session['backup_message'] = f"خطا در حذف: {str(e)}"
+        session['backup_message_type'] = "error"
+    
+    return redirect(url_for("backup_management"))
+
+@app.route("/backup/download/<filename>")
+def backup_download(filename):
+    """دانلود فایل بکاپ"""
+    try:
+        success, file_path = backup_manager.download_backup(filename)
+        
+        if success:
+            return send_file(file_path, as_attachment=True, download_name=filename)
+        else:
+            session['backup_message'] = file_path  # error message
+            session['backup_message_type'] = "error"
+            return redirect(url_for("backup_management"))
+            
+    except Exception as e:
+        print(f"خطا در دانلود بکاپ: {e}")
+        traceback.print_exc()
+        session['backup_message'] = f"خطا در دانلود: {str(e)}"
+        session['backup_message_type'] = "error"
+        return redirect(url_for("backup_management"))
+
+@app.route("/backup/cleanup")
+def backup_cleanup():
+    """پاکسازی بکاپ‌های قدیمی (بیشتر از 7 روز)"""
+    try:
+        deleted_count = backup_manager.cleanup_old_backups(retention_days=7)
+        
+        if deleted_count > 0:
+            session['backup_message'] = f"{deleted_count} بکاپ قدیمی حذف شد."
+            session['backup_message_type'] = "success"
+        else:
+            session['backup_message'] = "هیچ بکاپ قدیمی برای حذف وجود ندارد."
+            session['backup_message_type'] = "warning"
+            
+    except Exception as e:
+        print(f"خطا در پاکسازی بکاپ‌ها: {e}")
+        traceback.print_exc()
+        session['backup_message'] = f"خطا در پاکسازی: {str(e)}"
+        session['backup_message_type'] = "error"
+    
+    return redirect(url_for("backup_management"))
+
 # افزودن کد راه‌اندازی Flask در انتهای فایل
 if __name__ == "__main__":
-    print("DEBUG: تلاش برای اجرای ensure_default_custom_columns()")
-    ensure_default_custom_columns()
-    print("DEBUG: ensure_default_custom_columns() اجرا شد.")
-
-        
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Set UTF-8 encoding for Windows
+    import sys
+    import io
+    if sys.platform == 'win32':
+        # Try to set UTF-8 for stdout/stderr
+        try:
+            if hasattr(sys.stdout, 'buffer'):
+                sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            if hasattr(sys.stderr, 'buffer'):
+                sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        except:
+            pass
+    
+    # Set environment variable for Werkzeug
+    import os
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    
+    # تابع ensure_default_custom_columns() حذف شد چون مایگریشن 002 این کار را انجام می‌دهد
+    # اگر این تابع قبل از مایگریشن اجرا شود، ستون‌ها را بدون column_type اضافه می‌کند
+    # همه ستون‌های پیش‌فرض اکنون به درستی به عنوان dropdown تنظیم شده‌اند
+    
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=True)

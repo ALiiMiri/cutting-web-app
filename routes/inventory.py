@@ -33,7 +33,7 @@ def dashboard():
         profiles = get_all_profile_types()
         return render_template("inventory_dashboard.html", stats=stats, profiles=profiles)
     except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت inventory dashboard: {e}")
+        print(f"!!!!!! Unexpected error in inventory dashboard route: {e}")
         traceback.print_exc()
         flash("خطایی در نمایش صفحه مدیریت انبار رخ داد.", "error")
         return redirect(url_for("index"))
@@ -44,9 +44,15 @@ def profile_types():
     """صفحه مدیریت انواع پروفیل"""
     try:
         profile_types_list = get_all_profile_types()
-        return render_template("profile_types.html", profile_types=profile_types_list)
+        response = render_template("profile_types.html", profile_types=profile_types_list)
+        return response
+    except UnicodeEncodeError as e:
+        print(f"!!!!!! Unicode encoding error in profile_types route: {e}")
+        traceback.print_exc()
+        flash("خطایی در نمایش صفحه انواع پروفیل رخ داد.", "error")
+        return redirect(url_for("inventory.dashboard"))
     except Exception as e:
-        print(f"!!!!!! خطای غیرمنتظره در روت profile_types: {e}")
+        print(f"!!!!!! Unexpected error in profile_types route: {e}")
         traceback.print_exc()
         flash("خطایی در نمایش صفحه انواع پروفیل رخ داد.", "error")
         return redirect(url_for("inventory.dashboard"))
@@ -74,7 +80,8 @@ def add_profile_type_route():
                 flash("نوع پروفیل با موفقیت اضافه شد.", "success")
                 return redirect(url_for("inventory.profile_types"))
             else:
-                flash(f"خطا در افزودن پروفیل: {result}", "error")
+                # result already contains a user-friendly Persian message
+                flash(result, "error")
         
         return render_template("add_profile_type.html")
     except Exception as e:
@@ -182,7 +189,16 @@ def settings():
 def logs(profile_id=None):
     """صفحه تاریخچه تغییرات انبار"""
     try:
+        # Allow filtering by query param too (template uses ?profile_id=...)
+        profile_id_from_qs = request.args.get("profile_id")
+        if profile_id_from_qs:
+            try:
+                profile_id = int(profile_id_from_qs)
+            except ValueError:
+                profile_id = None
+
         logs_list = get_inventory_logs(limit=100, profile_id=profile_id)
+        profiles = get_all_profile_types()
         
         change_type_map = {
             "add_stock": "افزایش موجودی",
@@ -197,7 +213,12 @@ def logs(profile_id=None):
             log_dict["change_type_fa"] = change_type_map.get(log_dict["change_type"], log_dict["change_type"])
             logs_with_translation.append(log_dict)
             
-        return render_template("inventory_logs.html", logs=logs_with_translation, profile_id=profile_id)
+        return render_template(
+            "inventory_logs.html",
+            logs=logs_with_translation,
+            profiles=profiles,
+            profile_id=profile_id,
+        )
     except Exception as e:
         print(f"!!!!!! خطای غیرمنتظره در روت inventory_logs: {e}")
         traceback.print_exc()

@@ -349,7 +349,7 @@
         <h1>
             جزئیات انبار: {{ details.profile.name }}
             <div>
-                <a href="{{ url_for('inventory_dashboard') }}" class="btn btn-dark">
+                <a href="{{ url_for('inventory.dashboard') }}" class="btn btn-dark">
                     <i class="fas fa-arrow-right"></i>
                     بازگشت به داشبورد انبار
                 </a>
@@ -422,7 +422,7 @@
         <div class="form-row">
             <div class="form-column">
                 <h3>افزودن به موجودی</h3>
-                <form method="post" action="{{ url_for('add_inventory_items_route', profile_id=details.profile.id) }}">
+                <form method="post" action="{{ url_for('inventory.add_items', profile_id=details.profile.id) }}">
                     <div class="form-group">
                         <label for="quantity">تعداد شاخه:</label>
                         <input type="number" id="quantity" name="quantity" required min="1" value="1">
@@ -440,7 +440,7 @@
             
             <div class="form-column">
                 <h3>کاهش از موجودی</h3>
-                <form method="post" action="{{ url_for('remove_inventory_items_route', profile_id=details.profile.id) }}">
+                <form method="post" action="{{ url_for('inventory.remove_items', profile_id=details.profile.id) }}">
                     <div class="form-group">
                         <label for="remove_quantity">تعداد شاخه:</label>
                         <input type="number" id="remove_quantity" name="quantity" required min="1" value="1" max="{{ details.full_items }}">
@@ -460,7 +460,7 @@
         <div class="form-row">
             <div class="form-column">
                 <h3>افزودن شاخه برش‌خورده</h3>
-                <form method="post" action="{{ url_for('add_inventory_piece_route', profile_id=details.profile.id) }}">
+                <form method="post" action="{{ url_for('inventory.add_piece', profile_id=details.profile.id) }}">
                     <div class="form-group">
                         <label for="length">طول شاخه (سانتی‌متر):</label>
                         <input type="number" id="length" name="length" required min="1" max="{{ details.profile.default_length }}" step="0.1">
@@ -498,7 +498,7 @@
                 </div>
                 {% if logs|length > 5 %}
                 <div style="text-align: center; margin-top: 10px;">
-                    <a href="{{ url_for('inventory_logs_route', profile_id=details.profile.id) }}" class="btn btn-primary">
+                    <a href="{{ url_for('inventory.logs', profile_id=details.profile.id) }}" class="btn btn-primary">
                         <i class="fas fa-history"></i>
                         مشاهده همه تغییرات
                     </a>
@@ -525,7 +525,7 @@
                     <td>{{ piece.length }}</td>
                     <td>{{ piece.created_at }}</td>
                     <td class="action-cell">
-                        <form method="post" action="{{ url_for('remove_inventory_piece_route', piece_id=piece.id) }}" style="display: inline;">
+                        <form method="post" action="{{ url_for('inventory.remove_piece', piece_id=piece.id) }}" style="display: inline;">
                             <input type="hidden" name="profile_id" value="{{ details.profile.id }}">
                             <button type="submit" class="btn btn-danger" onclick="return confirm('آیا از حذف این شاخه برش‌خورده اطمینان دارید؟');">
                                 <i class="fas fa-trash"></i>

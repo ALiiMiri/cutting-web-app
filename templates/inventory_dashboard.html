@@ -479,7 +479,7 @@
                 </div>
                 <div class="stat-card stat-card-red">
                     <div class="stat-icon"><i class="fas fa-weight-hanging"></i></div>
-                    <div class="stat-value">{{ stats.total_weight|round(1) }} kg</div>
+                    <div class="stat-value">{{ (stats.total_weight or 0)|round(1) }} kg</div>
                     <div class="stat-label">وزن کل موجودی</div>
                 </div>
             </div>
@@ -498,7 +498,7 @@
                     <div class="summary-item-label">طول کل قطعات برش خورده</div>
                 </div>
                 <div class="summary-item">
-                    <div class="summary-item-value">{{ stats.total_length|round(1) }} m</div>
+                    <div class="summary-item-value">{{ (stats.total_length or 0)|round(1) }} m</div>
                     <div class="summary-item-label">طول کل موجودی</div>
                 </div>
                 <div class="summary-item">
@@ -536,20 +536,20 @@
                                 <div class="profile-stat-label">قطعه برش خورده</div>
                             </div>
                             <div class="profile-stat">
-                                <div class="profile-stat-value">{{ profile.total_length|round(1) }} m</div>
+                                <div class="profile-stat-value">{{ (profile.total_length or 0)|round(1) }} m</div>
                                 <div class="profile-stat-label">طول کل</div>
                             </div>
                             <div class="profile-stat">
-                                <div class="profile-stat-value">{{ profile.total_weight|round(1) }} kg</div>
+                                <div class="profile-stat-value">{{ (profile.total_weight or 0)|round(1) }} kg</div>
                                 <div class="profile-stat-label">وزن کل</div>
                             </div>
                         </div>
                         <div class="profile-actions">
-                            <a href="{{ url_for('inventory_details_route', profile_id=profile.id) }}" class="btn btn-primary">
+                            <a href="{{ url_for('inventory.details', profile_id=profile.id) }}" class="btn btn-primary">
                                 <i class="fas fa-search"></i>
                                 جزئیات
                             </a>
-                            <a href="{{ url_for('add_inventory_items_route', profile_id=profile.id) }}" class="btn btn-success">
+                            <a href="{{ url_for('inventory.details', profile_id=profile.id) }}" class="btn btn-success">
                                 <i class="fas fa-plus"></i>
                                 افزودن
                             </a>

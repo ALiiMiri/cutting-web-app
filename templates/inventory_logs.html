@@ -311,7 +311,7 @@
                     <i class="fas fa-warehouse"></i>
                     بازگشت به انبار
                 </a>
-                <a href="{{ url_for('home') }}" class="btn btn-warning">
+                <a href="{{ url_for('index') }}" class="btn btn-warning">
                     <i class="fas fa-home"></i>
                     بازگشت به خانه
                 </a>
@@ -323,7 +323,7 @@
                 <h2 class="card-title">فیلترها</h2>
             </div>
             <div class="card-body">
-                <form method="GET" action="{{ url_for('inventory_logs_route') }}">
+                <form method="GET" action="{{ url_for('inventory.logs') }}">
                     <div class="filters">
                         <div class="filter-group">
                             <label class="filter-label" for="profile_filter">نوع پروفیل</label>
@@ -336,29 +336,12 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="filter-group">
-                            <label class="filter-label" for="action_filter">نوع عملیات</label>
-                            <select class="filter-control" id="action_filter" name="action_type">
-                                <option value="">همه عملیات</option>
-                                <option value="add" {% if request.args.get('action_type') == 'add' %}selected{% endif %}>افزودن</option>
-                                <option value="remove" {% if request.args.get('action_type') == 'remove' %}selected{% endif %}>کاهش</option>
-                                <option value="edit" {% if request.args.get('action_type') == 'edit' %}selected{% endif %}>ویرایش</option>
-                            </select>
-                        </div>
-                        <div class="filter-group">
-                            <label class="filter-label" for="date_from">از تاریخ</label>
-                            <input type="date" class="filter-control" id="date_from" name="date_from" value="{{ request.args.get('date_from', '') }}">
-                        </div>
-                        <div class="filter-group">
-                            <label class="filter-label" for="date_to">تا تاریخ</label>
-                            <input type="date" class="filter-control" id="date_to" name="date_to" value="{{ request.args.get('date_to', '') }}">
-                        </div>
                         <div class="filter-buttons">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-filter"></i>
                                 اعمال فیلتر
                             </button>
-                            <a href="{{ url_for('inventory_logs_route') }}" class="btn btn-warning">
+                            <a href="{{ url_for('inventory.logs') }}" class="btn btn-warning">
                                 <i class="fas fa-times"></i>
                                 حذف فیلترها
                             </a>
@@ -393,71 +376,40 @@
                         <tbody>
                             {% for log in logs %}
                             <tr>
-                                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ (log.timestamp[:16]) if log.timestamp else '-' }}</td>
                                 <td class="profile-name">
-                                    <span class="profile-color" style="background-color: {{ log.profile.color }};"></span>
-                                    {{ log.profile.name }}
+                                    <span class="profile-color" style="background-color: {{ log.profile_color or '#cccccc' }};"></span>
+                                    {{ log.profile_name }}
                                 </td>
                                 <td>
-                                    {% if log.action_type == 'add' %}
+                                    {% if log.change_type in ['add_stock', 'add_piece'] %}
                                     <span class="log-action log-action-add">افزودن</span>
-                                    {% elif log.action_type == 'remove' %}
+                                    {% elif log.change_type in ['remove_stock', 'remove_piece'] %}
                                     <span class="log-action log-action-remove">کاهش</span>
-                                    {% elif log.action_type == 'edit' %}
+                                    {% else %}
                                     <span class="log-action log-action-edit">ویرایش</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if log.item_type == 'full' %}
-                                    {{ log.quantity }} شاخه کامل
-                                    {% elif log.item_type == 'piece' %}
-                                    تکه {{ log.piece_length }} سانتی‌متری
+                                    {% if log.quantity is not none %}
+                                    {{ log.quantity }} شاخه
+                                    {% elif log.length is not none %}
+                                    {{ log.length }} سانتی‌متر
+                                    {% else %}
+                                    -
                                     {% endif %}
                                 </td>
                                 <td>
                                     {{ log.description or '-' }}
-                                    {% if log.source %}
-                                    <div class="log-details">منبع: {{ log.source }}</div>
-                                    {% endif %}
-                                    {% if log.reason %}
-                                    <div class="log-details">دلیل: {{ log.reason }}</div>
-                                    {% endif %}
                                 </td>
                                 <td>
-                                    {% if log.project %}
-                                    {{ log.project.name }}
-                                    {% else %}
-                                    -
-                                    {% endif %}
+                                    {{ log.project_customer or '-' }}
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
-
-                {% if pages > 1 %}
-                <div class="pagination">
-                    {% if page > 1 %}
-                    <a href="{{ url_for('inventory_logs_route', page=page-1, **request.args) }}" class="pagination-link">
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-                    {% endif %}
-                    
-                    {% for p in range(1, pages + 1) %}
-                    <a href="{{ url_for('inventory_logs_route', page=p, **request.args) }}"
-                        class="pagination-link {% if p == page %}active{% endif %}">
-                        {{ p }}
-                    </a>
-                    {% endfor %}
-                    
-                    {% if page < pages %}
-                    <a href="{{ url_for('inventory_logs_route', page=page+1, **request.args) }}" class="pagination-link">
-                        <i class="fas fa-chevron-left"></i>
-                    </a>
-                    {% endif %}
-                </div>
-                {% endif %}
                 
                 {% else %}
                 <div class="empty-logs">

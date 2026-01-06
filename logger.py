@@ -8,6 +8,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from date_utils import get_shamsi_timestamp
 
 
 class ProgramLogger:
@@ -51,9 +52,10 @@ class ProgramLogger:
                 if not os.path.exists(log_dir):
                     os.makedirs(log_dir)
 
-                now = datetime.now()
+                # استفاده از تاریخ شمسی برای نام فایل لاگ
+                timestamp = get_shamsi_timestamp()
                 log_file = os.path.join(
-                    log_dir, f"profile_manager_{now.strftime('%Y%m%d_%H%M')}.log")
+                    log_dir, f"profile_manager_{timestamp}.log")
 
                 file_handler = logging.FileHandler(log_file, encoding='utf-8')
                 file_handler.setFormatter(formatter)

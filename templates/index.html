@@ -302,11 +302,296 @@
         .close-modal:hover {
             color: #555;
         }
+        
+        /* استایل منوی کاربری */
+        .user-menu {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            margin: -20px -20px 20px -20px;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .user-info strong {
+            font-size: 1.1em;
+        }
+        
+        .user-role {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+        
+        .user-menu-links {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .user-menu-links a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+            font-size: 0.95em;
+        }
+        
+        .user-menu-links a:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .admin-link {
+            background: rgba(231, 76, 60, 0.3);
+        }
+        
+        .admin-link:hover {
+            background: rgba(231, 76, 60, 0.5) !important;
+        }
+        
+        /* استایل‌های جستجو و فیلتر */
+        .search-filter-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .search-filter-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        
+        .search-filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .search-filter-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+        
+        .search-filter-group input,
+        .search-filter-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Vazir', Tahoma, sans-serif;
+            font-size: 0.95em;
+        }
+        
+        .search-filter-group input:focus,
+        .search-filter-group select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        
+        .filter-button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Vazir', Tahoma, sans-serif;
+            font-size: 0.95em;
+            transition: background-color 0.2s;
+        }
+        
+        .filter-button.search-btn {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .filter-button.search-btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .filter-button.clear-btn {
+            background-color: #95a5a6;
+            color: white;
+        }
+        
+        .filter-button.clear-btn:hover {
+            background-color: #7f8c8d;
+        }
+        
+        /* استایل اطلاعات نتایج */
+        .results-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: #ecf0f1;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        
+        .results-count {
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        .per-page-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .per-page-selector select {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Vazir', Tahoma, sans-serif;
+        }
+        
+        /* استایل جدول قابل مرتب‌سازی */
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 25px;
+        }
+        
+        .sortable-header:hover {
+            background-color: #e8f4f8;
+        }
+        
+        .sortable-header::after {
+            content: ' ↕';
+            position: absolute;
+            right: 5px;
+            color: #95a5a6;
+            font-size: 0.8em;
+        }
+        
+        .sortable-header.sort-asc::after {
+            content: ' ↑';
+            color: #3498db;
+        }
+        
+        .sortable-header.sort-desc::after {
+            content: ' ↓';
+            color: #3498db;
+        }
+        
+        /* استایل صفحه‌بندی */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            margin: 25px 0;
+            flex-wrap: wrap;
+        }
+        
+        .pagination a,
+        .pagination span {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            text-decoration: none;
+            color: #2c3e50;
+            transition: all 0.2s;
+            font-size: 0.9em;
+        }
+        
+        .pagination a:hover {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        
+        .pagination .current-page {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+            font-weight: bold;
+        }
+        
+        .pagination .disabled {
+            color: #95a5a6;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        
+        /* واکنشگرایی برای فیلترها */
+        @media (max-width: 768px) {
+            .search-filter-row {
+                flex-direction: column;
+            }
+            
+            .search-filter-group {
+                min-width: 100%;
+            }
+            
+            .filter-actions {
+                width: 100%;
+            }
+            
+            .filter-button {
+                flex: 1;
+            }
+            
+            .results-info {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
+        <!-- منوی کاربری -->
+        {% if current_user and current_user.is_authenticated %}
+        <div class="user-menu">
+            <div class="user-info">
+                <strong>👤 {{ current_user.username }}</strong>
+                <span class="user-role">
+                    {% if current_user.role == 'admin' %}
+                        🔑 مدیر
+                    {% elif current_user.role == 'staff' %}
+                        👔 کارمند
+                    {% else %}
+                        👁️ مشاهده‌گر
+                    {% endif %}
+                </span>
+            </div>
+            <div class="user-menu-links">
+                {% if current_user.role == 'admin' %}
+                <a href="{{ url_for('admin.users_list') }}" class="admin-link">👥 مدیریت کاربران</a>
+                {% endif %}
+                <a href="{{ url_for('auth.change_password') }}">🔐 تغییر رمز</a>
+                <a href="{{ url_for('auth.logout') }}">🚪 خروج</a>
+            </div>
+        </div>
+        {% endif %}
+        
         <h1>لیست پروژه‌ها</h1>
 
         <!-- نمایش پیام های فلش -->
@@ -318,14 +603,103 @@
         {% endif %}
         {% endwith %}
 
+        <!-- بخش جستجو و فیلتر -->
+        <div class="search-filter-section">
+            <form method="GET" action="{{ url_for('index') }}" id="searchFilterForm">
+                <!-- ردیف اول: جستجو و مرتب‌سازی -->
+                <div class="search-filter-row">
+                    <div class="search-filter-group">
+                        <label for="search">🔍 جستجو (نام مشتری یا شماره سفارش):</label>
+                        <input type="text" id="search" name="search" value="{{ search }}" placeholder="جستجو...">
+                    </div>
+                    <div class="search-filter-group">
+                        <label for="sort_by">مرتب‌سازی بر اساس:</label>
+                        <select id="sort_by" name="sort_by">
+                            <option value="id" {% if sort_by == 'id' %}selected{% endif %}>شناسه</option>
+                            <option value="customer_name" {% if sort_by == 'customer_name' %}selected{% endif %}>نام مشتری</option>
+                            <option value="order_ref" {% if sort_by == 'order_ref' %}selected{% endif %}>شماره سفارش</option>
+                            <option value="date_shamsi" {% if sort_by == 'date_shamsi' %}selected{% endif %}>تاریخ</option>
+                        </select>
+                    </div>
+                    <div class="search-filter-group">
+                        <label for="sort_order">ترتیب:</label>
+                        <select id="sort_order" name="sort_order">
+                            <option value="DESC" {% if sort_order == 'DESC' %}selected{% endif %}>نزولی (جدیدترین)</option>
+                            <option value="ASC" {% if sort_order == 'ASC' %}selected{% endif %}>صعودی (قدیمی‌ترین)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- ردیف دوم: فیلترهای تاریخ و مشتری -->
+                <div class="search-filter-row">
+                    <div class="search-filter-group">
+                        <label for="date_from">از تاریخ (شمسی):</label>
+                        <input type="text" id="date_from" name="date_from" value="{{ date_from }}" placeholder="مثال: 1404/01/01">
+                    </div>
+                    <div class="search-filter-group">
+                        <label for="date_to">تا تاریخ (شمسی):</label>
+                        <input type="text" id="date_to" name="date_to" value="{{ date_to }}" placeholder="مثال: 1404/12/29">
+                    </div>
+                    <div class="search-filter-group">
+                        <label for="customer_filter">فیلتر بر اساس مشتری:</label>
+                        <select id="customer_filter" name="customer_filter">
+                            <option value="">همه مشتریان</option>
+                            {% for customer in unique_customers %}
+                            <option value="{{ customer }}" {% if customer_filter == customer %}selected{% endif %}>{{ customer }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- دکمه‌های عملیات -->
+                <div class="filter-actions">
+                    <button type="submit" class="filter-button search-btn">🔍 جستجو</button>
+                    <button type="button" class="filter-button clear-btn" onclick="clearFilters()">🗑️ پاک کردن فیلترها</button>
+                </div>
+                
+                <!-- نگه داشتن per_page در فرم -->
+                <input type="hidden" name="per_page" value="{{ per_page }}">
+            </form>
+        </div>
+
+        <!-- نمایش اطلاعات نتایج -->
+        {% if pagination %}
+        <div class="results-info">
+            <div class="results-count">
+                {% if pagination.total > 0 %}
+                نمایش {{ (pagination.page - 1) * pagination.per_page + 1 }} تا 
+                {% set end_item = pagination.page * pagination.per_page %}
+                {{ end_item if end_item < pagination.total else pagination.total }} 
+                از {{ pagination.total }} پروژه
+                {% else %}
+                هیچ نتیجه‌ای یافت نشد
+                {% endif %}
+            </div>
+            <div class="per-page-selector">
+                <label for="per_page_select">تعداد در هر صفحه:</label>
+                <select id="per_page_select" onchange="changePerPage(this.value)">
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                    <option value="15" {% if per_page == 15 %}selected{% endif %}>15</option>
+                    <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                    <option value="30" {% if per_page == 30 %}selected{% endif %}>30</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                </select>
+            </div>
+        </div>
+        {% endif %}
+
         {% if projects %}
         <table>
             <thead>
                 <tr>
-                    <th>شناسه</th>
-                    <th>نام مشتری</th>
-                    <th>شماره سفارش</th>
-                    <th>تاریخ</th>
+                    <th class="sortable-header {% if sort_by == 'id' %}sort-{{ sort_order|lower }}{% endif %}" 
+                        onclick="sortTable('id')">شناسه</th>
+                    <th class="sortable-header {% if sort_by == 'customer_name' %}sort-{{ sort_order|lower }}{% endif %}" 
+                        onclick="sortTable('customer_name')">نام مشتری</th>
+                    <th class="sortable-header {% if sort_by == 'order_ref' %}sort-{{ sort_order|lower }}{% endif %}" 
+                        onclick="sortTable('order_ref')">شماره سفارش</th>
+                    <th class="sortable-header {% if sort_by == 'date_shamsi' %}sort-{{ sort_order|lower }}{% endif %}" 
+                        onclick="sortTable('date_shamsi')">تاریخ</th>
                     <th>عملیات</th>
                 </tr>
             </thead>
@@ -351,8 +725,60 @@
                 {% endfor %}
             </tbody>
         </table>
+        
+        <!-- صفحه‌بندی -->
+        {% if pagination and pagination.pages > 1 %}
+        <div class="pagination">
+            {% if pagination.page > 1 %}
+            <a href="{{ url_for('index', page=1, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, per_page=per_page) }}">«« اولین</a>
+            <a href="{{ url_for('index', page=pagination.page-1, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, per_page=per_page) }}">« قبلی</a>
+            {% else %}
+            <span class="disabled">«« اولین</span>
+            <span class="disabled">« قبلی</span>
+            {% endif %}
+            
+            {% set start_page = [1, pagination.page - 2]|max %}
+            {% set end_page = [pagination.pages, pagination.page + 2]|min %}
+            
+            {% if start_page > 1 %}
+            <a href="{{ url_for('index', page=1, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, per_page=per_page) }}">1</a>
+            {% if start_page > 2 %}
+            <span>...</span>
+            {% endif %}
+            {% endif %}
+            
+            {% for page_num in range(start_page, end_page + 1) %}
+                {% if page_num == pagination.page %}
+                <span class="current-page">{{ page_num }}</span>
+                {% else %}
+                <a href="{{ url_for('index', page=page_num, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, per_page=per_page) }}">{{ page_num }}</a>
+                {% endif %}
+            {% endfor %}
+            
+            {% if end_page < pagination.pages %}
+            {% if end_page < pagination.pages - 1 %}
+            <span>...</span>
+            {% endif %}
+            <a href="{{ url_for('index', page=pagination.pages, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, per_page=per_page) }}">{{ pagination.pages }}</a>
+            {% endif %}
+            
+            {% if pagination.page < pagination.pages %}
+            <a href="{{ url_for('index', page=pagination.page+1, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, per_page=per_page) }}">بعدی »</a>
+            <a href="{{ url_for('index', page=pagination.pages, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, per_page=per_page) }}">آخرین »»</a>
+            {% else %}
+            <span class="disabled">بعدی »</span>
+            <span class="disabled">آخرین »»</span>
+            {% endif %}
+        </div>
+        {% endif %}
         {% else %}
-        <p class="no-projects">هنوز هیچ پروژه‌ای ثبت نشده است.</p>
+        <p class="no-projects">
+            {% if search or date_from or date_to or customer_filter %}
+                هیچ پروژه‌ای با فیلترهای انتخابی یافت نشد.
+            {% else %}
+                هنوز هیچ پروژه‌ای ثبت نشده است.
+            {% endif %}
+        </p>
         {% endif %}
 
         <div style="display: flex; flex-direction: column; gap: 15px;">
@@ -360,6 +786,7 @@
             <a href="{{ url_for('inventory_route') }}" class="add-project-link" style="background-color: #3498db;">مدیریت انبار</a>
             <a href="{{ url_for('price_calculator') }}" class="add-project-link" style="background-color: #f39c12;">محاسبه قیمت</a>
             <a href="{{ url_for('saved_quotes') }}" class="add-project-link" style="background-color: #9b59b6;">قیمت‌دهی‌های ذخیره شده</a>
+            <a href="{{ url_for('backup_management') }}" class="add-project-link" style="background-color: #e74c3c;">🛡️ مدیریت بکاپ</a>
         </div>
     </div>
     
@@ -433,6 +860,65 @@
                 closeEditModal();
             }
         }
+        
+        // مرتب‌سازی جدول
+        function sortTable(column) {
+            const form = document.getElementById('searchFilterForm');
+            const sortByInput = document.getElementById('sort_by');
+            const sortOrderInput = document.getElementById('sort_order');
+            
+            // اگر همان ستون کلیک شد، ترتیب را تغییر می‌دهیم
+            if (sortByInput.value === column) {
+                sortOrderInput.value = sortOrderInput.value === 'ASC' ? 'DESC' : 'ASC';
+            } else {
+                sortByInput.value = column;
+                sortOrderInput.value = 'DESC'; // پیش‌فرض نزولی
+            }
+            
+            // بازگشت به صفحه اول
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'page';
+            pageInput.value = '1';
+            form.appendChild(pageInput);
+            
+            form.submit();
+        }
+        
+        // پاک کردن فیلترها
+        function clearFilters() {
+            window.location.href = "{{ url_for('index') }}";
+        }
+        
+        // تغییر تعداد در هر صفحه
+        function changePerPage(value) {
+            const form = document.getElementById('searchFilterForm');
+            const perPageInput = document.querySelector('input[name="per_page"]');
+            perPageInput.value = value;
+            
+            // بازگشت به صفحه اول
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'page';
+            pageInput.value = '1';
+            form.appendChild(pageInput);
+            
+            form.submit();
+        }
+        
+        // جستجو با Enter
+        document.getElementById('search')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const form = document.getElementById('searchFilterForm');
+                const pageInput = document.createElement('input');
+                pageInput.type = 'hidden';
+                pageInput.name = 'page';
+                pageInput.value = '1';
+                form.appendChild(pageInput);
+                form.submit();
+            }
+        });
     </script>
 </body>
 

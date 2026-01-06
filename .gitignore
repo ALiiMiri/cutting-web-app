@@ -1,2 +1,7 @@
 desktop.ini
 cutting_web_data.db
+
+# Backup files
+backups/
+*.db.backup
+*_backup_*.db

@@ -253,18 +253,18 @@
         {% endfor %}
         {% endif %}
         {% endwith %}
-        <form method="post" action="{{ url_for('add_project_route') }}">
+        <form method="post" action="{{ url_for('add_project_route') }}" id="add_project_form">
             <div>
                 <label for="customer_name">نام مشتری:</label>
                 <input type="text" id="customer_name" name="customer_name">
             </div>
             <div>
                 <label for="order_ref">شماره سفارش:</label>
-                <input type="text" id="order_ref" name="order_ref">
+                <input type="text" id="order_ref" name="order_ref" value="{{ order_ref or '' }}" readonly style="background-color: #f0f0f0; cursor: not-allowed;">
             </div>
             <div class="date-picker-container">
-                <label for="date_picker_input">تاریخ:</label>
-                <input type="text" id="date_picker_input" readonly placeholder="انتخاب تاریخ">
+                <label for="date_picker_input">تاریخ: <span style="color: red;">*</span></label>
+                <input type="text" id="date_picker_input" readonly placeholder="انتخاب تاریخ" required>
                 <input type="hidden" id="date_shamsi" name="date_shamsi">
                 <span class="calendar-icon"><i class="fas fa-calendar-alt"></i></span>
                 
@@ -272,11 +272,11 @@
                 <div id="datepicker">
                     <div class="datepicker-header">
                         <div class="datepicker-nav">
-                            <button id="prevMonth">&lt;</button>
+                            <button type="button" id="prevMonth">&lt;</button>
                         </div>
                         <div class="datepicker-title" id="datepicker-title"></div>
                         <div class="datepicker-nav">
-                            <button id="nextMonth">&gt;</button>
+                            <button type="button" id="nextMonth">&gt;</button>
                         </div>
                     </div>
                     <table class="datepicker-calendar">
@@ -611,6 +611,16 @@
             
             // مقداردهی اولیه
             updateCalendarView();
+            
+            // اعتبارسنجی فرم قبل از ارسال
+            document.getElementById('add_project_form').addEventListener('submit', function(e) {
+                const dateShamsiValue = document.getElementById('date_shamsi').value.trim();
+                if (!dateShamsiValue) {
+                    e.preventDefault();
+                    alert('لطفاً تاریخ را انتخاب کنید. انتخاب تاریخ اجباری است.');
+                    return false;
+                }
+            });
         });
     </script>
 

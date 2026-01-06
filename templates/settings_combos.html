@@ -219,6 +219,100 @@
             font-style: italic;
         }
         
+        /* مدال */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-title {
+            color: #2c3e50;
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-body label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .modal-body input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-footer button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .save-button {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .save-button:hover {
+            background-color: #229954;
+        }
+
+        .cancel-button {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .cancel-button:hover {
+            background-color: #7f8c8d;
+        }
+
+        .close-button {
+            float: left;
+            font-size: 28px;
+            font-weight: bold;
+            color: #aaa;
+            cursor: pointer;
+        }
+
+        .close-button:hover {
+            color: #000;
+        }
+        
         /* سازگاری موبایل */
         @media (max-width: 768px) {
             .container {
@@ -235,6 +329,11 @@
                 margin-top: 10px;
                 width: 100%;
                 justify-content: flex-end;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 20% auto;
             }
         }
     </style>
@@ -290,6 +389,23 @@
         </div>
     </div>
 
+    <!-- مدال ویرایش گزینه -->
+    <div id="editOptionModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeEditModal()">&times;</span>
+            <h3 class="modal-title">ویرایش گزینه</h3>
+            <div class="modal-body">
+                <input type="hidden" id="edit_option_id">
+                <label for="edit_option_value">مقدار جدید گزینه:</label>
+                <input type="text" id="edit_option_value" placeholder="مقدار جدید را وارد کنید...">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="cancel-button" onclick="closeEditModal()">انصراف</button>
+                <button type="button" class="save-button" onclick="saveEditedOption()">ذخیره</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const columnSelect = document.getElementById('column-select');
@@ -322,7 +438,7 @@
             
             // تابع بارگذاری گزینه‌های یک ستون
             function loadOptionsForColumn(columnId) {
-                fetch(`/api/column/${columnId}/options`)
+                fetch(`/api/custom_columns/${columnId}/options`)
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
@@ -346,6 +462,11 @@
                     return;
                 }
                 
+                // بررسی اینکه آیا ستون انتخابی "نوع پروفیل" است
+                const selectedColumnId = columnSelect.value;
+                const selectedOption = columnSelect.options[columnSelect.selectedIndex];
+                const isProfileColumn = selectedOption && selectedOption.text.includes('نوع پروفیل');
+                
                 options.forEach(option => {
                     const optionItem = document.createElement('div');
                     optionItem.className = 'option-item';
@@ -354,17 +475,48 @@
                     optionText.className = 'option-text';
                     optionText.textContent = option.value;
                     
+                    // اگر ستون "نوع پروفیل" است، پیام توضیحی اضافه کن
+                    if (isProfileColumn) {
+                        const infoText = document.createElement('small');
+                        infoText.style.color = '#7f8c8d';
+                        infoText.style.display = 'block';
+                        infoText.style.marginTop = '5px';
+                        infoText.textContent = '(مدیریت از طریق بخش انبار)';
+                        optionText.appendChild(infoText);
+                    }
+                    
                     const optionActions = document.createElement('div');
                     optionActions.className = 'option-actions';
                     
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.className = 'action-button delete-button';
-                    deleteBtn.innerHTML = '<i class="fas fa-trash"></i> حذف';
-                    deleteBtn.onclick = function() {
-                        deleteOption(option.id, option.value);
-                    };
+                    // فقط برای ستون‌های غیر از "نوع پروفیل" دکمه‌ها را نمایش بده
+                    if (!isProfileColumn) {
+                        // دکمه ویرایش
+                        const editBtn = document.createElement('button');
+                        editBtn.className = 'action-button edit-button';
+                        editBtn.innerHTML = '<i class="fas fa-edit"></i> ویرایش';
+                        editBtn.onclick = function() {
+                            openEditModal(option.id, option.value);
+                        };
+                        
+                        // دکمه حذف
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.className = 'action-button delete-button';
+                        deleteBtn.innerHTML = '<i class="fas fa-trash"></i> حذف';
+                        deleteBtn.onclick = function() {
+                            deleteOption(option.id, option.value);
+                        };
+                        
+                        optionActions.appendChild(editBtn);
+                        optionActions.appendChild(deleteBtn);
+                    } else {
+                        // برای نوع پروفیل، پیام اطلاع‌رسانی نمایش بده
+                        const infoBtn = document.createElement('span');
+                        infoBtn.style.color = '#3498db';
+                        infoBtn.style.fontSize = '0.9em';
+                        infoBtn.innerHTML = '<i class="fas fa-info-circle"></i> قابل ویرایش در بخش انبار';
+                        optionActions.appendChild(infoBtn);
+                    }
                     
-                    optionActions.appendChild(deleteBtn);
                     optionItem.appendChild(optionText);
                     optionItem.appendChild(optionActions);
                     
@@ -382,17 +534,26 @@
                     return;
                 }
                 
+                // بررسی اینکه آیا ستون "نوع پروفیل" است
+                const selectedOption = columnSelect.options[columnSelect.selectedIndex];
+                const isProfileColumn = selectedOption && selectedOption.text.includes('نوع پروفیل');
+                
+                if (isProfileColumn) {
+                    showError('نوع پروفیل فقط از طریق بخش مدیریت انبار قابل مدیریت است');
+                    return;
+                }
+                
                 if (!optionValue) {
                     showError('لطفاً متن گزینه را وارد کنید');
                     return;
                 }
                 
-                fetch('/api/column/option/add', {
+                fetch(`/api/custom_columns/${columnId}/options/add`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Type': 'application/json',
                     },
-                    body: `column_id=${columnId}&option_value=${encodeURIComponent(optionValue)}`
+                    body: JSON.stringify({ option_value: optionValue })
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -413,7 +574,7 @@
             // تابع حذف گزینه
             function deleteOption(optionId, optionValue) {
                 if (confirm(`آیا از حذف گزینه "${optionValue}" اطمینان دارید؟`)) {
-                    fetch(`/api/column/option/${optionId}/delete`, {
+                    fetch(`/api/custom_columns/options/${optionId}/delete`, {
                         method: 'POST'
                     })
                     .then(response => response.json())
@@ -431,6 +592,54 @@
                         showError('خطا در ارتباط با سرور');
                     });
                 }
+            }
+            
+            // باز کردن مدال ویرایش
+            function openEditModal(optionId, currentValue) {
+                document.getElementById('edit_option_id').value = optionId;
+                document.getElementById('edit_option_value').value = currentValue;
+                document.getElementById('editOptionModal').style.display = 'block';
+            }
+            
+            // بستن مدال ویرایش
+            function closeEditModal() {
+                document.getElementById('editOptionModal').style.display = 'none';
+                document.getElementById('edit_option_id').value = '';
+                document.getElementById('edit_option_value').value = '';
+            }
+            
+            // ذخیره گزینه ویرایش شده
+            function saveEditedOption() {
+                const optionId = document.getElementById('edit_option_id').value;
+                const newValue = document.getElementById('edit_option_value').value.trim();
+                
+                if (!newValue) {
+                    showError('لطفاً مقدار جدید را وارد کنید');
+                    return;
+                }
+                
+                fetch(`/api/custom_columns/options/${optionId}/edit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ new_value: newValue })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccess('گزینه با موفقیت ویرایش شد');
+                        closeEditModal();
+                        // بارگذاری مجدد گزینه‌ها
+                        loadOptionsForColumn(columnSelect.value);
+                    } else {
+                        showError('خطا در ویرایش گزینه: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showError('خطا در ارتباط با سرور');
+                });
             }
             
             // نمایش پیام خطا
@@ -460,6 +669,29 @@
                     flashDiv.remove();
                 }, 5000);
             }
+            
+            // بستن مدال با کلیک خارج از آن
+            window.onclick = function(event) {
+                const modal = document.getElementById('editOptionModal');
+                if (event.target == modal) {
+                    closeEditModal();
+                }
+            }
+            
+            // بستن مدال با کلید Escape
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    const modal = document.getElementById('editOptionModal');
+                    if (modal.style.display === 'block') {
+                        closeEditModal();
+                    }
+                }
+            });
+            
+            // ایجاد توابع در scope گلوبال
+            window.openEditModal = openEditModal;
+            window.closeEditModal = closeEditModal;
+            window.saveEditedOption = saveEditedOption;
         });
     </script>
 </body>

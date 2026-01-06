@@ -166,7 +166,7 @@
                                 <tr>
                                     <td><input type="checkbox" name="selected_quotes" value="{{ quote.id }}" class="quote-checkbox-{{ customer_name_class }}"></td>
                                     <td>{{ quote.id }}</td>
-                                    <td>{{ quote.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ quote.timestamp|shamsi }}</td>
                                     <td>{{ quote.shamsi_order_date }}</td>
                                     <td>{{ quote.input_width }}</td>
                                     <td>{{ quote.input_height }}</td>

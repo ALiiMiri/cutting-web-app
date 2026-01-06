@@ -111,6 +111,35 @@
             margin-bottom: 10px;
             display: inline-block;
         }
+        
+        .bin-source {
+            margin-bottom: 10px;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            font-weight: 500;
+            display: inline-block;
+        }
+        
+        .source-inventory {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #4caf50;
+        }
+        
+        .source-new {
+            background-color: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ff9800;
+        }
+        
+        .source-inventory::before {
+            content: "♻️ ";
+        }
+        
+        .source-new::before {
+            content: "🆕 ";
+        }
 
         .bin-stats {
             margin-bottom: 15px;
@@ -211,6 +240,37 @@
 
         .back-button:hover {
             background-color: #6c7a7a;
+        }
+
+        .inventory-button {
+            background-color: #f39c12;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 1em;
+            font-family: 'Vazir', Tahoma, sans-serif;
+            transition: background-color 0.3s;
+        }
+
+        .inventory-button:hover {
+            background-color: #e67e22;
+        }
+        
+        .inventory-button.deduct-button {
+            background-color: #e74c3c;
+        }
+        
+        .inventory-button.deduct-button:hover {
+            background-color: #c0392b;
+        }
+
+        .inventory-button i {
+            margin-left: 8px;
         }
 
         .flash {
@@ -327,7 +387,9 @@
             {% for bin in bins %}
             <div class="bin-box">
                 <div class="bin-title">شاخه {{ bin.index }}</div>
+                <div class="bin-source {{ bin.source_class }}">{{ bin.source_text }}</div>
                 <div class="bin-stats">
+                    <div>طول اولیه: {{ bin.initial_length }} سانتی‌متر</div>
                     <div>طول مورد استفاده: {{ bin.used_length }} سانتی‌متر</div>
                     <div>طول باقی‌مانده: {{ bin.remaining }} سانتی‌متر</div>
                     {% if bin.remaining > 0 %}
@@ -370,6 +432,18 @@
             <a href="javascript:window.print()" class="print-button">
                 <i class="fas fa-print"></i>
                 چاپ نتایج
+            </a>
+            <form method="POST" action="{{ url_for('apply_cutting_plan', project_id=project.id) }}" 
+                  onsubmit="return confirm('آیا از کسر این شاخه‌ها از انبار اطمینان دارید؟\n\nسیستم به طور خودکار بر اساس نوع پروفیل‌های تعریف‌شده در درب‌ها، از انبار کسر خواهد کرد.');" 
+                  style="display: inline;">
+                <button type="submit" class="inventory-button" style="background-color: #e74c3c; border: none; cursor: pointer;">
+                    <i class="fas fa-minus-circle"></i>
+                    کسر از انبار
+                </button>
+            </form>
+            <a href="{{ url_for('inventory.dashboard') }}" class="inventory-button" style="background-color: #3498db;">
+                <i class="fas fa-box"></i>
+                مدیریت انبار
             </a>
             <a href="{{ url_for('view_project', project_id=project.id) }}" class="back-button">
                 <i class="fas fa-arrow-right"></i>

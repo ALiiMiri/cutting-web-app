@@ -463,15 +463,15 @@
                                         </div>
                                         <div class="details-item">
                                             <div class="details-label">تعداد شاخه کامل در انبار</div>
-                                            <div class="details-value">{{ profile.inventory_stats.complete_count or 0 }}</div>
+                                            <div class="details-value">{{ profile.complete_count or 0 }}</div>
                                         </div>
                                         <div class="details-item">
                                             <div class="details-label">تعداد قطعات برش خورده</div>
-                                            <div class="details-value">{{ profile.inventory_stats.cut_count or 0 }}</div>
+                                            <div class="details-value">{{ profile.cut_count or 0 }}</div>
                                         </div>
                                         <div class="details-item">
                                             <div class="details-label">مجموع متراژ در انبار</div>
-                                            <div class="details-value">{{ profile.inventory_stats.total_length|round(1) or 0 }} متر</div>
+                                            <div class="details-value">{{ (profile.total_length or 0)|round(1) }} متر</div>
                                         </div>
                                     </div>
                                     {% if profile.description %}
