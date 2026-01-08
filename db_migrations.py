@@ -203,7 +203,10 @@ def apply_migrations(conn):
         {
             "name": "002_seed_base_custom_columns",
             "description": "Seed default custom columns",
-            "check_logic": lambda c: c.execute("SELECT COUNT(*) FROM custom_columns").fetchone()[0] == 0,
+            "check_logic": lambda c: (
+                # Check if all required base columns exist
+                c.execute("SELECT COUNT(*) FROM custom_columns WHERE column_name IN ('rang', 'noe_profile', 'vaziat', 'lola', 'ghofl', 'accessory', 'kolaft', 'dastgire', 'tozihat')").fetchone()[0] < 9
+            ),
             "execution_type": "python_module",
             "module_name": "002_seed_base_custom_columns",
         },
@@ -283,11 +286,22 @@ def apply_migrations(conn):
         migration_name = migration["name"]
 
         try:
+            # Check if migration was already recorded
             cursor.execute("SELECT name FROM schema_migrations WHERE name = ?", (migration_name,))
-            if cursor.fetchone():
-                continue # Already applied
-
+            already_recorded = cursor.fetchone() is not None
+            
+            # Check if migration actually needs to run
             needs_execution = migration["check_logic"](cursor)
+            
+            # Skip if already recorded AND data exists (migration was successful)
+            if already_recorded and not needs_execution:
+                continue # Already applied and data exists
+            
+            # If migration was recorded but data is missing, we need to re-run it
+            # (This handles cases where database was cleared but schema_migrations wasn't)
+            if already_recorded and needs_execution:
+                print(f"-> Re-running '{migration_name}' (data missing but migration was recorded)...")
+                # Don't skip - let it run below
 
             if needs_execution:
                 print(f"-> Applying '{migration_name}'...")
@@ -313,10 +327,14 @@ def apply_migrations(conn):
                         raise
                 
                 print(f"   Success.")
-
-            # Record migration
-            cursor.execute("INSERT INTO schema_migrations (name) VALUES (?)", (migration_name,))
-            conn.commit()
+                
+                # Record migration (only if not already recorded)
+                if not already_recorded:
+                    cursor.execute("INSERT INTO schema_migrations (name) VALUES (?)", (migration_name,))
+                    conn.commit()
+                else:
+                    # Migration was re-run, commit the changes
+                    conn.commit()
 
         except Exception as e:
             print(f"!!! Error applying '{migration_name}': {e}")

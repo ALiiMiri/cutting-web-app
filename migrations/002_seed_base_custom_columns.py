@@ -20,13 +20,23 @@ def ensure_base_columns_exist(cursor):
     print("DEBUG (Migration): Checking/Adding base custom columns...")
     for column_key, display_name, col_type in base_columns:
         try:
-            cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
-            if not cursor.fetchone():
+            cursor.execute("SELECT id, column_type FROM custom_columns WHERE column_name = ?", (column_key,))
+            existing = cursor.fetchone()
+            if not existing:
                 print(f"DEBUG (Migration): Adding base column '{column_key}'...")
                 cursor.execute(
                     "INSERT INTO custom_columns (column_name, display_name, is_active, column_type) VALUES (?, ?, 1, ?)",
                     (column_key, display_name, col_type)
                 )
+            else:
+                # Column exists, but check if type is correct
+                existing_type = existing[1] if len(existing) > 1 else None
+                if existing_type != col_type:
+                    print(f"DEBUG (Migration): Updating column type for '{column_key}' from '{existing_type}' to '{col_type}'...")
+                    cursor.execute(
+                        "UPDATE custom_columns SET column_type = ?, display_name = ? WHERE column_name = ?",
+                        (col_type, display_name, column_key)
+                    )
         except sqlite3.Error as e:
             print(f"ERROR (Migration) in ensure_base_columns_exist for column {column_key}: {e}")
 
