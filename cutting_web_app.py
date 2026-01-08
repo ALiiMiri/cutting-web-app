@@ -2880,6 +2880,90 @@ def delete_column_option_api(option_id):
 
 
 
+@app.route("/settings/custom_columns/fix", methods=["POST"])
+@admin_required
+def fix_custom_columns_route():
+    """Route برای اصلاح ستون‌های سفارشی از طریق Flask"""
+    try:
+        import sqlite3
+        
+        base_columns = [
+            ("rang", "رنگ پروفیل", "dropdown"),
+            ("noe_profile", "نوع پروفیل", "dropdown"),
+            ("vaziat", "وضعیت تولید درب", "dropdown"),
+            ("lola", "لولا", "dropdown"),
+            ("ghofl", "قفل", "dropdown"),
+            ("accessory", "اکسسوری", "dropdown"),
+            ("kolaft", "کلاف", "dropdown"),
+            ("dastgire", "دستگیره", "dropdown"),
+            ("tozihat", "توضیحات", "text")
+        ]
+        
+        default_options_map = {
+            "rang": ["سفید", "آنادایز", "مشکی", "شامپاینی", "طلایی", "نقره‌ای", "قهوه‌ای"],
+            "vaziat": ["همزمان با تولید چهارچوب", "تولید درب در آینده", "بدون درب", "درب دار", "نصب شده"],
+            "lola": ["OTLAV", "HTH", "NHN", "سه تیکه", "مخفی", "متفرقه"],
+            "ghofl": ["STV", "ایزدو", "NHN", "HTN", "یونی", "مگنتی", "بدون قفل"],
+            "accessory": ["آلومینیوم آستانه فاق و زبانه", "آرامبند مرونی", "قفل برق سارو با فنر", "آینه", "دستگیره پشت درب"],
+            "kolaft": ["دو طرفه", "سه طرفه", "یک طرفه", "بدون کلافت"],
+            "dastgire": ["دو تیکه", "ایزدو", "گریف ورک", "گریف تو کار", "متفرقه"]
+        }
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        fixed_count = 0
+        
+        # اصلاح نوع ستون‌ها
+        for column_key, display_name, col_type in base_columns:
+            cursor.execute("SELECT id, column_type FROM custom_columns WHERE column_name = ?", (column_key,))
+            existing = cursor.fetchone()
+            
+            if existing:
+                existing_id = existing[0]
+                existing_type = existing[1] if len(existing) > 1 else None
+                
+                if existing_type != col_type:
+                    cursor.execute(
+                        "UPDATE custom_columns SET column_type = ?, display_name = ? WHERE column_name = ?",
+                        (col_type, display_name, column_key)
+                    )
+                    fixed_count += 1
+                
+                # افزودن گزینه‌های پیش‌فرض
+                if col_type == "dropdown" and column_key in default_options_map:
+                    cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
+                    column_id_result = cursor.fetchone()
+                    column_id = column_id_result[0] if column_id_result else existing_id
+                    
+                    cursor.execute("SELECT COUNT(*) FROM custom_column_options WHERE column_id = ?", (column_id,))
+                    option_count = cursor.fetchone()[0]
+                    
+                    if option_count == 0:
+                        for option_value in default_options_map[column_key]:
+                            cursor.execute(
+                                "INSERT INTO custom_column_options (column_id, option_value) VALUES (?, ?)",
+                                (column_id, option_value)
+                            )
+        
+        conn.commit()
+        conn.close()
+        
+        if fixed_count > 0:
+            flash(f"✅ {fixed_count} ستون با موفقیت اصلاح شد.", "success")
+        else:
+            flash("✅ همه ستون‌ها درست هستند.", "success")
+            
+    except Exception as e:
+        print(f"خطا در اصلاح ستون‌ها: {e}")
+        traceback.print_exc()
+        flash(f"❌ خطا در اصلاح ستون‌ها: {str(e)}", "error")
+    
+    project_id = request.args.get("project_id")
+    if project_id:
+        return redirect(url_for("manage_custom_columns", project_id=project_id))
+    return redirect(url_for("manage_custom_columns"))
+
 @app.route("/api/custom_columns/options/<int:option_id>/edit", methods=["POST"])
 def edit_column_option_api(option_id):
     """ویرایش متن یک گزینه از ستون دراپ‌داون براساس شناسه گزینه"""

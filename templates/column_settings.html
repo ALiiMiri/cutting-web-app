@@ -317,6 +317,17 @@
         <div class="info-box">
             <p>در این صفحه می‌توانید ستون‌های سفارشی برنامه را مدیریت کنید. ستون‌های فعال در جدول‌های پروژه‌ها نمایش
                 داده می‌شوند.</p>
+            {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            <form method="POST" action="{{ url_for('fix_custom_columns_route') }}" style="margin-top: 10px;">
+                {% if project_id %}
+                <input type="hidden" name="project_id" value="{{ project_id }}">
+                {% endif %}
+                <button type="submit" class="button" style="background-color: #e67e22; color: white; padding: 8px 15px; font-size: 13px;" 
+                        onclick="return confirm('آیا می‌خواهید ستون‌های سفارشی را اصلاح کنید؟')">
+                    <i class="fas fa-wrench"></i> اصلاح خودکار ستون‌ها
+                </button>
+            </form>
+            {% endif %}
         </div>
 
         <div class="add-column-form"
