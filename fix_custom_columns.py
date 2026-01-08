@@ -7,6 +7,11 @@
 
 import sqlite3
 import sys
+import io
+
+# تنظیم encoding برای Windows
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 from config import Config
 
 DB_NAME = Config.DB_NAME
@@ -59,17 +64,22 @@ def fix_custom_columns():
                     existing_type = existing[1] if len(existing) > 1 else None
                     
                     if existing_type != col_type:
-                        print(f"  اصلاح نوع ستون '{display_name}' از '{existing_type}' به '{col_type}'...")
+                        print(f"  ✗ اصلاح نوع ستون '{display_name}' از '{existing_type}' به '{col_type}'...")
                         cursor.execute(
                             "UPDATE custom_columns SET column_type = ?, display_name = ? WHERE column_name = ?",
                             (col_type, display_name, column_key)
                         )
+                        print(f"  ✓ نوع ستون '{display_name}' اصلاح شد.")
                     else:
-                        print(f"  ستون '{display_name}' درست است.")
+                        print(f"  ✓ ستون '{display_name}' درست است.")
                     
                     # افزودن گزینه‌های پیش‌فرض برای ستون‌های dropdown
                     if col_type == "dropdown" and column_key in default_options_map:
-                        column_id = existing_id
+                        # بعد از update، column_id را دوباره بگیریم
+                        cursor.execute("SELECT id FROM custom_columns WHERE column_name = ?", (column_key,))
+                        column_id_result = cursor.fetchone()
+                        column_id = column_id_result[0] if column_id_result else existing_id
+                        
                         cursor.execute("SELECT COUNT(*) FROM custom_column_options WHERE column_id = ?", (column_id,))
                         option_count = cursor.fetchone()[0]
                         
@@ -80,6 +90,9 @@ def fix_custom_columns():
                                     "INSERT INTO custom_column_options (column_id, option_value) VALUES (?, ?)",
                                     (column_id, option_value)
                                 )
+                            print(f"    ✓ {len(default_options_map[column_key])} گزینه برای '{display_name}' اضافه شد.")
+                        else:
+                            print(f"    ✓ گزینه‌های '{display_name}' موجود است ({option_count} گزینه).")
             
             except sqlite3.Error as e:
                 print(f"  خطا در پردازش ستون '{column_key}': {e}")
