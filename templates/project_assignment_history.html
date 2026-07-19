@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تاریخچه مسئول پروژه</title>
+    <style>
+        body { font-family: Tahoma, Arial, sans-serif; background:#f5f5f5; margin:0; padding:25px; }
+        .container { max-width:900px; margin:auto; background:white; padding:25px; border-radius:10px; box-shadow:0 2px 10px #0001; }
+        table { width:100%; border-collapse:collapse; margin-top:20px; }
+        th, td { padding:12px; border-bottom:1px solid #ddd; text-align:right; }
+        th { background:#f1f3f5; }
+        a { display:inline-block; padding:9px 16px; color:white; background:#667eea; border-radius:6px; text-decoration:none; }
+        .summary { background:#eef3ff; padding:14px; border-radius:7px; line-height:1.9; }
+    </style>
+</head>
+<body class="with-app-header">
+    {% include '_app_header.html' %}
+    <div class="container">
+        <h1>تاریخچه مسئول پروژه {{ project.id }}</h1>
+        <div class="summary">
+            <strong>مشتری:</strong> {{ project.customer_name }}<br>
+            <strong>سازنده:</strong> {{ project.created_by_username or 'ثبت نشده' }}<br>
+            <strong>مسئول فعلی:</strong> {{ project.assigned_to_username or 'بدون مسئول' }}
+        </div>
+        <table>
+            <thead><tr><th>زمان</th><th>تغییردهنده</th><th>مسئول قبلی</th><th>مسئول جدید</th></tr></thead>
+            <tbody>
+                {% for log in assignment_logs %}
+                <tr>
+                    <td>{{ log.created_at or '-' }}</td>
+                    <td>{{ log.actor_username or 'اتصال اولیه سیستم' }}</td>
+                    <td>{{ log.previous_username or 'بدون مسئول' }}</td>
+                    <td>{{ log.new_username or 'بدون مسئول' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">هنوز تغییری ثبت نشده است.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

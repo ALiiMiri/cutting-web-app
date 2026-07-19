@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>تنظیمات فیلدهای سفارش - {{ project.customer_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/project_column_settings.css') }}">
+</head>
+<body class="with-app-header">
+  {% include '_app_header.html' %}
+
+  <main class="page">
+    <div class="breadcrumb"><a href="{{ url_for('index') }}">سفارش‌ها</a> / <a href="{{ url_for('project_treeview', project_id=project.id) }}">سفارش {{ project.order_ref or project.id }}</a> / <span>تنظیمات فیلدها</span></div>
+    <div class="heading-row">
+      <div><h1>تنظیمات فیلدهای سفارش</h1><p class="subtitle">اطلاعاتی را که برای ثبت درب‌های این سفارش نیاز دارید، انتخاب کنید.</p></div>
+      <a class="back-button" href="{{ url_for('project_treeview', project_id=project.id, force_refresh=1) }}">← بازگشت به جدول درب‌ها</a>
+    </div>
+
+    <section class="order-card" aria-label="مشخصات سفارش">
+      <div class="order-data"><span class="order-label">مشتری</span><span class="order-value">{{ project.customer_name or '—' }}</span></div>
+      <div class="order-data"><span class="order-label">شماره سفارش</span><span class="order-value">{{ project.order_ref or '—' }}</span></div>
+      <div class="order-data"><span class="order-label">تعداد درب‌ها</span><span class="order-value">{{ total_door_quantity }} درب</span></div>
+    </section>
+
+    <div class="scope-note"><span class="scope-icon">✓</span><span><strong>این تنظیمات فقط برای همین سفارش است.</strong> فیلدهای ساخته‌شده برای استفاده در سفارش‌های آینده نیز در فهرست آماده باقی می‌مانند.</span></div>
+
+    <nav class="tabs" aria-label="بخش‌های تنظیمات">
+      <button class="tab active" data-tab="current">فیلدهای این سفارش <span id="currentTabCount">{{ current_columns|length }}</span></button>
+      <button class="tab" data-tab="library">فیلدهای آماده <span id="libraryTabCount">{{ library_columns|length }}</span></button>
+    </nav>
+
+    <section class="panel active" id="panel-current">
+      <div class="section-card">
+        <div class="section-head"><div><h2>فیلدهای این سفارش</h2><p>خاموش‌کردن یک فیلد، اطلاعات قبلی آن را پاک نمی‌کند.</p></div><span class="count">{{ current_columns|selectattr('is_visible')|list|length }} فیلد فعال</span></div>
+        <div id="currentFields">
+          {% for column in current_columns %}
+          <div class="field-row" data-name="{{ column.display }}" data-column-id="{{ column.id }}">
+            <div><span class="field-title">{{ column.display }}</span><span class="field-help">{% if column.is_visible %}در جدول درب‌ها نمایش داده می‌شود{% else %}فعلاً در جدول پنهان است{% endif %}</span></div>
+            <span class="type-pill">{% if column.type == 'dropdown' %}انتخاب از فهرست{% else %}نوشتن متن{% endif %}</span>
+            <div class="visibility"><label class="switch"><input type="checkbox" {% if column.is_visible %}checked{% endif %} data-action="toggle" data-column-id="{{ column.id }}"><span class="switch-track"></span></label><span>{% if column.is_visible %}نمایش داده شود{% else %}نمایش داده نشود{% endif %}</span></div>
+            <div class="row-actions">
+              {% if column.type == 'dropdown' %}<button class="text-button" type="button" data-action="options" data-column-id="{{ column.id }}" data-column-name="{{ column.display }}" data-column-key="{{ column.key }}">ویرایش گزینه‌ها</button>{% endif %}
+              <button class="icon-button" type="button" data-action="remove" data-column-id="{{ column.id }}" title="برداشتن از این سفارش">×</button>
+            </div>
+          </div>
+          {% else %}
+          <div class="empty"><strong>هنوز فیلدی به سفارش اضافه نشده است.</strong>از بخش «فیلدهای آماده» شروع کنید.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-library">
+      <div class="library-tools"><input class="search" id="searchInput" type="search" placeholder="جستجو در فیلدهای آماده..."><button class="primary-button" id="openCreateModal" type="button">+ ساخت فیلد جدید</button></div>
+      <div class="section-card">
+        <div class="section-head"><div><h2>فیلدهای آماده</h2><p>فیلدهایی که قبلاً ساخته شده‌اند و می‌توانید به این سفارش اضافه کنید.</p></div><span class="count">{{ library_columns|length }} فیلد آماده</span></div>
+        <div id="libraryFields">
+          {% for column in library_columns %}
+          <div class="available-row" data-search-name="{{ column.display|lower }}">
+            <div><span class="field-title">{{ column.display }}</span><span class="field-help">برای استفاده دوباره آماده است</span></div>
+            <span class="type-pill">{% if column.type == 'dropdown' %}انتخاب از فهرست{% else %}نوشتن متن{% endif %}</span>
+            <span class="used-before">{% if column.project_usage_count %}استفاده در {{ column.project_usage_count }} سفارش قبلی{% else %}هنوز استفاده نشده{% endif %}</span>
+            <button class="outline-button" type="button" data-action="add" data-column-id="{{ column.id }}">+ افزودن به سفارش</button>
+          </div>
+          {% else %}
+          <div class="empty"><strong>همه فیلدهای آماده در این سفارش استفاده شده‌اند.</strong>در صورت نیاز یک فیلد جدید بسازید.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="createModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-head"><h3>ساخت فیلد جدید</h3><button class="icon-button" data-close="createModal" type="button">×</button></div>
+      <form id="createForm">
+        <div class="modal-body">
+          <p class="modal-note">فیلد جدید به همین سفارش اضافه می‌شود و برای سفارش‌های آینده هم در فهرست آماده باقی می‌ماند.</p>
+          <div class="form-group"><label for="fieldName">نام فیلد</label><input class="form-control" id="fieldName" required maxlength="80" placeholder="مثلاً: نوع شیشه"></div>
+          <div class="form-group"><label for="fieldType">روش واردکردن اطلاعات</label><select class="form-control" id="fieldType"><option value="text">نوشتن متن</option><option value="dropdown">انتخاب از فهرست آماده</option></select></div>
+        </div>
+        <div class="modal-actions"><button class="back-button" data-close="createModal" type="button">انصراف</button><button class="primary-button" type="submit">ساخت و افزودن به سفارش</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="optionsModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-head"><h3>گزینه‌های «<span id="optionsColumnName"></span>»</h3><button class="icon-button" data-close="optionsModal" type="button">×</button></div>
+      <div class="modal-body">
+        <p class="modal-note">این گزینه‌ها همراه خود فیلد نگهداری می‌شوند و در سفارش‌های دیگری که از این فیلد استفاده کنند نیز در دسترس‌اند.</p>
+        <div class="add-option" id="addOptionArea"><input class="form-control" id="newOptionValue" placeholder="نام گزینه جدید"><button class="primary-button" id="addOptionButton" type="button">افزودن</button></div>
+        <ul class="options-list" id="optionsList"></ul>
+      </div>
+      <div class="modal-actions"><button class="back-button" data-close="optionsModal" type="button">بستن</button></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script>
+    const projectId={{ project.id|tojson }};
+    const csrfToken={{ csrf_token|tojson }};
+    const toast=document.getElementById('toast');let toastTimer;let optionColumnId=null;let optionColumnKey='';
+    function showToast(message,isError=false){toast.textContent=message;toast.classList.toggle('error',isError);toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),2800)}
+    async function post(url,payload){const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify(payload)});const data=await response.json().catch(()=>({success:false,error:'پاسخ نامعتبر از سرور'}));if(!response.ok||!data.success)throw new Error(data.error||'انجام درخواست ممکن نشد.');return data}
+    function selectTab(name){document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===`panel-${name}`))}
+    document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>selectTab(tab.dataset.tab)));
+    document.getElementById('searchInput').addEventListener('input',event=>{const q=event.target.value.trim().toLowerCase();document.querySelectorAll('[data-search-name]').forEach(row=>row.hidden=!row.dataset.searchName.includes(q))});
+    function openModal(id){document.getElementById(id).classList.add('open')}
+    function closeModal(id){document.getElementById(id).classList.remove('open')}
+    document.querySelectorAll('[data-close]').forEach(button=>button.addEventListener('click',()=>closeModal(button.dataset.close)));
+    document.querySelectorAll('.modal-backdrop').forEach(modal=>modal.addEventListener('click',event=>{if(event.target===modal)closeModal(modal.id)}));
+    document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('.modal-backdrop.open').forEach(modal=>closeModal(modal.id))});
+    document.getElementById('openCreateModal').addEventListener('click',()=>{openModal('createModal');setTimeout(()=>document.getElementById('fieldName').focus(),50)});
+    document.getElementById('createForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.submitter;button.disabled=true;try{const data=await post(`/project/${projectId}/settings_columns/create`,{display_name:document.getElementById('fieldName').value,column_type:document.getElementById('fieldType').value});sessionStorage.setItem('fieldSettingsMessage',data.message);location.reload()}catch(error){showToast(error.message,true);button.disabled=false}});
+    document.getElementById('currentFields').addEventListener('change',async event=>{const input=event.target.closest('[data-action="toggle"]');if(!input)return;input.disabled=true;try{const data=await post(`/project/${projectId}/settings_columns/toggle`,{column_id:input.dataset.columnId,is_visible:input.checked});showToast(data.message);input.closest('.visibility').querySelector('span:last-child').textContent=input.checked?'نمایش داده شود':'نمایش داده نشود'}catch(error){input.checked=!input.checked;showToast(error.message,true)}finally{input.disabled=false}});
+    document.getElementById('currentFields').addEventListener('click',async event=>{const button=event.target.closest('button[data-action]');if(!button)return;if(button.dataset.action==='remove'){button.disabled=true;try{const data=await post(`/project/${projectId}/settings_columns/remove`,{column_id:button.dataset.columnId});sessionStorage.setItem('fieldSettingsMessage',data.message);location.reload()}catch(error){showToast(error.message,true);button.disabled=false}}if(button.dataset.action==='options')openOptions(button)});
+    document.getElementById('libraryFields').addEventListener('click',async event=>{const button=event.target.closest('[data-action="add"]');if(!button)return;button.disabled=true;try{const data=await post(`/project/${projectId}/settings_columns/add-existing`,{column_id:button.dataset.columnId});sessionStorage.setItem('fieldSettingsMessage',data.message);location.reload()}catch(error){showToast(error.message,true);button.disabled=false}});
+    async function openOptions(button){optionColumnId=button.dataset.columnId;optionColumnKey=button.dataset.columnKey;document.getElementById('optionsColumnName').textContent=button.dataset.columnName;document.getElementById('optionsList').innerHTML='<li class="empty">در حال دریافت گزینه‌ها...</li>';document.getElementById('addOptionArea').hidden=optionColumnKey==='noe_profile';openModal('optionsModal');await loadOptions()}
+    async function loadOptions(){try{const response=await fetch(`/project/${projectId}/settings_columns/${optionColumnId}/options`);const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'دریافت گزینه‌ها انجام نشد.');const list=document.getElementById('optionsList');list.innerHTML=data.options.length?data.options.map(option=>`<li class="option-row"><span>${escapeHtml(option.value)}</span><span class="option-actions">${optionColumnKey==='noe_profile'?'':`<button class="small-button" data-option-action="edit" data-option-id="${option.id}" data-option-value="${escapeHtml(option.value)}">ویرایش</button><button class="small-button danger" data-option-action="delete" data-option-id="${option.id}">حذف</button>`}</span></li>`).join(''):'<li class="empty">هنوز گزینه‌ای ساخته نشده است.</li>'}catch(error){document.getElementById('optionsList').innerHTML=`<li class="empty">${escapeHtml(error.message)}</li>`}}
+    function escapeHtml(value){return String(value).replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]))}
+    document.getElementById('addOptionButton').addEventListener('click',async()=>{const input=document.getElementById('newOptionValue');const value=input.value.trim();if(!value)return showToast('نام گزینه را وارد کنید.',true);try{const data=await post(`/project/${projectId}/settings_columns/${optionColumnId}/options/add`,{option_value:value});input.value='';showToast(data.message);loadOptions()}catch(error){showToast(error.message,true)}});
+    document.getElementById('optionsList').addEventListener('click',async event=>{const button=event.target.closest('[data-option-action]');if(!button)return;if(button.dataset.optionAction==='edit'){const value=prompt('نام جدید گزینه را وارد کنید:',button.dataset.optionValue);if(value===null)return;try{const data=await post(`/project/${projectId}/settings_columns/${optionColumnId}/options/${button.dataset.optionId}/edit`,{new_value:value});showToast(data.message);loadOptions()}catch(error){showToast(error.message,true)}}else if(confirm('این گزینه از فهرست حذف شود؟')){try{const data=await post(`/project/${projectId}/settings_columns/${optionColumnId}/options/${button.dataset.optionId}/delete`,{});showToast(data.message);loadOptions()}catch(error){showToast(error.message,true)}}});
+    const savedMessage=sessionStorage.getItem('fieldSettingsMessage');if(savedMessage){sessionStorage.removeItem('fieldSettingsMessage');showToast(savedMessage)}
+  </script>
+</body>
+</html>

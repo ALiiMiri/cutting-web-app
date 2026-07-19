@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily verified backup for Cutting Web App
+
+[Timer]
+OnCalendar=*-*-* 02:15:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=cutting-web-backup.service
+
+[Install]
+WantedBy=timers.target

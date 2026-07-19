@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ویرایش گروهی درب‌ها</title>
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 20px;
+            line-height: 1.7;
+            background-color: #f4f7f6;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            margin-top: 0;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+            transition: background-color 0.3s, border-left 0.3s;
+            border-left: 4px solid transparent;
+        }
+
+        .field-row:hover {
+            background-color: #e9ecef !important;
+            border-left: 4px solid #3498db;
+        }
+
+        .field-row.selected-row {
+            background-color: #e3f2fd !important;
+            border-left: 4px solid #2196F3;
+        }
+
+        .checkbox-container {
+            flex: 0 0 50px;
+            text-align: center;
+        }
+
+        .field-label {
+            flex: 0 0 150px;
+            font-weight: bold;
+        }
+
+        .field-input {
+            flex: 1;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        .button-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 1em;
+            margin: 0 5px;
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+        }
+
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .flash.warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .selected-count {
+            color: #2980b9;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .has-data {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            padding: 2px;
+        }
+        
+        .data-indicator {
+            margin-right: 5px;
+            color: #e74c3c;
+            font-size: 14px;
+        }
+        
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        /* سبک‌دهی بیشتر برای چک‌باکس‌ها تا بزرگتر و واضح‌تر باشند */
+        .checkbox-container input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* افزودن انیمیشن برای تغییر وضعیت */
+        .field-row {
+            transition: background-color 0.3s, border-left 0.3s;
+            border-left: 4px solid transparent;
+        }
+
+        .field-row.clickable-row {
+            cursor: pointer;
+            transition: background-color 0.2s, border-left 0.2s;
+            position: relative;
+        }
+
+        .field-row.clickable-row:hover {
+            background-color: #e9ecef !important;
+            border-left: 4px solid #3498db;
+        }
+
+        .field-row.selected-row {
+            background-color: #e3f2fd !important;
+            border-left: 4px solid #2196F3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>ویرایش گروهی درب‌ها - پروژه: {{ project.customer_name }}</h1>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="selected-count">
+            تعداد درب‌های انتخاب شده: {{ door_ids|length }} عدد
+        </div>
+
+        <form method="post" action="{{ url_for('apply_batch_edit', project_id=project.id) }}">
+            <input type="hidden" name="door_ids" value="{{ door_ids|join(',') }}">
+
+            <!-- فیلدهای پایه -->
+            <p class="note">در این قسمت می‌توانید ویژگی‌های مشترک را برای تمام درب‌های انتخاب شده به یکباره تغییر دهید.
+            </p>
+
+            {% for key, column_data in column_options.items() %}
+            <div class="field-row">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="update_{{ key }}" name="update_{{ key }}" {% if column_data.visible %}checked{% endif %}>
+                </div>
+                <label class="field-label" for="value_{{ key }}">{{ column_data.display }}:</label>
+                <div class="field-input">
+                    {% if column_data.options %}
+                    <select id="value_{{ key }}" name="value_{{ key }}" {% if not column_data.visible %}disabled{% endif %}>
+                        <option value="">انتخاب کنید</option>
+                        {% for option in column_data.options %}
+                        <option value="{{ option }}">{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input type="text" id="value_{{ key }}" name="value_{{ key }}" {% if not column_data.visible %}disabled{% endif %}>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+
+            <div class="button-container">
+                <button type="submit" class="btn btn-primary">اعمال تغییرات</button>
+                <a href="{{ url_for('project_treeview', project_id=project.id, t=timestamp) }}" class="btn btn-secondary">انصراف</a>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // بهبود مدیریت نمایش ستون‌ها با افزودن بازخورد کاربری
+        document.addEventListener('DOMContentLoaded', function() {
+            // بررسی وضعیت اولیه ستون‌ها - کدام ستون‌ها قابل مخفی کردن هستند
+            checkColumnVisibilityStatus();
+            
+            // رویداد تغییر چک‌باکس‌ها
+            const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="update_"]');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function(event) {
+                    const columnKey = this.id.replace('update_', '');
+                    
+                    // فقط اگر کاربر می‌خواهد ستون را مخفی کند، بررسی شود
+                    if (!this.checked) {
+                        if (!canHideColumn(columnKey)) {
+                            // نمایش پیام خطا با استفاده از کلاس flash
+                            showErrorMessage(`ستون "${getColumnDisplayName(columnKey)}" نمی‌تواند مخفی شود زیرا دارای داده است.`);
+                            
+                            // برگرداندن وضعیت چک‌باکس به حالت قبلی
+                            this.checked = true;
+                            
+                            // جلوگیری از ادامه اجرای رویداد
+                            event.preventDefault();
+                            event.stopPropagation();
+                            return false;
+                        }
+                    }
+                    
+                    // فعال/غیرفعال کردن فیلد مربوطه (کد موجود)
+                    const fieldId = this.id.replace('update_', 'value_');
+                    const field = document.getElementById(fieldId);
+                    if (field) {
+                        field.disabled = !this.checked;
+                        if (this.checked) {
+                            field.focus();
+                        }
+                    }
+                    
+                    // ارسال درخواست AJAX برای تغییر وضعیت نمایش ستون
+                    fetch(`/project/{{ project.id }}/toggle_column_display`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `column_key=${columnKey}&is_visible=${this.checked ? 1 : 0}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log(`وضعیت نمایش ستون ${columnKey} با موفقیت به‌روز شد`);
+                        } else {
+                            console.error('خطا در به‌روزرسانی نمایش ستون');
+                            if (data.error) {
+                                showErrorMessage(data.error);
+                                // برگرداندن وضعیت چک‌باکس
+                                this.checked = true;
+                                if (field) {
+                                    field.disabled = false;
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                });
+            });
+            
+            // تابع بررسی امکان مخفی کردن ستون
+            function canHideColumn(columnKey) {
+                let canHide = true;
+                
+                // ارسال درخواست همزمان به API برای بررسی امکان مخفی کردن
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/project/{{ project.id }}/check_column_can_hide`, false); // همزمان
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        canHide = response.can_hide;
+                        if (!canHide) {
+                            console.log('دلیل عدم امکان مخفی کردن:', response.reason);
+                        }
+                    } else {
+                        console.error('خطا در بررسی ستون:', xhr.statusText);
+                    }
+                };
+                xhr.send(`column_key=${columnKey}`);
+                
+                return canHide;
+            }
+            
+            // تابع بررسی وضعیت اولیه ستون‌ها - کدام ستون‌ها می‌توانند مخفی شوند
+            function checkColumnVisibilityStatus() {
+                const checkboxes = document.querySelectorAll('input[type="checkbox"][id^="update_"]');
+                
+                checkboxes.forEach(function(checkbox) {
+                    const columnKey = checkbox.id.replace('update_', '');
+                    
+                    // قبل از نشان دادن نشانگر، از سرور استعلام کنیم که آیا ستون واقعاً داده دارد یا خیر
+                    fetch(`/project/{{ project.id }}/check_column_can_hide`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `column_key=${columnKey}`
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        // اگر ستون نمی‌تواند مخفی شود (دارای داده است)
+                        if (!data.can_hide) {
+                            // حالت‌های مختلف بازخورد کاربری:
+                            
+                            // 1. افزودن کلاس CSS برای نشان دادن اینکه نمی‌تواند مخفی شود
+                            checkbox.parentElement.classList.add('has-data');
+                            
+                            // 2. افزودن tooltip برای توضیح بیشتر
+                            const reason = data.reason || 'این ستون دارای داده است و نمی‌تواند مخفی شود';
+                            checkbox.setAttribute('title', reason);
+                            
+                            // 3. افزودن نشانگر بصری در کنار چک‌باکس (فقط اگر قبلاً اضافه نشده)
+                            if (!checkbox.parentElement.querySelector('.data-indicator')) {
+                                const indicator = document.createElement('span');
+                                indicator.className = 'data-indicator';
+                                indicator.textContent = '📝'; // نماد داده
+                                indicator.title = reason;
+                                checkbox.parentElement.appendChild(indicator);
+                            }
+                        } else {
+                            // اگر ستون می‌تواند مخفی شود (داده ندارد)
+                            // نشانگر داده را حذف کنیم اگر قبلاً اضافه شده
+                            const existingIndicator = checkbox.parentElement.querySelector('.data-indicator');
+                            if (existingIndicator) {
+                                existingIndicator.remove();
+                            }
+                            
+                            // حذف کلاس has-data
+                            checkbox.parentElement.classList.remove('has-data');
+                            
+                            // به‌روزرسانی tooltip
+                            checkbox.setAttribute('title', 'این ستون می‌تواند مخفی شود (داده ندارد)');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking column status:', error);
+                    });
+                });
+            }
+            
+            // تابع نمایش پیام خطا
+            function showErrorMessage(message) {
+                // ایجاد المان پیام خطا
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'flash error';
+                errorDiv.textContent = message;
+                
+                // افزودن به ابتدای صفحه
+                const container = document.querySelector('.container');
+                container.insertBefore(errorDiv, container.firstChild);
+                
+                // حذف پیام بعد از 5 ثانیه
+                setTimeout(function() {
+                    if (errorDiv.parentNode) {
+                        errorDiv.parentNode.removeChild(errorDiv);
+                    }
+                }, 5000);
+            }
+            
+            // تابع دریافت نام نمایشی ستون براساس کلید - بهبود یافته
+            function getColumnDisplayName(columnKey) {
+                // جستجو در لیبل‌های صفحه - بهبود روش جستجو
+                const labelEl = document.querySelector(`label[for="value_${columnKey}"]`) || 
+                              document.querySelector(`label[for="update_${columnKey}"]`) ||
+                              document.querySelector(`.field-label`);
+                
+                if (labelEl) {
+                    return labelEl.textContent.replace(':', '').trim();
+                }
+                
+                // اگر لیبل پیدا نشد، از کلید استفاده می‌کنیم
+                return columnKey;
+            }
+            
+            // افزودن CSS برای نمایش بهتر
+            function addCustomStyles() {
+                const styleEl = document.createElement('style');
+                styleEl.textContent = `
+                    .has-data {
+                        background-color: #ffeeee;
+                        border-radius: 4px;
+                        padding: 2px;
+                        position: relative;
+                    }
+                    
+                    .has-data input[type="checkbox"] {
+                        border-color: #e74c3c;
+                    }
+                    
+                    .data-indicator {
+                        margin-right: 5px;
+                        color: #e74c3c;
+                        font-size: 14px;
+                        cursor: help;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 50%;
+                        background-color: #fff;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+                        animation: pulse 2s infinite;
+                    }
+                    
+                    @keyframes pulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                        100% { transform: scale(1); }
+                    }
+                    
+                    .tooltip {
+                        position: absolute;
+                        background-color: #333;
+                        color: white;
+                        padding: 5px 10px;
+                        border-radius: 4px;
+                        z-index: 100;
+                        display: none;
+                        max-width: 250px;
+                        font-size: 12px;
+                        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                    }
+                    
+                    .tooltip:after {
+                        content: "";
+                        position: absolute;
+                        top: 100%;
+                        left: 50%;
+                        margin-left: -5px;
+                        border-width: 5px;
+                        border-style: solid;
+                        border-color: #333 transparent transparent transparent;
+                    }
+                    
+                    .has-data:hover .tooltip {
+                        display: block;
+                    }
+                    
+                    .flash.error {
+                        background-color: #f8d7da;
+                        color: #721c24;
+                        border: 1px solid #f5c6cb;
+                        padding: 10px;
+                        border-radius: 4px;
+                        margin-bottom: 10px;
+                        text-align: center;
+                    }
+                `;
+                document.head.appendChild(styleEl);
+            }
+            
+            // اضافه کردن استایل‌های سفارشی
+            addCustomStyles();
+            
+            // تولید timestamp برای استفاده در URL‌ها
+            const timestamp = Math.floor(Date.now() / 1000);
+            document.querySelectorAll('a[href*="project_treeview"]').forEach(link => {
+                link.href = link.href + (link.href.includes('?') ? '&' : '?') + 't=' + timestamp;
+            });
+            
+            // یافتن تمام سطرهای فرم ویرایش گروهی
+            const rows = document.querySelectorAll('.field-row');
+            
+            rows.forEach(function(row) {
+                // اضافه کردن کلاس برای نشان دادن اینکه این سطر قابل کلیک است
+                row.classList.add('clickable-row');
+                
+                // اضافه کردن رویداد کلیک به سطر
+                row.addEventListener('click', function(event) {
+                    // اگر کلیک روی خود چک‌باکس یا عناصر ورودی نبود
+                    if (!event.target.matches('input[type="checkbox"], input, select, button, label') && 
+                        !event.target.closest('input, select, button')) {
+                        
+                        // پیدا کردن چک‌باکس درون این سطر
+                        const checkbox = row.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            // تغییر وضعیت چک‌باکس
+                            checkbox.checked = !checkbox.checked;
+                            
+                            // اضافه یا حذف کلاس برای نشان دادن وضعیت انتخاب شده
+                            if (checkbox.checked) {
+                                row.classList.add('selected-row');
+                            } else {
+                                row.classList.remove('selected-row');
+                            }
+                            
+                            // فعال/غیرفعال کردن فیلد مربوطه
+                            const fieldId = checkbox.id.replace('update_', 'value_');
+                            const field = document.getElementById(fieldId);
+                            if (field) {
+                                field.disabled = !checkbox.checked;
+                                if (checkbox.checked) {
+                                    field.focus();
+                                }
+                            }
+                            
+                            // فراخوانی رویداد change برای چک‌باکس تا کدهای وابسته اجرا شوند
+                            const event = new Event('change', { bubbles: true });
+                            checkbox.dispatchEvent(event);
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

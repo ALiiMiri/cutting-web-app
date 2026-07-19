@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>انبار ضایعات</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        @font-face {
+            font-family: Vazir;
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f4f7f9; color: #263238; font-family: Vazir, Tahoma, sans-serif; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 22px; }
+        .header { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 20px; }
+        h1, h2 { margin: 0; }
+        .btn { display: inline-block; border: 0; border-radius: 6px; padding: 9px 14px; text-decoration: none; cursor: pointer; font-family: inherit; }
+        .btn-dark { background: #34495e; color: #fff; }
+        .btn-primary { background: #2980b9; color: #fff; }
+        .btn-danger { background: #c0392b; color: #fff; }
+        .btn-light { background: #ecf0f1; color: #263238; }
+        .card { background: #fff; border-radius: 10px; box-shadow: 0 3px 12px rgba(0,0,0,.06); padding: 18px; margin-bottom: 18px; }
+        .flash { padding: 12px 15px; margin-bottom: 14px; border-radius: 6px; white-space: pre-line; }
+        .flash.success { background: #d4edda; color: #155724; }
+        .flash.error { background: #f8d7da; color: #721c24; }
+        .notice { background: #fff8df; border-right: 4px solid #f1c40f; padding: 11px 14px; margin: 12px 0; }
+        .stats { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 14px; }
+        .stat { padding: 16px; border-radius: 9px; background: linear-gradient(135deg, #f8fbfd, #eef4f7); text-align: center; }
+        .stat-value { font-size: 1.55rem; font-weight: bold; color: #176b87; }
+        .stat-label { color: #68757b; font-size: .9rem; }
+        .filters { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        select, input, textarea { width: 100%; padding: 8px; border: 1px solid #ccd6db; border-radius: 5px; font-family: inherit; }
+        .profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 14px; }
+        .profile-card { display: block; padding: 14px; border: 1px solid #dfe7eb; border-radius: 8px; text-decoration: none; color: inherit; }
+        .profile-card:hover { border-color: #3498db; background: #f7fbfe; }
+        .profile-name { font-weight: bold; margin-bottom: 8px; color: #24627a; }
+        .muted { color: #718087; font-size: .88rem; }
+        .table-wrap { overflow-x: auto; margin-top: 12px; }
+        table { width: 100%; border-collapse: collapse; min-width: 980px; }
+        th, td { padding: 10px; text-align: right; border-bottom: 1px solid #e5ecef; vertical-align: top; }
+        th { background: #edf4f7; white-space: nowrap; }
+        .status { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: .82rem; }
+        .status-available { background: #d4edda; color: #155724; }
+        .status-sold { background: #d1ecf1; color: #0c5460; }
+        .status-recycled { background: #d8f3dc; color: #1b4332; }
+        .status-discarded, .status-reversed { background: #eee; color: #555; }
+        .status-consumed { background: #fff3cd; color: #856404; }
+        details { min-width: 250px; }
+        summary { cursor: pointer; color: #2471a3; font-weight: bold; }
+        .action-form { padding-top: 10px; }
+        .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+        .action-form textarea { margin-top: 7px; min-height: 55px; }
+        .action-form button { margin-top: 7px; width: 100%; }
+        .empty { text-align: center; padding: 30px; color: #718087; }
+        @media (max-width: 850px) {
+            .header { align-items: flex-start; flex-direction: column; }
+            .stats, .filters { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 520px) { .stats, .filters { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+{% set status_labels = {
+    'available': 'موجود', 'sold': 'فروخته‌شده', 'recycled': 'بازیافت‌شده',
+    'discarded': 'دورریخته‌شده', 'consumed': 'مصرف مجدد', 'reversed': 'بازگردانی‌شده'
+} %}
+<div class="container">
+    <div class="header">
+        <div>
+            <h1><i class="fas fa-recycle"></i> انبار ضایعات</h1>
+            <div class="muted">ردیابی ضایعات بر اساس پروفیل، پروژه و عملیات برش</div>
+        </div>
+        <div>
+            <a class="btn btn-dark" href="{{ url_for('inventory.dashboard') }}">بازگشت به انبار</a>
+            <a class="btn btn-light" href="{{ url_for('index') }}">خانه</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}
+    {% endwith %}
+
+    <div class="notice">
+        وزن اولیه ضایعات از طرح برش محاسبه می‌شود. اگر وزن‌کشی واقعی انجام شد، ادمین می‌تواند مقدار واقعی را ثبت کند.
+    </div>
+
+    <div class="card">
+        <div class="stats">
+            <div class="stat"><div class="stat-value">{{ waste.totals.piece_count or 0 }}</div><div class="stat-label">تکه ضایعات موجود</div></div>
+            <div class="stat"><div class="stat-value">{{ '%.1f'|format(waste.totals.total_length_cm or 0) }}</div><div class="stat-label">سانتی‌متر طول موجود</div></div>
+            <div class="stat"><div class="stat-value">{{ '%.2f'|format(waste.totals.total_weight_kg or 0) }}</div><div class="stat-label">کیلوگرم وزن موجود</div></div>
+            <div class="stat"><div class="stat-value">{{ waste.totals.confirmed_count or 0 }}</div><div class="stat-label">تکه با وزن واقعی</div></div>
+            <div class="stat"><div class="stat-value">{{ '%.0f'|format(waste.sold_total_amount or 0) }}</div><div class="stat-label">ریال فروش ثبت‌شده</div></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <form class="filters" method="GET">
+            <div><label>پروفیل</label><select name="profile_id"><option value="">همه پروفیل‌ها</option>{% for p in waste.profiles %}<option value="{{ p.id }}" {% if selected_profile_id == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></div>
+            <div><label>پروژه</label><select name="project_id"><option value="">همه پروژه‌ها</option>{% for p in waste.projects %}<option value="{{ p.id }}" {% if selected_project_id == p.id %}selected{% endif %}>{{ p.customer_name }}{% if p.project_code %} ({{ p.project_code }}){% endif %}</option>{% endfor %}</select></div>
+            <div><label>وضعیت</label><select name="status"><option value="all" {% if selected_status == 'all' %}selected{% endif %}>همه وضعیت‌ها</option>{% for key, label in status_labels.items() %}<option value="{{ key }}" {% if selected_status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+            <div><button class="btn btn-primary" type="submit">اعمال فیلتر</button> <a class="btn btn-light" href="{{ url_for('inventory.waste_dashboard') }}">پاک‌کردن</a></div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>تفکیک پروفیل</h2>
+        {% if waste.profile_summaries %}
+        <div class="profile-grid">
+            {% for row in waste.profile_summaries %}
+            <a class="profile-card" href="{{ url_for('inventory.waste_dashboard', profile_id=row.profile_type_id, status='available') }}">
+                <div class="profile-name">{{ row.profile_name }}</div>
+                <div>{{ row.piece_count }} تکه — {{ '%.2f'|format(row.total_weight_kg) }} کیلوگرم</div>
+                <div class="muted">رنگ {{ row.color_name or 'تعیین‌نشده' }} — {{ '%.1f'|format(row.total_length_cm) }} سانتی‌متر از {{ row.project_count }} پروژه</div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}<div class="empty">هنوز ضایعات موجودی ثبت نشده است.</div>{% endif %}
+    </div>
+
+    {% if waste.project_summaries %}
+    <div class="card">
+        <h2>پروژه‌های مبدأ{% if selected_profile_id %} برای پروفیل انتخاب‌شده{% endif %}</h2>
+        <div class="table-wrap"><table><thead><tr><th>پروژه</th><th>تعداد تکه</th><th>طول کل</th><th>وزن کل</th><th></th></tr></thead><tbody>
+        {% for row in waste.project_summaries %}<tr><td>{{ row.project_name }}{% if row.project_code %} ({{ row.project_code }}){% endif %}</td><td>{{ row.piece_count }}</td><td>{{ '%.1f'|format(row.total_length_cm) }} cm</td><td>{{ '%.2f'|format(row.total_weight_kg) }} kg</td><td><a href="{{ url_for('inventory.waste_dashboard', profile_id=selected_profile_id or '', project_id=row.project_id, status='available') }}">نمایش تکه‌ها</a></td></tr>{% endfor %}
+        </tbody></table></div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <h2>جزئیات ضایعات</h2>
+        {% if waste['items'] %}
+        <div class="table-wrap"><table>
+            <thead><tr><th>شناسه</th><th>پروفیل</th><th>رنگ</th><th>پروژه مبدأ</th><th>طول</th><th>وزن محاسباتی</th><th>وزن واقعی</th><th>منبع</th><th>تاریخ</th><th>وضعیت</th>{% if current_user.role in ['admin', 'manager'] %}<th>مدیریت</th>{% endif %}</tr></thead>
+            <tbody>{% for item in waste['items'] %}<tr>
+                <td>#{{ item.id }}</td><td>{{ item.profile_name_snapshot }}</td><td>{{ item.color_name_snapshot or 'تعیین‌نشده' }}</td>
+                <td>{{ item.project_name }}{% if item.project_code %} ({{ item.project_code }}){% endif %}</td>
+                <td>{{ '%.1f'|format(item.length_cm) }} cm</td><td>{{ '%.3f'|format(item.calculated_weight_kg) }} kg</td>
+                <td>{% if item.actual_weight_kg is not none %}{{ '%.3f'|format(item.actual_weight_kg) }} kg{% else %}<span class="muted">ثبت نشده</span>{% endif %}</td>
+                <td>{% if item.source_type == 'inventory_piece' %}قطعه موجود{% if item.source_piece_id %} #{{ item.source_piece_id }}{% endif %}{% else %}شاخه جدید{% endif %}</td><td>{{ item.created_at }}</td>
+                <td><span class="status status-{{ item.status }}">{{ status_labels.get(item.status, item.status) }}</span>{% if item.last_counterparty %}<div class="muted">{{ item.last_counterparty }}</div>{% endif %}{% if item.last_total_amount is not none %}<div class="muted">{{ '%.0f'|format(item.last_total_amount) }} ریال</div>{% endif %}{% if item.last_note %}<div class="muted">{{ item.last_note }}</div>{% endif %}</td>
+                {% if current_user.role in ['admin', 'manager'] %}<td>
+                    {% if item.status != 'reversed' %}<details><summary>ثبت عملیات</summary>
+                    <form class="action-form" method="POST" action="{{ url_for('inventory.update_waste', item_id=item.id) }}">
+                        <input type="hidden" name="profile_id" value="{{ selected_profile_id or '' }}"><input type="hidden" name="project_id" value="{{ selected_project_id or '' }}"><input type="hidden" name="status" value="{{ selected_status }}">
+                        <label>نوع عملیات</label><select name="action_type" required>
+                            {% if item.status == 'available' %}<option value="confirm">تأیید وزن واقعی</option><option value="sold">فروش</option><option value="recycled">تحویل بازیافت</option><option value="discarded">دورریز</option><option value="consumed">مصرف مجدد</option>
+                            {% else %}<option value="return_available">بازگشت به موجودی ضایعات</option>{% endif %}
+                        </select>
+                        <div class="action-grid"><div><label>وزن واقعی (kg)</label><input type="number" name="actual_weight" min="0" step="0.001" value="{{ item.actual_weight_kg or '' }}"></div><div><label>قیمت هر کیلو</label><input type="number" name="price_per_kg" min="0" step="1"></div></div>
+                        <label>خریدار/تحویل‌گیرنده</label><input name="counterparty"><label>توضیحات</label><textarea name="note"></textarea>
+                        <button class="btn btn-danger" type="submit" onclick="return confirm('ثبت این عملیات روی ضایعات تأیید می‌شود؟')">ثبت</button>
+                    </form></details>{% else %}—{% endif %}
+                </td>{% endif %}
+            </tr>{% endfor %}</tbody>
+        </table></div>
+        {% else %}<div class="empty">رکوردی با فیلتر انتخاب‌شده وجود ندارد.</div>{% endif %}
+    </div>
+</div>
+</body>
+</html>

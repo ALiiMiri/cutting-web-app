@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مرکز اصلاحات انبار</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @font-face{font-family:Vazir;src:url("{{ url_for('static',filename='Vazir.ttf') }}") format('truetype')}
+        *{box-sizing:border-box} body{margin:0;background:#f3f6f8;color:#263238;font-family:Vazir,Tahoma,sans-serif}
+        .container{max-width:1250px;margin:22px auto;padding:0 16px}.header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
+        h1{margin:0;color:#1f3b4d}h2{font-size:1.2rem;margin:0 0 16px;color:#24495e}.subtitle{color:#607d8b;margin-top:6px}
+        .btn{border:0;border-radius:7px;padding:10px 15px;color:#fff;text-decoration:none;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:7px}
+        .primary{background:#1976d2}.danger{background:#d32f2f}.warning{background:#ef6c00}.success{background:#2e7d32}.dark{background:#455a64}
+        .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.card{background:#fff;border-radius:10px;padding:20px;box-shadow:0 2px 12px #26323816;margin-bottom:18px}
+        label{display:block;font-weight:bold;margin:10px 0 6px}select,input,textarea{width:100%;border:1px solid #cfd8dc;border-radius:6px;padding:10px;font:inherit;background:#fff}textarea{min-height:76px;resize:vertical}
+        .hint{font-size:.88rem;color:#607d8b;margin:7px 0 12px}.flash{padding:12px;border-radius:7px;margin-bottom:12px;white-space:pre-line}.flash.success{background:#e8f5e9;color:#1b5e20}.flash.error{background:#ffebee;color:#b71c1c}.flash.warning{background:#fff8e1;color:#8d6e00}
+        .undo{border-right:5px solid #ef6c00}.blocked{background:#fff3e0;padding:12px;border-radius:7px;color:#8d4b00}.preview{margin:12px 0;padding-right:20px}.preview li{margin:7px 0}
+        table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{padding:10px;border-bottom:1px solid #eceff1;text-align:right}th{background:#f5f7f8}.table-wrap{overflow:auto}.badge{display:inline-block;border-radius:12px;padding:3px 9px;background:#eceff1;font-size:.8rem}.badge.applied{background:#e8f5e9;color:#1b5e20}.badge.reversed{background:#ffebee;color:#b71c1c}
+        .empty{color:#78909c;text-align:center;padding:15px}.full{grid-column:1/-1}@media(max-width:800px){.grid{grid-template-columns:1fr}.header{align-items:flex-start;flex-direction:column}.full{grid-column:auto}}
+    </style>
+</head>
+<body><div class="container">
+    <div class="header"><div><h1><i class="fas fa-screwdriver-wrench"></i> مرکز اصلاحات انبار</h1><div class="subtitle">همه اصلاحات با نام ادمین، دلیل و مقدار قبل و بعد ثبت می‌شوند.</div></div><a class="btn dark" href="{{ url_for('inventory.dashboard') }}"><i class="fas fa-arrow-right"></i> بازگشت به انبار</a></div>
+    {% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+    <div class="card undo">
+        <h2><i class="fas fa-rotate-left"></i> بازگردانی کامل آخرین عملیات</h2>
+        {% if latest_operation %}
+        <p><strong>عملیات شماره {{ latest_operation.id }}</strong> — {{ latest_operation.description or latest_operation.operation_type }}</p>
+        <div class="hint">زمان: {{ latest_operation.created_at }}{% if latest_operation.actor_username %} | کاربر: {{ latest_operation.actor_username }}{% endif %}</div>
+        <ul class="preview">{% for item in latest_operation['items'] %}<li><strong>{{ item.profile_name }} — {{ item.color_name_snapshot or 'تعیین‌نشده' }}:</strong> {% if item.action_type=='stock_delta' %}تغییر {{ item.quantity_delta }} شاخه{% elif item.action_type=='piece_add' %}افزودن قطعه {{ item.length }} سانتی‌متری{% else %}حذف قطعه {{ item.length }} سانتی‌متری{% endif %}</li>{% endfor %}</ul>
+        {% if latest_operation.can_undo %}<form method="post" action="{{ url_for('inventory.undo_operation',operation_id=latest_operation.id) }}" onsubmit="return confirm('کل این عملیات به حالت قبل برگردد؟')"><label>دلیل بازگردانی</label><textarea name="reason" minlength="3" required></textarea><button class="btn danger" type="submit"><i class="fas fa-rotate-left"></i> بازگردانی کامل</button></form>
+        {% else %}<div class="blocked"><strong>این عملیات قابل بازگردانی نیست:</strong><ul>{% for error in latest_operation.validation_errors %}<li>{{ error }}</li>{% endfor %}</ul></div>{% endif %}
+        {% else %}<div class="empty">عملیات قابل‌بازگشتی وجود ندارد.</div>{% endif %}
+    </div>
+
+    <div class="grid">
+        <div class="card"><h2><i class="fas fa-boxes-stacked"></i> اصلاح تعداد شاخه کامل</h2><form method="post" action="{{ url_for('inventory.correct_stock') }}">
+            <label>نوع پروفیل</label><select name="profile_id" required><option value="">انتخاب کنید</option>{% for p in correction.profiles %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+            <label>رنگ</label><select name="color_id" required><option value="">انتخاب کنید</option>{% for c in correction.colors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+            <label>نوع اصلاح</label><select name="direction" required><option value="increase">افزایش موجودی جامانده</option><option value="decrease">کاهش موجودی اشتباه</option></select>
+            <label>تعداد شاخه</label><input type="number" name="quantity" min="1" required>
+            <label>دلیل اصلاح</label><textarea name="reason" minlength="3" required placeholder="مثلاً ۵ شاخه دوبار ثبت شده بود"></textarea><button class="btn primary" type="submit">ثبت اصلاح تعداد</button>
+        </form></div>
+
+        <div class="card"><h2><i class="fas fa-palette"></i> انتقال موجودی بین رنگ‌ها</h2><form method="post" action="{{ url_for('inventory.correct_color') }}">
+            <label>نوع پروفیل</label><select name="profile_id" required><option value="">انتخاب کنید</option>{% for p in correction.profiles %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+            <label>رنگ اشتباه</label><select name="source_color_id" required><option value="">انتخاب کنید</option>{% for c in correction.colors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+            <label>رنگ صحیح</label><select name="target_color_id" required><option value="">انتخاب کنید</option>{% for c in correction.colors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+            <label>تعداد شاخه</label><input type="number" name="quantity" min="1" required>
+            <label>دلیل اصلاح</label><textarea name="reason" minlength="3" required></textarea><button class="btn warning" type="submit">ثبت انتقال رنگ</button>
+        </form></div>
+
+        <div class="card"><h2><i class="fas fa-ruler"></i> افزودن قطعه جامانده</h2><form method="post" action="{{ url_for('inventory.correct_piece_add') }}">
+            <label>نوع پروفیل</label><select name="profile_id" required><option value="">انتخاب کنید</option>{% for p in correction.profiles %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select>
+            <label>رنگ</label><select name="color_id" required><option value="">انتخاب کنید</option>{% for c in correction.colors %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select>
+            <label>طول قطعه (سانتی‌متر)</label><input type="number" name="length" min="0.1" step="0.1" required>
+            <label>دلیل اصلاح</label><textarea name="reason" minlength="3" required></textarea><button class="btn success" type="submit">افزودن قطعه اصلاحی</button>
+        </form></div>
+
+        <div class="card"><h2><i class="fas fa-trash-can"></i> حذف قطعه اشتباه</h2>{% if correction.pieces %}<form method="post" action="{{ url_for('inventory.correct_piece_remove') }}">
+            <label>قطعه</label><select name="piece_id" required>{% for piece in correction.pieces %}<option value="{{ piece.id }}">#{{ piece.id }} — {{ piece.profile_name }} — {{ piece.color_name }} — {{ piece.length }} cm</option>{% endfor %}</select>
+            <label>دلیل اصلاح</label><textarea name="reason" minlength="3" required></textarea><button class="btn danger" type="submit">حذف با ثبت سابقه</button>
+        </form>{% else %}<div class="empty">قطعه‌ای برای اصلاح وجود ندارد.</div>{% endif %}</div>
+
+        <div class="card full"><h2>وضعیت فعلی موجودی رنگی</h2><div class="table-wrap"><table><thead><tr><th>پروفیل</th><th>رنگ</th><th>تعداد</th></tr></thead><tbody>{% for row in correction.stock %}<tr><td>{{ row.profile_name }}</td><td>{{ row.color_name }}</td><td>{{ row.quantity }}</td></tr>{% else %}<tr><td colspan="3" class="empty">موجودی شاخه کامل صفر است.</td></tr>{% endfor %}</tbody></table></div></div>
+        <div class="card full"><h2>تاریخچه عملیات و اصلاحات</h2><div class="table-wrap"><table><thead><tr><th>شماره</th><th>نوع</th><th>شرح و دلیل</th><th>ادمین/کاربر</th><th>زمان</th><th>وضعیت</th></tr></thead><tbody>{% for op in correction.operations %}<tr><td>#{{ op.id }}</td><td>{{ op.operation_type }}</td><td>{{ op.description or '-' }}</td><td>{{ op.actor_username or '-' }}</td><td>{{ op.created_at }}</td><td><span class="badge {{ op.status }}">{{ 'فعال' if op.status=='applied' else 'بازگردانده‌شده' }}</span></td></tr>{% else %}<tr><td colspan="6" class="empty">هنوز عملیاتی ثبت نشده است.</td></tr>{% endfor %}</tbody></table></div></div>
+    </div>
+</div></body></html>

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>سفارش‌ها</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/orders_dashboard.css') }}">
+</head>
+<body class="with-app-header" data-view="{{ orders_view_preference }}">
+{% macro sort_link(label, column) -%}
+    {% set next_order = 'ASC' if sort_by != column or sort_order == 'DESC' else 'DESC' %}
+    <a href="{{ url_for('index', page=1, search=search, sort_by=column, sort_order=next_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, scope=scope, per_page=per_page) }}">
+        {{ label }} {% if sort_by == column %}{{ '↑' if sort_order == 'ASC' else '↓' }}{% else %}↕{% endif %}
+    </a>
+{%- endmacro %}
+{% macro project_actions(project, mode) -%}
+    <a href="{{ url_for('view_project', project_id=project.id) }}" class="open-order">بازکردن سفارش</a>
+    {% if project.can_edit or current_user.role in ['admin', 'manager'] %}
+    <span class="menu-placeholder"><button class="more-button" type="button" data-project-menu="{{ mode }}-{{ project.id }}" aria-label="عملیات بیشتر سفارش {{ project.order_ref }}">…</button></span>
+    <div class="row-menu" data-menu-panel="{{ mode }}-{{ project.id }}">
+        {% if project.can_edit %}<button type="button" data-edit-project="{{ project.id }}">ویرایش سفارش</button>{% endif %}
+        {% if current_user.role in ['admin', 'manager'] %}
+        <button type="button" data-assign-project="{{ project.id }}">واگذاری مسئول</button>
+        <a href="{{ url_for('project_assignment_history', project_id=project.id) }}">تاریخچه واگذاری</a>
+        <button class="delete" type="button" data-delete-project="{{ project.id }}">حذف سفارش</button>
+        {% endif %}
+    </div>
+    {% endif %}
+{%- endmacro %}
+
+{% include '_app_header.html' %}
+
+<main class="page">
+    <div class="crumb">خانه / <span>سفارش‌ها</span></div>
+    <div class="page-head">
+        <div><h1>سفارش‌ها</h1><p>سفارش موردنظر را پیدا کنید یا یک سفارش جدید بسازید.</p></div>
+        <div class="head-actions">
+            <div class="view-switch" aria-label="نوع نمایش سفارش‌ها">
+                <button class="view-option{% if orders_view_preference == 'table' %} active{% endif %}" type="button" data-view-option="table" aria-pressed="{{ 'true' if orders_view_preference == 'table' else 'false' }}"><span class="view-icon">☷</span>نمایش جدولی</button>
+                <button class="view-option{% if orders_view_preference == 'cards' %} active{% endif %}" type="button" data-view-option="cards" aria-pressed="{{ 'true' if orders_view_preference == 'cards' else 'false' }}"><span class="view-icon">▦</span>نمایش کارتی</button>
+            </div>
+            {% if current_user.role != 'read_only' %}<a class="add-order" href="{{ url_for('add_project_form') }}">＋ ایجاد سفارش جدید</a>{% endif %}
+        </div>
+    </div>
+    <div class="preference-note">نوع نمایش انتخابی، <strong>فقط برای حساب شما</strong> ذخیره می‌شود.</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category, message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+    <section class="overview">
+        <div class="overview-item"><span>کل سفارش‌های قابل مشاهده</span><strong>{{ dashboard_counts.total }}</strong></div>
+        <div class="overview-item"><span>سفارش‌های من</span><strong>{{ dashboard_counts.mine }}</strong></div>
+        <div class="overview-item"><span>بدون مسئول</span><strong>{{ dashboard_counts.unassigned }}</strong></div>
+    </section>
+
+    <form method="get" action="{{ url_for('index') }}" id="orders-filter-form">
+        <input type="hidden" name="sort_by" id="sort-by" value="{{ sort_by }}">
+        <input type="hidden" name="sort_order" id="sort-order" value="{{ sort_order }}">
+        <input type="hidden" name="scope" id="scope" value="{{ scope }}">
+        <input type="hidden" name="per_page" id="per-page" value="{{ per_page }}">
+        <section class="toolbar">
+            <div class="toolbar-main">
+                <div class="search-wrap"><button class="search-submit" type="submit" aria-label="جست‌وجو">⌕</button><input class="search" id="search" name="search" value="{{ search }}" placeholder="جست‌وجوی نام مشتری یا شماره سفارش…"></div>
+                <div class="quick-tabs">
+                    <button class="tab{% if scope == 'all' %} active{% endif %}" type="button" data-scope="all">همه سفارش‌ها</button>
+                    <button class="tab{% if scope == 'mine' %} active{% endif %}" type="button" data-scope="mine">سفارش‌های من <span class="scope-button-count">{{ dashboard_counts.mine }}</span></button>
+                    <button class="tab{% if scope == 'unassigned' %} active{% endif %}" type="button" data-scope="unassigned">بدون مسئول <span class="scope-button-count">{{ dashboard_counts.unassigned }}</span></button>
+                </div>
+                <button class="filter-toggle" id="filter-toggle" type="button">فیلترهای بیشتر <span class="filter-count{% if customer_filter or date_from or date_to %} show{% endif %}">{% if customer_filter or date_from or date_to %}!{% endif %}</span></button>
+            </div>
+            <div class="advanced{% if customer_filter or date_from or date_to %} open{% endif %}" id="advanced-filters">
+                <div class="field"><label for="customer-filter">مشتری</label><select id="customer-filter" name="customer_filter"><option value="">همه مشتریان</option>{% for customer in unique_customers %}<option value="{{ customer }}"{% if customer_filter == customer %} selected{% endif %}>{{ customer }}</option>{% endfor %}</select></div>
+                <div class="field"><label for="date-from">از تاریخ</label><input id="date-from" name="date_from" value="{{ date_from }}" placeholder="۱۴۰۵/۰۴/۰۱" inputmode="numeric"></div>
+                <div class="field"><label for="date-to">تا تاریخ</label><input id="date-to" name="date_to" value="{{ date_to }}" placeholder="۱۴۰۵/۰۴/۳۱" inputmode="numeric"></div>
+                <div class="advanced-actions"><button class="apply-filters" type="submit">اعمال فیلتر</button><a class="clear-filters" href="{{ url_for('index', scope=scope, per_page=per_page) }}">پاک‌کردن</a></div>
+            </div>
+        </section>
+    </form>
+
+    <div class="cards-tools">
+        <div class="result-bar"><span>{% if pagination.total %}<strong>{{ pagination.total }}</strong> سفارش پیدا شد{% else %}سفارشی پیدا نشد{% endif %}</span><span>نوع نمایش را هر زمان خواستید تغییر دهید.</span></div>
+        <div class="sort-wrap" id="card-sort-wrap"{% if orders_view_preference != 'cards' %} style="display:none"{% endif %}><label for="card-sort">مرتب‌سازی:</label><select class="sort-select" id="card-sort"><option value="id:DESC"{% if sort_by == 'id' and sort_order == 'DESC' %} selected{% endif %}>جدیدترین</option><option value="id:ASC"{% if sort_by == 'id' and sort_order == 'ASC' %} selected{% endif %}>قدیمی‌ترین</option><option value="customer_name:ASC"{% if sort_by == 'customer_name' %} selected{% endif %}>نام مشتری</option><option value="date_shamsi:DESC"{% if sort_by == 'date_shamsi' %} selected{% endif %}>تاریخ سفارش</option></select></div>
+    </div>
+
+    {% if projects %}
+    <section class="section-surface{% if orders_view_preference != 'table' %} hidden{% endif %}" id="table-view">
+        <div class="table-scroll"><table class="orders-table"><thead><tr><th>{{ sort_link('شماره سفارش', 'order_ref') }}</th><th>{{ sort_link('نام مشتری', 'customer_name') }}</th><th>{{ sort_link('تاریخ', 'date_shamsi') }}</th><th>مسئول سفارش</th><th>عملیات</th></tr></thead><tbody>
+        {% for project in projects %}<tr><td><span class="order-number">{{ project.order_ref or '—' }}</span><span class="subtext">شناسه داخلی {{ project.id }}</span></td><td><span class="customer">{{ project.cust_name or 'نام مشتری ثبت نشده' }}</span></td><td>{{ project.date_shamsi or '—' }}</td><td>{% if project.assigned_to_username %}<div class="person"><span class="person-avatar">{{ project.assigned_to_username[:1]|upper }}</span><span><strong>{{ project.assigned_to_username }}</strong><small class="subtext">سازنده: {{ project.created_by_username or 'ثبت نشده' }}</small></span></div>{% else %}<span class="unassigned">بدون مسئول</span>{% endif %}</td><td class="action-cell">{{ project_actions(project, 'table') }}</td></tr>{% endfor %}
+        </tbody></table></div>
+    </section>
+
+    <section class="cards-view{% if orders_view_preference != 'cards' %} hidden{% endif %}" id="cards-view"><div class="cards-grid">
+        {% for project in projects %}<article class="order-card"><div class="card-top"><div class="card-order"><span>شماره سفارش</span><strong>{{ project.order_ref or '—' }}</strong></div><span class="card-date">{{ project.date_shamsi or '—' }}</span></div><div class="card-customer"><h3>{{ project.cust_name or 'نام مشتری ثبت نشده' }}</h3><span>شناسه داخلی {{ project.id }}</span></div><div class="card-meta"><div><span class="meta-label">مسئول سفارش</span>{% if project.assigned_to_username %}<span class="meta-value"><span class="mini-avatar">{{ project.assigned_to_username[:1]|upper }}</span>{{ project.assigned_to_username }}</span>{% else %}<span class="unassigned">بدون مسئول</span>{% endif %}</div><div><span class="meta-label">ایجادکننده</span><span class="meta-value">{{ project.created_by_username or 'ثبت نشده' }}</span></div></div><div class="card-actions">{{ project_actions(project, 'card') }}</div></article>{% endfor %}
+    </div></section>
+
+    <div class="pagination">
+        <div class="per-page"><label for="per-page-select">تعداد در هر صفحه:</label><select id="per-page-select">{% for value in [10,15,20,30,50] %}<option value="{{ value }}"{% if per_page == value %} selected{% endif %}>{{ value }}</option>{% endfor %}</select></div>
+        <div class="pagination-links">
+            {% if pagination.page > 1 %}<a href="{{ url_for('index', page=pagination.page-1, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, scope=scope, per_page=per_page) }}">‹</a>{% else %}<span class="disabled">‹</span>{% endif %}
+            {% set start_page = [1, pagination.page - 2]|max %}{% set end_page = [pagination.pages, pagination.page + 2]|min %}
+            {% for page_num in range(start_page, end_page + 1) %}{% if page_num == pagination.page %}<span class="active">{{ page_num }}</span>{% else %}<a href="{{ url_for('index', page=page_num, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, scope=scope, per_page=per_page) }}">{{ page_num }}</a>{% endif %}{% endfor %}
+            {% if pagination.page < pagination.pages %}<a href="{{ url_for('index', page=pagination.page+1, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, scope=scope, per_page=per_page) }}">›</a>{% else %}<span class="disabled">›</span>{% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="section-surface empty">{% if search or customer_filter or date_from or date_to or scope != 'all' %}سفارشی با این مشخصات پیدا نشد.{% else %}هنوز سفارشی ثبت نشده است.{% endif %}</div>
+    {% endif %}
+</main>
+
+<div class="modal-backdrop" id="edit-modal"><div class="modal"><div class="modal-head"><h3>ویرایش سفارش</h3><button class="modal-close" type="button" data-close-modal>×</button></div><form class="modal-form" id="edit-form" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="modal-field"><label for="edit-customer">نام مشتری</label><input class="modal-control" id="edit-customer" name="customer_name" required></div><div class="modal-field"><label for="edit-order-ref">شماره سفارش</label><input class="modal-control" id="edit-order-ref" name="order_ref" required></div><div class="modal-field"><label for="edit-date">تاریخ شمسی</label><input class="modal-control" id="edit-date" name="date_shamsi"></div><div class="modal-actions"><button class="modal-button modal-cancel" type="button" data-close-modal>انصراف</button><button class="modal-button modal-save" type="submit">ذخیره تغییرات</button></div></form></div></div>
+
+{% if current_user.role in ['admin', 'manager'] %}<div class="modal-backdrop" id="assign-modal"><div class="modal"><div class="modal-head"><h3>واگذاری مسئول سفارش</h3><button class="modal-close" type="button" data-close-modal>×</button></div><form class="modal-form" id="assign-form" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><p class="assignment-note" id="assign-summary"></p><div class="modal-field"><label for="assigned-user">مسئول جدید</label><select class="modal-control" id="assigned-user" name="assigned_to_user_id"><option value="">بدون مسئول</option>{% for user in assignable_users %}<option value="{{ user.id }}">{{ user.username }}</option>{% endfor %}</select></div><div class="modal-actions"><button class="modal-button modal-cancel" type="button" data-close-modal>انصراف</button><button class="modal-button modal-save" type="submit">ثبت واگذاری</button></div></form></div></div>
+
+<div class="modal-backdrop" id="delete-modal"><div class="modal"><div class="modal-head"><h3>حذف این سفارش؟</h3><button class="modal-close" type="button" data-close-modal>×</button></div><form id="delete-form" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="modal-body"><p>این سفارش و تمام درب‌های آن حذف می‌شود. این کار قابل بازگشت نیست.</p><div class="delete-summary" id="delete-summary"></div></div><div class="modal-actions"><button class="modal-button modal-cancel" type="button" data-close-modal>انصراف</button><button class="modal-button modal-danger" type="submit">حذف سفارش</button></div></form></div></div>{% endif %}
+
+<div class="toast" id="toast"></div>
+<script id="projects-data" type="application/json">{{ projects|tojson }}</script>
+<script>
+(() => {
+    const csrfToken={{ csrf_token|tojson }}, projects=JSON.parse(document.getElementById('projects-data').textContent), projectsById=new Map(projects.map(project=>[String(project.id),project]));
+    const tableView=document.getElementById('table-view'),cardsView=document.getElementById('cards-view'),cardSortWrap=document.getElementById('card-sort-wrap'),toast=document.getElementById('toast');let toastTimer;
+    function showToast(message,isError=false){toast.textContent=message;toast.classList.toggle('error',isError);toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),2600)}
+    function applyView(view){const safe=view==='cards'?'cards':'table';document.body.dataset.view=safe;tableView?.classList.toggle('hidden',safe!=='table');cardsView?.classList.toggle('hidden',safe!=='cards');if(cardSortWrap)cardSortWrap.style.display=safe==='cards'?'flex':'none';document.querySelectorAll('[data-view-option]').forEach(button=>{const active=button.dataset.viewOption===safe;button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active))})}
+    document.querySelectorAll('[data-view-option]').forEach(button=>button.addEventListener('click',async()=>{const previous=document.body.dataset.view,next=button.dataset.viewOption;if(previous===next)return;applyView(next);try{const response=await fetch('/preferences/orders-view',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify({view:next})});const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'ذخیره انجام نشد.');showToast(next==='cards'?'نمایش کارتی برای حساب شما ذخیره شد.':'نمایش جدولی برای حساب شما ذخیره شد.')}catch(error){applyView(previous);showToast(error.message,true)}}));
+    function closeMenus(){document.querySelectorAll('.row-menu.open').forEach(menu=>menu.classList.remove('open'))}
+    document.querySelectorAll('[data-project-menu]').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();const key=button.dataset.projectMenu,menu=document.querySelector(`[data-menu-panel="${key}"]`),wasOpen=menu.classList.contains('open');closeMenus();if(wasOpen)return;document.body.appendChild(menu);const rect=button.getBoundingClientRect(),width=175,gap=6;menu.style.left=`${Math.max(10,Math.min(window.innerWidth-width-10,rect.right-width))}px`;menu.style.top=`${rect.bottom+gap}px`;menu.classList.add('open');const height=menu.offsetHeight;if(rect.bottom+gap+height>window.innerHeight-10)menu.style.top=`${Math.max(10,rect.top-gap-height)}px`}));
+    document.addEventListener('click',event=>{if(!event.target.closest('.row-menu'))closeMenus()});window.addEventListener('resize',closeMenus);window.addEventListener('scroll',closeMenus,true);
+    const filterForm=document.getElementById('orders-filter-form');document.querySelectorAll('[data-scope]').forEach(button=>button.addEventListener('click',()=>{document.getElementById('scope').value=button.dataset.scope;filterForm.submit()}));document.getElementById('filter-toggle').addEventListener('click',()=>document.getElementById('advanced-filters').classList.toggle('open'));document.getElementById('per-page-select')?.addEventListener('change',event=>{document.getElementById('per-page').value=event.target.value;filterForm.submit()});document.getElementById('card-sort')?.addEventListener('change',event=>{const [column,order]=event.target.value.split(':');document.getElementById('sort-by').value=column;document.getElementById('sort-order').value=order;filterForm.submit()});
+    const modals=[...document.querySelectorAll('.modal-backdrop')];function openModal(modal){modal.classList.add('open')}function closeModals(){modals.forEach(modal=>modal.classList.remove('open'))}document.querySelectorAll('[data-close-modal]').forEach(button=>button.addEventListener('click',closeModals));modals.forEach(modal=>modal.addEventListener('click',event=>{if(event.target===modal)closeModals()}));document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeMenus();closeModals()}});
+    document.querySelectorAll('[data-edit-project]').forEach(button=>button.addEventListener('click',()=>{const project=projectsById.get(button.dataset.editProject);document.getElementById('edit-form').action=`/project/${project.id}/update`;document.getElementById('edit-customer').value=project.cust_name||'';document.getElementById('edit-order-ref').value=project.order_ref||'';document.getElementById('edit-date').value=project.date_shamsi||'';closeMenus();openModal(document.getElementById('edit-modal'))}));
+    document.querySelectorAll('[data-assign-project]').forEach(button=>button.addEventListener('click',()=>{const project=projectsById.get(button.dataset.assignProject);document.getElementById('assign-form').action=`/project/${project.id}/assign`;document.getElementById('assigned-user').value=project.assigned_to_user_id||'';document.getElementById('assign-summary').textContent=`سفارش ${project.order_ref||project.id} — ${project.cust_name||''}`;closeMenus();openModal(document.getElementById('assign-modal'))}));
+    document.querySelectorAll('[data-delete-project]').forEach(button=>button.addEventListener('click',()=>{const project=projectsById.get(button.dataset.deleteProject);document.getElementById('delete-form').action=`/project/${project.id}/delete`;document.getElementById('delete-summary').textContent=`سفارش ${project.order_ref||project.id} — ${project.cust_name||''}`;closeMenus();openModal(document.getElementById('delete-modal'))}));
+    applyView(document.body.dataset.view);
+})();
+</script>
+</body>
+</html>

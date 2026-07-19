@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدیریت کاربران</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Tahoma', 'Arial', sans-serif;
+            background-color: #f5f5f5;
+            direction: rtl;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .header .nav {
+            margin-top: 10px;
+        }
+
+        .header .nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 15px;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .header .nav a:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .card h2 {
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .alert {
+            padding: 12px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .alert-error {
+            background-color: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+
+        .alert-warning {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+
+        .alert-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .form-inline {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .form-inline .form-group {
+            flex: 1;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table th,
+        table td {
+            padding: 12px;
+            text-align: right;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #333;
+        }
+
+        table tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .badge-admin {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .badge-manager {
+            background-color: #6f42c1;
+            color: white;
+        }
+
+        .badge-staff {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .badge-read-only {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        .badge-active {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .badge-inactive {
+            background-color: #ffc107;
+            color: #333;
+        }
+
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+        }
+
+        .info-box {
+            background: #e8f4fd;
+            border: 1px solid #b8daff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #004085;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .password-field {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .password-field input {
+            flex: 1;
+        }
+
+        .password-field .btn {
+            white-space: nowrap;
+            padding: 10px 12px;
+        }
+
+        .credential-box {
+            background: #f8f9fa;
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .credential-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+
+        .credential-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .credential-value {
+            font-family: monospace;
+            font-size: 16px;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            flex: 1;
+            direction: ltr;
+            text-align: left;
+        }
+
+        .credential-warning {
+            color: #856404;
+            font-size: 13px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>پنل مدیریت کاربران</h1>
+        <div class="nav">
+            <a href="{{ url_for('index') }}">صفحه اصلی</a>
+            <a href="{{ url_for('auth.logout') }}">خروج</a>
+        </div>
+    </div>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="card">
+            <h2>راهنمای سطح دسترسی</h2>
+            <div class="info-box">
+                <strong>مدیر سیستم:</strong> دسترسی فنی و پشتیبان‌گیری؛
+                <strong>مدیر:</strong> مدیریت روزانه و کاربران عادی؛
+                <strong>کارمند:</strong> ثبت و ویرایش کارهای معمول؛
+                <strong>فقط مشاهده:</strong> بدون اجازه ایجاد، ویرایش یا حذف.
+            </div>
+            {% if current_user.role == 'manager' %}
+            <div class="alert alert-warning">شما فقط می‌توانید کاربران «کارمند» و «فقط مشاهده» را مدیریت کنید.</div>
+            {% endif %}
+        </div>
+
+        <!-- فرم ایجاد کاربر جدید -->
+        <div class="card">
+            <h2>ایجاد کاربر جدید</h2>
+            <div class="info-box">
+                🔒 رمزهای عبور به‌صورت امن (هش‌شده) ذخیره می‌شوند و <strong>قابل مشاهده نیستند</strong> — این روش استاندارد امنیتی در نرم‌افزار است.
+                برای دادن رمز به کاربر، از «ریست رمز» استفاده کنید یا هنگام ایجاد کاربر، رمز موقت را کپی کنید.
+            </div>
+            <form method="POST" action="{{ url_for('admin.create_user_route') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-inline">
+                    <div class="form-group">
+                        <label for="username">نام کاربری</label>
+                        <input type="text" id="username" name="username" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">رمز عبور موقت</label>
+                        <div class="password-field">
+                            <input type="password" id="password" name="password" required minlength="8">
+                            <button type="button" class="btn btn-primary" onclick="togglePasswordVisibility('password')">نمایش</button>
+                            <button type="button" class="btn btn-warning" onclick="generatePassword('password')">تولید</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="role">نقش</label>
+                        <select id="role" name="role">
+                            {% for role in available_roles %}
+                            <option value="{{ role }}" {% if role == 'staff' %}selected{% endif %}>{{ role_translations[role] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary">ایجاد کاربر</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- لیست کاربران -->
+        <div class="card">
+            <h2>لیست کاربران</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>شناسه</th>
+                        <th>نام کاربری</th>
+                        <th>نقش</th>
+                        <th>وضعیت</th>
+                        <th>تاریخ ایجاد</th>
+                        <th>آخرین ورود</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>
+                            <span class="badge badge-{{ user.role }}">
+                                {{ user.role_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="badge badge-active">فعال</span>
+                            {% else %}
+                                <span class="badge badge-inactive">غیرفعال</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.created_at[:10] if user.created_at else '-' }}</td>
+                        <td>{{ user.last_login_at[:10] if user.last_login_at else 'هرگز' }}</td>
+                        <td>
+                            <div class="actions">
+                                <!-- تغییر نقش -->
+                                {% set can_manage = current_user.role == 'admin' or user.role in ['staff', 'read_only'] %}
+                                {% if can_manage and user.id != current_user.id %}
+                                <button class="btn btn-sm btn-primary" onclick='showRoleModal({{ user.id }}, {{ user.username|tojson }}, {{ user.role|tojson }})'>
+                                    تغییر نقش
+                                </button>
+
+                                <!-- فعال/غیرفعال -->
+                                <form method="POST" action="{{ url_for('admin.toggle_user_status', user_id=user.id) }}" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-warning">
+                                        {% if user.is_active %}غیرفعال{% else %}فعال{% endif %}
+                                    </button>
+                                </form>
+
+                                <!-- ریست رمز -->
+                                <button class="btn btn-sm btn-danger" onclick='showResetPasswordModal({{ user.id }}, {{ user.username|tojson }})'>
+                                    ریست رمز
+                                </button>
+
+                                <!-- حذف کاربر -->
+                                <button class="btn btn-sm btn-danger" onclick='showDeleteModal({{ user.id }}, {{ user.username|tojson }})' style="background: #721c24;">
+                                    حذف
+                                </button>
+                                {% else %}
+                                <span style="color:#777;font-size:12px;">بدون اجازه تغییر</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>تاریخچه مدیریت کاربران</h2>
+            <div class="info-box">در این قسمت مشخص است چه کسی، چه تغییری را روی کدام کاربر انجام داده است.</div>
+            <table>
+                <thead><tr><th>زمان</th><th>انجام‌دهنده</th><th>عملیات</th><th>کاربر</th></tr></thead>
+                <tbody>
+                    {% for log in activity_logs %}
+                    <tr>
+                        <td>{{ log.created_at[:19] if log.created_at else '-' }}</td>
+                        <td>{{ log.actor_username }}</td>
+                        <td>{{ action_translations.get(log.action, log.action) }}</td>
+                        <td>{{ log.target_username }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4">هنوز فعالیتی ثبت نشده است.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal تغییر نقش -->
+    <div id="roleModal" class="modal">
+        <div class="modal-content">
+            <h3>تغییر نقش کاربر: <span id="roleUsername"></span></h3>
+            <form method="POST" id="roleForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group">
+                    <label for="newRole">نقش جدید</label>
+                    <select id="newRole" name="role">
+                        {% for role in available_roles %}
+                        <option value="{{ role }}">{{ role_translations[role] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">تایید</button>
+                <button type="button" class="btn btn-danger" onclick="closeModal('roleModal')">انصراف</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal ریست رمز -->
+    <div id="resetPasswordModal" class="modal">
+        <div class="modal-content">
+            <h3>ریست رمز کاربر: <span id="resetUsername"></span></h3>
+            <form method="POST" id="resetPasswordForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="form-group">
+                    <label for="newPassword">رمز عبور جدید</label>
+                    <div class="password-field">
+                        <input type="password" id="newPassword" name="new_password" required minlength="8">
+                        <button type="button" class="btn btn-primary" onclick="togglePasswordVisibility('newPassword')">نمایش</button>
+                        <button type="button" class="btn btn-warning" onclick="generatePassword('newPassword')">تولید</button>
+                    </div>
+                </div>
+                <p style="color: #856404; font-size: 13px; margin-bottom: 15px;">
+                    کاربر در اولین ورود مجبور به تغییر رمز خواهد بود. پس از تایید، رمز جدید یک‌بار نمایش داده می‌شود.
+                </p>
+                <button type="submit" class="btn btn-primary">تایید</button>
+                <button type="button" class="btn btn-danger" onclick="closeModal('resetPasswordModal')">انصراف</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal حذف کاربر -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <h3>حذف کاربر: <span id="deleteUsername"></span></h3>
+            <p style="color: #721c24; font-size: 14px; margin: 20px 0;">
+                ⚠️ آیا از حذف این کاربر اطمینان دارید؟ این عملیات غیرقابل بازگشت است!
+            </p>
+            <form method="POST" id="deleteForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-danger" style="background: #721c24;">تایید حذف</button>
+                <button type="button" class="btn btn-primary" onclick="closeModal('deleteModal')">انصراف</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal نمایش رمز (یک‌بار پس از ایجاد یا ریست) -->
+    {% if shown_credentials %}
+    <div id="credentialsModal" class="modal active">
+        <div class="modal-content">
+            <h3>
+                {% if shown_credentials.action == 'create' %}
+                ✅ کاربر جدید ایجاد شد
+                {% else %}
+                ✅ رمز عبور بازنشانی شد
+                {% endif %}
+            </h3>
+            <p>این اطلاعات را به کاربر بدهید. رمز فقط همین یک‌بار نمایش داده می‌شود:</p>
+            <div class="credential-box">
+                <div class="credential-row">
+                    <strong>نام کاربری:</strong>
+                    <span class="credential-value" id="credUsername">{{ shown_credentials.username }}</span>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="copyText('credUsername')">کپی</button>
+                </div>
+                <div class="credential-row">
+                    <strong>رمز عبور:</strong>
+                    <span class="credential-value" id="credPassword">{{ shown_credentials.password }}</span>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="copyText('credPassword')">کپی</button>
+                </div>
+            </div>
+            <p class="credential-warning">
+                ⚠️ پس از بستن این پنجره، امکان مشاهده مجدد رمز وجود ندارد. در صورت فراموشی، «ریست رمز» بزنید.
+            </p>
+            <button type="button" class="btn btn-primary" onclick="closeModal('credentialsModal')">متوجه شدم</button>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        function togglePasswordVisibility(inputId) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        function generatePassword(inputId) {
+            const letters = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';
+            const digits = '23456789';
+            const chars = letters + digits;
+            const values = new Uint32Array(12);
+            crypto.getRandomValues(values);
+            let password = letters[values[0] % letters.length] + digits[values[1] % digits.length];
+            for (let i = 2; i < values.length; i++) password += chars[values[i] % chars.length];
+            const input = document.getElementById(inputId);
+            input.value = password;
+            input.type = 'text';
+        }
+
+        function copyText(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('کپی شد!');
+            }).catch(() => {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('کپی شد!');
+            });
+        }
+
+        function showRoleModal(userId, username, currentRole) {
+            document.getElementById('roleUsername').textContent = username;
+            document.getElementById('newRole').value = currentRole;
+            document.getElementById('roleForm').action = '/admin/users/' + userId + '/role';
+            document.getElementById('roleModal').classList.add('active');
+        }
+
+        function showResetPasswordModal(userId, username) {
+            document.getElementById('resetUsername').textContent = username;
+            document.getElementById('resetPasswordForm').action = '/admin/users/' + userId + '/reset_password';
+            document.getElementById('resetPasswordModal').classList.add('active');
+        }
+
+        function showDeleteModal(userId, username) {
+            document.getElementById('deleteUsername').textContent = username;
+            document.getElementById('deleteForm').action = '/admin/users/' + userId + '/delete';
+            document.getElementById('deleteModal').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // بستن modal با کلیک بیرون از آن
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.classList.remove('active');
+            }
+        }
+    </script>
+</body>
+</html>

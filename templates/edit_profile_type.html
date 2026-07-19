@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ویرایش پروفیل {{ profile.name }}</title>
+    <!-- افزودن Font Awesome از CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url('{{ url_for("static", filename="fonts/Vazir.woff2") }}') format('woff2'),
+                 url('{{ url_for("static", filename="fonts/Vazir.woff") }}') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, Arial, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 15px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+            color: #2c3e50;
+            margin: 0;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: white;
+            font-family: inherit;
+            font-size: 14px;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .btn i {
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background-color: #3498db;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+
+        .btn-success {
+            background-color: #2ecc71;
+        }
+
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+
+        .btn-warning {
+            background-color: #f39c12;
+        }
+
+        .btn-warning:hover {
+            background-color: #e67e22;
+        }
+
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background-color: #c0392b;
+        }
+
+        .btn-dark {
+            background-color: #34495e;
+        }
+
+        .btn-dark:hover {
+            background-color: #2c3e50;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #dce4ec;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        input[type="number"] {
+            text-align: left;
+            direction: ltr;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+        }
+
+        .input-group-text {
+            padding: 10px 12px;
+            background-color: #ecf0f1;
+            border: 1px solid #dce4ec;
+            border-right: 0;
+            border-radius: 4px 0 0 4px;
+            color: #7f8c8d;
+        }
+
+        .input-group .form-control {
+            border-radius: 0 4px 4px 0;
+        }
+
+        .color-preview {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            vertical-align: middle;
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        @media (max-width: 768px) {
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+
+            .form-actions .btn {
+                width: 100%;
+                margin-bottom: 10px;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="page-header">
+                <h1 class="page-title">ویرایش پروفیل {{ profile.name }}</h1>
+                <a href="{{ url_for('profile_types_route') }}" class="btn btn-dark">
+                    <i class="fas fa-arrow-right"></i>
+                    بازگشت به لیست پروفیل‌ها
+                </a>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('edit_profile_type_route', profile_id=profile.id) }}">
+                <div class="form-group">
+                    <label for="name">نام پروفیل <span style="color: #e74c3c;">*</span></label>
+                    <input type="text" class="form-control" id="name" name="name" value="{{ profile.name }}" required>
+                    <div class="help-text">مثال: پروفیل کشویی، پروفیل لولایی، پروفیل کتیبه</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="color">رنگ (کد HEX) <span style="color: #e74c3c;">*</span></label>
+                    <div style="display: flex; align-items: center;">
+                        <input type="color" style="width: 40px; height: 40px; padding: 0; margin-left: 10px; cursor: pointer;" id="color" name="color" value="{{ profile.color }}">
+                        <input type="text" class="form-control" id="color_hex" name="color_hex" value="{{ profile.color }}" placeholder="#3498db" style="direction: ltr; text-align: left;" required>
+                    </div>
+                    <div class="help-text">این رنگ برای نمایش پروفیل در نمودارها و گزارشات استفاده می‌شود.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="default_length">طول استاندارد (سانتی‌متر) <span style="color: #e74c3c;">*</span></label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="default_length" name="default_length" value="{{ profile.default_length }}" min="1" step="1" required>
+                        <span class="input-group-text">سانتی‌متر</span>
+                    </div>
+                    <div class="help-text">طول استاندارد یک شاخه کامل از این پروفیل. معمولاً ۶ متر (۶۰۰ سانتی‌متر).</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="weight_per_meter">وزن هر متر (کیلوگرم) <span style="color: #e74c3c;">*</span></label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="weight_per_meter" name="weight_per_meter" value="{{ profile.weight_per_meter }}" min="0.01" step="0.01" required>
+                        <span class="input-group-text">کیلوگرم</span>
+                    </div>
+                    <div class="help-text">وزن تقریبی هر متر از این نوع پروفیل.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="min_waste">حداقل پرت مجاز (سانتی‌متر) <span style="color: #e74c3c;">*</span></label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="min_waste" name="min_waste" value="{{ profile.min_waste }}" min="0" step="1" required>
+                        <span class="input-group-text">سانتی‌متر</span>
+                    </div>
+                    <div class="help-text">حداقل طول پرت قابل استفاده در انبار. قطعات کوچکتر از این مقدار به عنوان پرت در نظر گرفته می‌شوند.</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">توضیحات (اختیاری)</label>
+                    <textarea class="form-control" id="description" name="description" rows="3" placeholder="توضیحات تکمیلی درباره پروفیل را اینجا وارد کنید...">{{ profile.description }}</textarea>
+                </div>
+
+                <div class="form-actions">
+                    <a href="{{ url_for('profile_types_route') }}" class="btn btn-danger">
+                        <i class="fas fa-times"></i>
+                        انصراف
+                    </a>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i>
+                        ذخیره تغییرات
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // یکپارچه‌سازی فیلد رنگ با مقدار هگز
+        document.addEventListener('DOMContentLoaded', function() {
+            const colorPicker = document.getElementById('color');
+            const colorHexInput = document.getElementById('color_hex');
+            
+            // به‌روزرسانی فیلد متنی هنگام تغییر رنگ
+            colorPicker.addEventListener('input', function() {
+                colorHexInput.value = this.value;
+            });
+            
+            // به‌روزرسانی رنگ انتخاب شده هنگام تغییر متن
+            colorHexInput.addEventListener('input', function() {
+                if (/^#[0-9A-F]{6}$/i.test(this.value)) {
+                    colorPicker.value = this.value;
+                }
+            });
+        });
+    </script>
+</body>
+
+</html> 

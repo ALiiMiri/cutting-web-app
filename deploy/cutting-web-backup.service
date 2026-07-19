@@ -1,0 +1,16 @@
+[Unit]
+Description=Verified daily backup for Cutting Web App
+
+[Service]
+Type=oneshot
+User=cuttingapp
+Group=cuttingapp
+WorkingDirectory=/opt/cutting-web-app
+EnvironmentFile=/etc/cutting-web-app.env
+ExecStart=/usr/bin/python3 /opt/cutting-web-app/scheduled_backup.py
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cutting-app /var/backups/cutting-app

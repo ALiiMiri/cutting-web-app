@@ -1,0 +1,1503 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>جدول درب‌های سفارش - {{ project.customer_name }}</title>
+    <!-- افزودن Font Awesome از CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* تعریف فونت وزیر - اگر در پوشه static است */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* استایل‌های پایه */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 0;
+            background-color: #f4f7f6;
+            margin: 0;
+            color: #333;
+        }
+
+        .container {
+            max-width: 98%;
+            margin: 20px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 3px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            margin-top: 0;
+        }
+
+        /* استایل نوار اطلاعات مشتری */
+        .customer-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            background-color: #edf7ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #d1e8ff;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        .customer-info-item {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .customer-info-label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+
+        .customer-info-label i {
+            margin-left: 5px;
+            color: #3498db;
+        }
+
+        .customer-info-value {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            transition: all 0.2s;
+            min-height: 42px;
+        }
+
+        /* استایل نوار دکمه‌ها */
+        .action-bar {
+            background-color: #f9f9f9;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .button-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .action-button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .action-button i {
+            margin-left: 8px;
+            font-size: 16px;
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .add-button {
+            background-color: #2ecc71;
+        }
+
+        .excel-button {
+            background-color: #27ae60;
+        }
+
+        .pdf-button {
+            background-color: #e74c3c;
+        }
+
+        .batch-edit-button {
+            background-color: #e67e22;
+        }
+
+        .settings-button {
+            background-color: #7f8c8d;
+        }
+
+        .calculate-button {
+            background-color: #3498db;
+        }
+
+        .hardware-button {
+            background-color: #8e44ad;
+        }
+
+        .back-button {
+            background-color: #95a5a6;
+        }
+
+        /* نوار جستجو */
+        .search-bar {
+            display: flex;
+            margin-top: 10px;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-input input {
+            width: 100%;
+            padding: 10px 12px 10px 40px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .search-input i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #7f8c8d;
+        }
+
+        .filter-dropdown {
+            min-width: 180px;
+        }
+
+        .filter-dropdown select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-family: inherit;
+            background-color: white;
+            cursor: pointer;
+        }
+
+        /* استایل جدول درب‌ها */
+        .treeview-container {
+            margin-top: 20px;
+            overflow: hidden;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .scroll-container {
+            overflow-x: auto;
+            max-height: 60vh;
+            position: relative;
+        }
+
+        table.treeview {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        table.treeview th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 15px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-weight: 600;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        table.treeview th .sort-icon {
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        table.treeview td {
+            padding: 10px 15px;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        table.treeview td.note-cell {
+            text-align: right;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        table.treeview td.note-cell:hover {
+            white-space: normal;
+            overflow: visible;
+            background-color: #f9f9f9;
+            position: relative;
+            z-index: 5;
+        }
+
+        table.treeview tbody tr {
+            transition: background-color 0.2s;
+        }
+
+        table.treeview tbody tr:hover {
+            background-color: #ecf0f1 !important;
+        }
+
+        table.treeview tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* چک‌باکس‌های انتخاب */
+        .select-cell {
+            width: 40px;
+        }
+
+        .select-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        /* نوار وضعیت */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #f5f5f5;
+            border-top: 1px solid #ddd;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .status-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .status-item i {
+            margin-left: 5px;
+            color: #3498db;
+        }
+
+        /* فایل فلش */
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* استایل سطر انتخاب شده */
+        .selected-row {
+            background-color: #e3f2fd !important; /* رنگ آبی روشن */
+            border-left: 3px solid #2196F3; /* نوار آبی سمت چپ */
+        }
+
+        .selectable-row {
+            cursor: pointer; /* تغییر شکل نشانگر ماوس به حالت اشاره */
+        }
+
+        /* رفتار hover برای سطرهای قابل انتخاب */
+        .selectable-row:hover {
+            background-color: #f5f5f5 !important;
+        }
+
+        /* سازگاری موبایل */
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+                margin: 10px auto;
+            }
+
+            .button-bar {
+                flex-direction: column;
+            }
+
+            .action-button {
+                width: 100%;
+            }
+
+            .customer-info {
+                flex-direction: column;
+            }
+
+            .search-bar {
+                flex-direction: column;
+            }
+        }
+
+        .has-data {
+            background-color: #ffeeee;
+            border-radius: 4px;
+            padding: 2px;
+            position: relative;
+        }
+        
+        .data-indicator {
+            margin-right: 5px;
+            color: #e74c3c;
+            font-size: 14px;
+            cursor: help;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        /* چیدمان جدید و خلوت‌تر صفحه سفارش */
+        .page-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 16px;
+        }
+
+        .page-heading h1 {
+            border-bottom: 0;
+            padding-bottom: 0;
+            margin-bottom: 4px;
+        }
+
+        .page-subtitle {
+            margin: 0;
+            color: #6f7b8d;
+            font-size: 13px;
+        }
+
+        .page-back-button {
+            flex: 0 0 auto;
+            padding: 9px 13px;
+            color: #273449;
+            background: #fff;
+            border: 1px solid #e1e6ec;
+            border-radius: 9px;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .customer-info {
+            gap: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #fff;
+            border-color: #e1e6ec;
+            border-radius: 12px;
+        }
+
+        .customer-info-item {
+            min-width: 160px;
+            padding: 12px 16px;
+            border-left: 1px solid #e1e6ec;
+        }
+
+        .customer-info-item:last-child {
+            border-left: 0;
+        }
+
+        .customer-info-label {
+            margin-bottom: 2px;
+            color: #6f7b8d;
+            font-size: 11px;
+            font-weight: normal;
+        }
+
+        .customer-info-value {
+            min-height: 0;
+            padding: 0;
+            color: #17243b;
+            background: transparent;
+            border: 0;
+            font-weight: bold;
+        }
+
+        .action-bar {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 16px;
+            margin-bottom: 0;
+            background: #fff;
+            border: 1px solid #e1e6ec;
+            border-bottom: 0;
+            border-radius: 12px 12px 0 0;
+            box-shadow: none;
+        }
+
+        .button-bar {
+            margin-bottom: 0;
+            flex-wrap: nowrap;
+        }
+
+        .action-button {
+            min-height: 42px;
+            padding: 0 15px;
+            border-radius: 9px;
+            text-decoration: none;
+        }
+
+        .action-button:hover {
+            transform: none;
+        }
+
+        .add-button { background-color: #16835f; }
+        .calculate-button { background-color: #2563eb; }
+
+        .more-actions {
+            position: relative;
+        }
+
+        .more-actions-button {
+            min-height: 42px;
+            padding: 0 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #273449;
+            background: #fff;
+            border: 1px solid #e1e6ec;
+            border-radius: 9px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .more-actions-button .dots {
+            font-size: 21px;
+            line-height: 1;
+            transform: translateY(-2px);
+        }
+
+        .more-actions-menu {
+            position: absolute;
+            z-index: 30;
+            top: 49px;
+            right: 0;
+            width: 245px;
+            display: none;
+            padding: 7px;
+            background: #fff;
+            border: 1px solid #e1e6ec;
+            border-radius: 12px;
+            box-shadow: 0 18px 50px rgba(23, 36, 59, 0.18);
+        }
+
+        .more-actions-menu.open { display: block; }
+
+        .menu-section-title {
+            padding: 6px 10px;
+            color: #6f7b8d;
+            font-size: 11px;
+        }
+
+        .more-actions-menu a {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 10px;
+            color: #273449;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .more-actions-menu a:hover {
+            color: #2563eb;
+            background: #edf4ff;
+        }
+
+        .more-actions-menu a i {
+            width: 25px;
+            height: 25px;
+            display: grid;
+            place-items: center;
+            margin: 0;
+            color: inherit;
+            background: #f1f4f7;
+            border-radius: 7px;
+        }
+
+        .more-actions-menu hr {
+            margin: 6px;
+            border: 0;
+            border-top: 1px solid #e1e6ec;
+        }
+
+        .search-bar {
+            flex: 1;
+            justify-content: flex-end;
+            margin-top: 0;
+        }
+
+        .search-input {
+            max-width: 360px;
+        }
+
+        .selection-action-bar {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 11px 16px;
+            color: #8a5100;
+            background: #fff7e8;
+            border: 1px solid #f3d7a8;
+            border-top: 0;
+        }
+
+        .selection-action-bar.show { display: flex; }
+
+        .selection-summary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: bold;
+        }
+
+        .selection-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .selection-edit-button,
+        .selection-cancel-button {
+            min-height: 36px;
+            padding: 0 13px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .selection-edit-button {
+            color: #fff;
+            background: #d97706;
+            border: 0;
+        }
+
+        .selection-cancel-button {
+            color: #78501a;
+            background: #fff;
+            border: 1px solid #e6c99b;
+        }
+
+        .treeview-container {
+            margin-top: 0;
+            border-radius: 0 0 12px 12px;
+            border-color: #e1e6ec;
+            box-shadow: none;
+        }
+
+        table.treeview th {
+            color: #516075;
+            background-color: #f6f8fa;
+            border-bottom: 1px solid #e1e6ec;
+        }
+
+        table.treeview tbody tr:hover {
+            background-color: #fafcff !important;
+        }
+
+        .selected-row {
+            background-color: #f0f6ff !important;
+            border-left-color: #2563eb;
+        }
+
+        .batch-updated-row {
+            animation: batchUpdatedHighlight 3.4s ease;
+        }
+
+        @keyframes batchUpdatedHighlight {
+            0%, 45% { background-color: #dff5e9; box-shadow: inset -4px 0 #16835f; }
+            100% { background-color: transparent; box-shadow: none; }
+        }
+
+        @media (max-width: 900px) {
+            .page-heading { flex-direction: column; }
+            .page-back-button { width: 100%; text-align: center; }
+            .action-bar { align-items: stretch; flex-direction: column; }
+            .button-bar { display: grid; grid-template-columns: 1fr 1fr; }
+            .more-actions { grid-column: 1 / -1; }
+            .more-actions-button { width: 100%; justify-content: center; }
+            .more-actions-menu { right: 0; left: 0; width: auto; }
+            .search-input { max-width: none; }
+        }
+
+        @media (max-width: 600px) {
+            .customer-info { display: grid; grid-template-columns: 1fr 1fr; }
+            .customer-info-item { border-bottom: 1px solid #e1e6ec; }
+            .selection-action-bar { align-items: flex-start; flex-direction: column; }
+            .selection-buttons { width: 100%; }
+            .selection-edit-button, .selection-cancel-button { flex: 1; }
+        }
+    </style>
+</head>
+
+<body class="with-app-header">
+    {% include '_app_header.html' %}
+    <div class="container">
+        <div class="page-heading">
+            <div>
+                <h1>جدول درب‌های سفارش</h1>
+                <p class="page-subtitle">مدیریت، جستجو و آماده‌سازی درب‌های سفارش برای برش</p>
+            </div>
+            <a href="{{ url_for('view_project', project_id=project.id) }}" class="page-back-button">
+                <i class="fas fa-arrow-right"></i>
+                بازگشت به سفارش
+            </a>
+        </div>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- اطلاعات مشتری -->
+        <div class="customer-info">
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-user"></i>
+                    نام مشتری:
+                </div>
+                <div class="customer-info-value">{{ project.customer_name or "نامشخص" }}</div>
+            </div>
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-file-invoice"></i>
+                    شماره سفارش:
+                </div>
+                <div class="customer-info-value">{{ project.order_ref or "" }}</div>
+            </div>
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-calendar"></i>
+                    تاریخ:
+                </div>
+                <div class="customer-info-value">{{ project.date_shamsi or "" }}</div>
+            </div>
+            <div class="customer-info-item">
+                <div class="customer-info-label">
+                    <i class="fas fa-door-open"></i>
+                    تعداد کل:
+                </div>
+                <div class="customer-info-value">{{ total_door_quantity }} درب</div>
+            </div>
+        </div>
+
+        <!-- نوار اکشن‌ها و جستجو -->
+        <div class="action-bar">
+            <div class="button-bar">
+                {% if current_user_can_edit_project(project.id) %}
+                <a href="{{ url_for('add_door_form', project_id=project.id) }}" class="action-button add-button">
+                    <i class="fas fa-plus"></i>
+                    افزودن درب
+                </a>
+                {% endif %}
+                <button class="action-button calculate-button" onclick="calculateCutting()">
+                    <i class="fas fa-calculator"></i>
+                    محاسبه برش
+                </button>
+                <div class="more-actions">
+                    <button type="button" class="more-actions-button" id="more-actions-button" aria-expanded="false" aria-controls="more-actions-menu">
+                        <span class="dots">…</span>
+                        عملیات بیشتر
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    <div class="more-actions-menu" id="more-actions-menu">
+                        <div class="menu-section-title">خروجی و گزارش</div>
+                        {% if current_user_can_edit_project(project.id) %}
+                        <a href="{{ url_for('export_to_excel', project_id=project.id) }}">
+                            <i class="fas fa-file-excel"></i>
+                            دریافت خروجی Excel
+                        </a>
+                        <a href="{{ url_for('export_table_to_pdf_html', project_id=project.id) }}">
+                            <i class="fas fa-file-pdf"></i>
+                            دریافت جدول PDF
+                        </a>
+                        {% endif %}
+                        <a href="{{ url_for('hardware_report', project_id=project.id) }}">
+                            <i class="fas fa-toolbox"></i>
+                            مشاهده لیست یراق
+                        </a>
+                        {% if current_user_can_edit_project(project.id) %}
+                        <hr>
+                        <div class="menu-section-title">تنظیمات سفارش</div>
+                        <a href="{{ url_for('settings_columns', project_id=project.id) }}">
+                            <i class="fas fa-cog"></i>
+                            تنظیم فیلدهای سفارش
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- نوار جستجو -->
+            <div class="search-bar">
+                <div class="search-input">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="جستجو در تمام فیلدها..." id="search-input">
+                </div>
+                <div class="filter-dropdown">
+                    <select id="filter-column">
+                        <option value="">فیلتر براساس...</option>
+                        <option value="location">مکان نصب</option>
+                        <option value="width">عرض</option>
+                        <option value="height">ارتفاع</option>
+                        <option value="quantity">تعداد</option>
+                        <option value="direction">جهت</option>
+                        {% for column in active_custom_columns %}
+                            {% if column.key in visible_columns %}
+                            <option value="{{ column.key }}">{{ column.display }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        {% if current_user_can_edit_project(project.id) %}
+        <div class="selection-action-bar" id="selection-action-bar">
+            <div class="selection-summary">
+                <i class="fas fa-check-circle"></i>
+                <span><span id="selection-action-count">0</span> درب انتخاب شده</span>
+            </div>
+            <div class="selection-buttons">
+                <button type="button" class="selection-edit-button" onclick="batchEdit()">
+                    <i class="fas fa-edit"></i>
+                    ویرایش گروهی
+                </button>
+                <button type="button" class="selection-cancel-button" id="clear-selection">
+                    لغو انتخاب
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- جدول درب‌های سفارش -->
+        <div class="treeview-container">
+            <div class="scroll-container">
+                <table class="treeview" id="door-table">
+                    <thead>
+                        <tr>
+                            <th class="select-cell">
+                                <input type="checkbox" id="select-all" title="انتخاب همه">
+                            </th>
+                            <th data-column="location" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                مکان نصب
+                            </th>
+                            <th data-column="width" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                عرض ({{ measurement_unit_label }})
+                            </th>
+                            <th data-column="height" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                ارتفاع ({{ measurement_unit_label }})
+                            </th>
+                            <th data-column="quantity" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                تعداد
+                            </th>
+                            <th data-column="direction" onclick="sortTable(this)">
+                                <span class="sort-icon">▼</span>
+                                جهت
+                            </th>
+                            
+                            <!-- ستون‌های سفارشی فعال -->
+                            {% for column in active_custom_columns %}
+                                {% if column.key in visible_columns %}
+                                <th data-column="{{ column.key }}" onclick="sortTable(this)">
+                                    <span class="sort-icon">▼</span>
+                                    {{ column.display }}
+                                </th>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for door in doors %}
+                        <tr class="selectable-row" data-id="{{ door.id }}">
+                            <td class="select-cell">
+                                <input type="checkbox" class="door-select" data-id="{{ door.id }}">
+                            </td>
+                            <td>{{ door.location or "" }}</td>
+                            <td>{{ door.display_width }}</td>
+                            <td>{{ door.display_height }}</td>
+                            <td>{{ door.quantity }}</td>
+                            <td>{{ door.direction or "" }}</td>
+                            
+                            <!-- مقادیر ستون‌های سفارشی -->
+                            {% for column in active_custom_columns %}
+                                {% if column.key in visible_columns %}
+                                <td>
+                                    {% set cell_value = door.get(column.key, "") %}
+                                    {% if cell_value is none or cell_value == "" %}
+                                        -
+                                    {% else %}
+                                        {{ cell_value }}
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- نوار وضعیت -->
+            <div class="status-bar">
+                <div class="status-info">
+                    <div class="status-item">
+                        <i class="fas fa-door-open"></i>
+                        تعداد کل درب‌ها: <span id="door-count">{{ total_door_quantity }}</span>
+                    </div>
+                    <div class="status-item">
+                        <i class="fas fa-check-square"></i>
+                        انتخاب شده: <span id="selected-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                // نمایش اولیه تعداد انتخاب‌ها
+                updateSelectedCount();
+
+                // منوی عملیات بیشتر
+                const moreActionsButton = document.getElementById('more-actions-button');
+                const moreActionsMenu = document.getElementById('more-actions-menu');
+                if (moreActionsButton && moreActionsMenu) {
+                    moreActionsButton.addEventListener('click', function (event) {
+                        event.stopPropagation();
+                        const isOpen = moreActionsMenu.classList.toggle('open');
+                        moreActionsButton.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                    });
+
+                    document.addEventListener('click', function (event) {
+                        if (!moreActionsMenu.contains(event.target) && event.target !== moreActionsButton) {
+                            moreActionsMenu.classList.remove('open');
+                            moreActionsButton.setAttribute('aria-expanded', 'false');
+                        }
+                    });
+
+                    document.addEventListener('keydown', function (event) {
+                        if (event.key === 'Escape') {
+                            moreActionsMenu.classList.remove('open');
+                            moreActionsButton.setAttribute('aria-expanded', 'false');
+                            moreActionsButton.focus();
+                        }
+                    });
+                }
+
+                const clearSelectionButton = document.getElementById('clear-selection');
+                if (clearSelectionButton) {
+                    clearSelectionButton.addEventListener('click', function () {
+                        document.querySelectorAll('.door-select').forEach(function (checkbox) {
+                            checkbox.checked = false;
+                            checkbox.closest('tr').classList.remove('selected-row');
+                        });
+                        updateSelectedCount();
+                    });
+                }
+
+                // اضافه کردن جستجو و فیلتر
+                document.getElementById('search-input').addEventListener('input', filterTable);
+                document.getElementById('filter-column').addEventListener('change', filterTable);
+                
+                // بررسی پارامترهای URL برای تازه‌سازی کامل
+                const urlParams = new URLSearchParams(window.location.search);
+                const forceRefresh = urlParams.get('force_refresh') === '1';
+                const refreshColumns = urlParams.get('refresh_columns') === '1';
+                const selectedDoorIds = new Set(
+                    (urlParams.get('selected_doors') || '').split(',').filter(Boolean)
+                );
+                const updatedDoorIds = new Set(
+                    (urlParams.get('updated_doors') || '').split(',').filter(Boolean)
+                );
+
+                if (selectedDoorIds.size) {
+                    document.querySelectorAll('.door-select').forEach(function (checkbox) {
+                        if (selectedDoorIds.has(checkbox.dataset.id)) {
+                            checkbox.checked = true;
+                            checkbox.closest('tr').classList.add('selected-row');
+                        }
+                    });
+                    updateSelectedCount();
+                }
+
+                if (updatedDoorIds.size) {
+                    document.querySelectorAll('tr.selectable-row').forEach(function (row) {
+                        if (updatedDoorIds.has(row.dataset.id)) {
+                            row.classList.add('batch-updated-row');
+                        }
+                    });
+                }
+                
+                // اگر پارامتر force_refresh فعال است، صفحه را کاملاً تازه کنیم
+                if (forceRefresh) {
+                    console.log('تازه‌سازی کامل صفحه به دلیل force_refresh=1');
+                    refreshTableData(refreshColumns);
+                }
+                
+                // پارامترهای موقت تازه‌سازی باید پیش از reload از آدرس حذف شوند؛
+                // در غیر این صورت force_refresh بعد از هر بار بارگذاری دوباره فعال
+                // می‌ماند و صفحه وارد چرخه تازه‌سازی بی‌پایان می‌شود.
+                if (urlParams.has('t') || forceRefresh || refreshColumns) {
+                    let cleanUrl = window.location.href.split('?')[0];
+                    let params = new URLSearchParams(window.location.search);
+                    params.delete('t');
+                    params.delete('force_refresh');
+                    params.delete('refresh_columns');
+                    params.delete('selected_doors');
+                    params.delete('updated_doors');
+                    
+                    if (params.toString()) {
+                        cleanUrl += '?' + params.toString();
+                    }
+                    
+                    // با استفاده از History API بدون رفرش URL را تغییر دهیم
+                    window.history.replaceState({}, document.title, cleanUrl);
+                } else if (selectedDoorIds.size || updatedDoorIds.size) {
+                    let cleanUrl = window.location.href.split('?')[0];
+                    let params = new URLSearchParams(window.location.search);
+                    params.delete('selected_doors');
+                    params.delete('updated_doors');
+                    if (params.toString()) {
+                        cleanUrl += '?' + params.toString();
+                    }
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }
+            });
+
+            // مرتب‌سازی جدول
+            function sortTable(header) {
+                const table = document.querySelector('.treeview');
+                const columnIndex = Array.from(header.parentNode.children).indexOf(header) - 1; // -1 برای ستون چک‌باکس
+                const isAsc = header.querySelector('.sort-icon').textContent === '▼';
+
+                // تغییر جهت آیکون
+                header.querySelector('.sort-icon').textContent = isAsc ? '▲' : '▼';
+
+                // حذف حالت فعال از همه ستون‌ها
+                const allHeaders = table.querySelectorAll('th');
+                allHeaders.forEach(th => {
+                    if (th !== header && th.querySelector('.sort-icon')) {
+                        th.querySelector('.sort-icon').textContent = '▼';
+                    }
+                });
+
+                // استخراج و مرتب‌سازی ردیف‌ها
+                const rows = Array.from(table.querySelectorAll('tbody tr'));
+                rows.sort((a, b) => {
+                    let aValue = a.children[columnIndex + 1].textContent.trim(); // +1 برای جبران ستون چک‌باکس
+                    let bValue = b.children[columnIndex + 1].textContent.trim();
+
+                    // اگر اعداد هستند
+                    if (!isNaN(aValue) && !isNaN(bValue)) {
+                        return isAsc ? parseFloat(aValue) - parseFloat(bValue) : parseFloat(bValue) - parseFloat(aValue);
+                    }
+
+                    // مرتب‌سازی متنی
+                    return isAsc ? aValue.localeCompare(bValue, 'fa') : bValue.localeCompare(aValue, 'fa');
+                });
+
+                // بازسازی جدول
+                const tbody = table.querySelector('tbody');
+                rows.forEach(row => tbody.appendChild(row));
+            }
+
+            // فیلتر کردن جدول
+            function filterTable() {
+                const searchText = document.getElementById('search-input').value.toLowerCase();
+                const filterColumn = document.getElementById('filter-column').value;
+                const rows = document.querySelectorAll('table.treeview tbody tr');
+
+                rows.forEach(row => {
+                    let visible = false;
+
+                    if (filterColumn) {
+                        // شاخص ستون فیلتر را پیدا کن
+                        const headerCells = document.querySelectorAll('table.treeview th');
+                        let columnIndex = -1;
+
+                        headerCells.forEach((th, index) => {
+                            if (th.getAttribute('data-column') === filterColumn) {
+                                columnIndex = index - 1; // -1 برای ستون چک‌باکس
+                            }
+                        });
+
+                        // فیلتر روی ستون خاص
+                        if (columnIndex >= 0) {
+                            const cellText = row.children[columnIndex + 1].textContent.toLowerCase();
+                            visible = cellText.includes(searchText);
+                        }
+                    } else {
+                        // جستجو در تمام سلول‌ها
+                        const cells = row.querySelectorAll('td');
+                        cells.forEach(cell => {
+                            if (cell.textContent.toLowerCase().includes(searchText)) {
+                                visible = true;
+                            }
+                        });
+                    }
+
+                    row.style.display = visible ? '' : 'none';
+
+                    // ردیفی که با جستجو پنهان می‌شود نباید ناخواسته در
+                    // ویرایش گروهی باقی بماند.
+                    if (!visible) {
+                        const checkbox = row.querySelector('.door-select');
+                        if (checkbox) {
+                            checkbox.checked = false;
+                        }
+                        row.classList.remove('selected-row');
+                    }
+                });
+
+                updateSelectedCount();
+            }
+
+            // به‌روزرسانی شمارنده انتخاب‌ها
+            function updateSelectedCount() {
+                const selectedBoxes = document.querySelectorAll('.door-select:checked');
+                document.getElementById('selected-count').textContent = selectedBoxes.length;
+                const selectionActionBar = document.getElementById('selection-action-bar');
+                const selectionActionCount = document.getElementById('selection-action-count');
+                if (selectionActionBar && selectionActionCount) {
+                    selectionActionCount.textContent = selectedBoxes.length.toLocaleString('fa-IR');
+                    selectionActionBar.classList.toggle('show', selectedBoxes.length > 0);
+                }
+                updateSelectAllState();
+            }
+
+            function updateSelectAllState() {
+                const selectAll = document.getElementById('select-all');
+                const visibleBoxes = Array.from(document.querySelectorAll('.door-select'))
+                    .filter(box => box.closest('tr').style.display !== 'none');
+                const selectedVisibleCount = visibleBoxes.filter(box => box.checked).length;
+
+                selectAll.checked = visibleBoxes.length > 0 && selectedVisibleCount === visibleBoxes.length;
+                selectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleBoxes.length;
+            }
+
+            // تابع برای تازه‌سازی داده‌های جدول
+            function refreshTableData(refreshColumns) {
+                console.log("شروع تازه‌سازی داده‌های جدول");
+                
+                // دریافت وضعیت ستون‌های نمایشی از سرور
+                fetch('/project/{{ project.id }}/get_visible_columns')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log("ستون‌های قابل نمایش:", data.visible_columns);
+                        
+                        // به‌روزرسانی سرستون‌های جدول
+                        if (refreshColumns) {
+                            updateTableHeaders(data.visible_columns);
+                        }
+                        
+                        // تازه‌سازی داده‌های جدول (در صورت نیاز)
+                        updateTableRows(data.visible_columns);
+                    }
+                })
+                .catch(error => console.error("خطا در دریافت ستون‌های قابل نمایش:", error));
+            }
+            
+            // به‌روزرسانی سرستون‌های جدول بر اساس ستون‌های قابل نمایش
+            function updateTableHeaders(visibleColumns) {
+                console.log("به‌روزرسانی سرستون‌های جدول");
+                // هیچ کاری انجام نده، چون هدرها در سمت سرور تولید می‌شوند
+                // در صورت نیاز به به‌روزرسانی پویا، می‌توان کد اینجا اضافه کرد
+            }
+            
+            // به‌روزرسانی سطرهای جدول بر اساس ستون‌های قابل نمایش
+            function updateTableRows(visibleColumns) {
+                console.log("به‌روزرسانی سطرهای جدول");
+                // در پیاده‌سازی فعلی، نیازی به به‌روزرسانی پویا نیست، چون داده‌ها در سمت سرور تولید می‌شوند
+                // در صورت نیاز به به‌روزرسانی پویا، می‌توان کد اینجا اضافه کرد
+                
+                // بازخوانی کامل صفحه
+                location.reload();
+            }
+
+        </script>
+
+        <script>
+            // مدیریت کلیک روی سطرها
+            document.addEventListener('DOMContentLoaded', function() {
+                const selectableRows = document.querySelectorAll('.selectable-row');
+                
+                selectableRows.forEach(row => {
+                    row.addEventListener('click', function(event) {
+                        // اگر کلیک روی خود چک‌باکس نبود
+                        if (!event.target.classList.contains('door-select')) {
+                            // پیدا کردن چک‌باکس مربوطه
+                            const checkbox = row.querySelector('.door-select');
+                            if (checkbox) {
+                                // تغییر وضعیت چک‌باکس
+                                checkbox.checked = !checkbox.checked;
+                                
+                                // ایجاد رویداد change برای چک‌باکس
+                                const changeEvent = new Event('change', { bubbles: true });
+                                checkbox.dispatchEvent(changeEvent);
+                                
+                                // تغییر رنگ پس‌زمینه سطر بر اساس وضعیت انتخاب
+                                if (checkbox.checked) {
+                                    row.classList.add('selected-row');
+                                } else {
+                                    row.classList.remove('selected-row');
+                                }
+                                
+                                // به‌روزرسانی شمارنده انتخاب‌ها
+                                updateSelectedCount();
+                            }
+                        }
+                    });
+                });
+                
+                // اضافه کردن رویداد change به چک‌باکس‌ها برای تغییر کلاس سطر
+                const checkboxes = document.querySelectorAll('.door-select');
+                checkboxes.forEach(checkbox => {
+                    checkbox.addEventListener('change', function(event) {
+                        // جلوگیری از تکرار رویداد در صورت فراخوانی از کلیک سطر
+                        event.stopPropagation();
+                        
+                        const row = this.closest('tr');
+                        if (row) {
+                            if (this.checked) {
+                                row.classList.add('selected-row');
+                            } else {
+                                row.classList.remove('selected-row');
+                            }
+                        }
+                        
+                        // به‌روزرسانی شمارنده انتخاب‌ها
+                        updateSelectedCount();
+                    });
+                });
+                
+                // چک‌باکس انتخاب همه
+                const selectAllCheckbox = document.getElementById('select-all');
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.addEventListener('change', function() {
+                        const visibleRows = Array.from(document.querySelectorAll('table.treeview tbody tr'))
+                            .filter(row => row.style.display !== 'none');
+                        visibleRows.forEach(row => {
+                            const cb = row.querySelector('.door-select');
+                            cb.checked = this.checked;
+
+                            if (this.checked) {
+                                row.classList.add('selected-row');
+                            } else {
+                                row.classList.remove('selected-row');
+                            }
+                        });
+                        
+                        // به‌روزرسانی شمارنده انتخاب‌ها
+                        updateSelectedCount();
+                    });
+                }
+            });
+        </script>
+    </div>
+
+    <!-- تابع‌های مدیریت ستون‌ها -->
+    <script>
+        // تابع چک کردن ستون‌ها هنگام بارگذاری صفحه
+        document.addEventListener('DOMContentLoaded', function() {
+            // بررسی وضعیت ستون‌های موجود
+            checkColumnsStatus();
+        });
+        
+        // تابع بررسی وضعیت ستون‌های موجود
+        function checkColumnsStatus() {
+            // فهرست ستون‌های پویا برای بررسی
+            const columnKeys = [
+                'rang', 'noe_profile', 'vaziat', 'lola', 
+                'ghofl', 'accessory', 'kolaft', 'dastgire', 'tozihat'
+                // می‌توانید ستون‌های دیگر را اضافه کنید
+            ];
+            
+            // بررسی هر ستون
+            columnKeys.forEach(columnKey => {
+                // درخواست بررسی به سرور
+                fetch(`/project/{{ project.id }}/check_column_can_hide`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `column_key=${columnKey}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`وضعیت ستون ${columnKey}:`, data);
+                    
+                    // آموزش: اگر ستون داده دارد، به آن علامت گذاری اضافه می‌کنیم
+                    if (!data.can_hide) {
+                        // پیدا کردن المان‌های مربوط به این ستون در منوی تنظیمات
+                        const columnElements = document.querySelectorAll(`[data-column-key="${columnKey}"]`);
+                        
+                        columnElements.forEach(element => {
+                            // افزودن کلاس
+                            element.classList.add('has-data');
+                            
+                            // افزودن tooltip
+                            element.setAttribute('title', data.reason);
+                            
+                            // افزودن علامت شاخص
+                            const dataIcon = document.createElement('span');
+                            dataIcon.className = 'data-indicator';
+                            dataIcon.textContent = '📝';
+                            dataIcon.setAttribute('title', data.reason);
+                            element.appendChild(dataIcon);
+                        });
+                    }
+                });
+            });
+        }
+    
+        // تابع بررسی امکان مخفی کردن ستون
+        function _can_hide_column(column_key) {
+            // اگر کلید ستون نامعتبر است یا در جدول وجود ندارد
+            if (!column_key) {
+                console.log("کلید ستون خالی است");
+                return true;  // اجازه مخفی کردن را می‌دهیم
+            }
+            
+            try {
+                // این صدا زدن همزمان برای بررسی وضعیت ستون با سرور را انجام می‌دهیم
+                let canHide = true;
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', `/project/{{ project.id }}/check_column_can_hide`, false); // همزمان
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        canHide = response.can_hide;
+                        if (!canHide) {
+                            console.log('دلیل عدم امکان مخفی کردن:', response.reason);
+                        }
+                    } else {
+                        console.error('خطا در بررسی ستون:', xhr.statusText);
+                    }
+                };
+                xhr.send(`column_key=${column_key}`);
+                
+                return canHide;
+                
+            } catch (error) {
+                console.error(`خطا در بررسی ستون ${column_key}:`, error);
+                return false;  // در صورت بروز خطا، اجازه مخفی کردن نمی‌دهیم (احتیاط)
+            }
+        }
+        
+        // تابع بررسی پیش از مخفی کردن ستون
+        function checkBeforeHidingColumn(columnKey) {
+            // اگر ستون دارای داده‌ است، نباید مخفی شود
+            if (!_can_hide_column(columnKey)) {
+                alert(`ستون '${columnKey}' نمی‌تواند مخفی شود زیرا دارای داده است.`);
+                return false;
+            }
+            return true;
+        }
+        
+        // تابع تغییر وضعیت نمایش ستون
+        function toggle_column_display(columnKey, is_visible) {
+            // اگر می‌خواهیم ستون را مخفی کنیم
+            if (!is_visible) {
+                // بررسی امکان مخفی کردن
+                if (!_can_hide_column(columnKey)) {
+                    alert(`ستون '${columnKey}' نمی‌تواند مخفی شود زیرا دارای داده است.`);
+                    return false;
+                }
+            }
+            
+            // ارسال درخواست AJAX برای ذخیره تغییرات
+            fetch(`/project/{{ project.id }}/toggle_column_display`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `column_key=${columnKey}&is_visible=${is_visible ? 1 : 0}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`وضعیت نمایش ستون ${columnKey} با موفقیت به‌روز شد`);
+                    return true;
+                } else {
+                    console.error('خطا در به‌روزرسانی نمایش ستون:', data.error);
+                    alert(data.error || 'خطا در به‌روزرسانی وضعیت ستون');
+                    return false;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('خطا در ارتباط با سرور');
+                return false;
+            });
+            
+            return true;
+        }
+
+        function updateColumnCheckbox(columnKey, isChecked, doorId) {
+            fetch(`/project/${projectId}/save_batch_edit_checkbox_state`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'column_key': columnKey,
+                    'is_checked': isChecked ? '1' : '0',
+                    'door_id': doorId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // به‌روزرسانی رابط کاربری با استفاده از داده‌های برگشتی
+                    updateUI(data.checked_columns, data.visible_columns);
+                } else {
+                    console.error('Error:', data.error);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function updateUI(checkedColumns, visibleColumns) {
+            // به‌روزرسانی وضعیت نمایش ستون‌ها
+            // ستون‌های پایه که همیشه باید نمایش داده شوند
+            const basicColumns = ["location", "width", "height", "quantity", "direction"];
+            
+            // ستون‌های سفارشی را بر اساس وضعیت نمایش مدیریت می‌کنیم
+            // ابتدا همه ستون‌های سفارشی را مخفی می‌کنیم
+            $('.column-custom').hide();
+            
+            // سپس فقط ستون‌هایی را که در لیست visible_columns هستند نمایش می‌دهیم
+            if (visibleColumns) {
+                visibleColumns.forEach(function(columnKey) {
+                    // بررسی می‌کنیم که آیا ستون پایه است یا خیر
+                    if (!basicColumns.includes(columnKey)) {
+                        $('.column-' + columnKey).show();
+                        console.log("نمایش ستون:", columnKey);
+                    }
+                });
+            }
+            
+            // به‌روزرسانی وضعیت چک‌باکس‌ها
+            // ابتدا همه چک‌باکس‌ها را غیرفعال می‌کنیم
+            $('input[data-column]').prop('checked', false);
+            
+            // سپس چک‌باکس‌هایی که باید فعال باشند را فعال می‌کنیم
+            if (checkedColumns && checkedColumns.length > 0) {
+                checkedColumns.forEach(function(columnKey) {
+                    $('input[data-column="' + columnKey + '"]').prop('checked', true);
+                    console.log("فعال کردن چک‌باکس:", columnKey);
+                });
+            }
+        }
+
+        // اجرای اولیه برای اطمینان از نمایش صحیح ستون‌ها
+        $(document).ready(function() {
+            // دریافت وضعیت ستون‌های نمایشی از سرور
+            $.ajax({
+                url: '/project/{{ project.id }}/get_visible_columns',
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        updateUI([], response.visible_columns);
+                    }
+                }
+            });
+        });
+    </script>
+    
+    <!-- توابع برای عملیات‌های دکمه‌ها -->
+    <script>
+        function batchEdit() {
+            const selectedBoxes = document.querySelectorAll('.door-select:checked');
+            if (selectedBoxes.length === 0) {
+                alert('لطفاً حداقل یک درب را انتخاب کنید.');
+                return;
+            }
+            
+            // جمع‌آوری شناسه‌های درب‌های انتخاب شده
+            const doorIds = Array.from(selectedBoxes).map(box => box.getAttribute('data-id')).join(',');
+            
+            // هدایت به صفحه ویرایش گروهی با ارسال شناسه‌های درب‌ها
+            window.location.href = `/project/{{ project.id }}/batch_edit?door_ids=${doorIds}`;
+        }
+        
+        function calculateCutting() {
+            // هدایت به صفحه محاسبه برش
+            window.location.href = `/project/{{ project.id }}/calculate_cutting`;
+        }
+    </script>
+</body>
+
+</html>

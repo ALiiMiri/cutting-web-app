@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>نمونه طراحی انتخاب دستگیره و تأمین قفل</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #eef2f5;
+      color: #243648;
+      font-family: Tahoma, Arial, sans-serif;
+      line-height: 1.7;
+    }
+    .page { width: min(1080px, 94%); margin: 30px auto; }
+    .demo-banner {
+      background: #fff3cd;
+      color: #765b09;
+      border: 1px solid #ebd27d;
+      border-radius: 9px;
+      padding: 11px 16px;
+      margin-bottom: 14px;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 13px;
+      box-shadow: 0 5px 22px rgba(39, 55, 68, .09);
+      padding: 26px;
+    }
+    h1 { margin: 0; font-size: 1.65rem; }
+    .sub { color: #6c7b86; margin: 6px 0 22px; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 24px; }
+    .step { background: #edf2f5; color: #64727c; border-radius: 7px; padding: 9px; text-align: center; }
+    .step.active { background: #e6f5f1; color: #087761; border: 1px solid #8bd0c1; font-weight: bold; }
+    .selected {
+      background: #f7f9fa;
+      border: 1px solid #dfe6ea;
+      border-radius: 9px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+    .chip { background: #e7efff; color: #28548f; border-radius: 20px; padding: 5px 12px; font-size: .88rem; }
+    .section { border: 1px solid #dfe6ea; border-radius: 10px; padding: 18px; margin-top: 15px; }
+    .section h2 { margin: 0 0 14px; font-size: 1.15rem; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+    label.title { display: block; font-weight: bold; margin-bottom: 7px; }
+    select {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid #bdc9d0;
+      border-radius: 7px;
+      background: white;
+      font-family: inherit;
+      font-size: .96rem;
+    }
+    .help { color: #72808a; font-size: .83rem; margin-top: 5px; }
+    .conditional { display: none; margin-top: 18px; animation: show .18s ease; }
+    .conditional.visible { display: block; }
+    @keyframes show { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    .choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .choice {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      border: 1px solid #d9e1e5;
+      border-radius: 8px;
+      padding: 12px;
+      cursor: pointer;
+      transition: .15s;
+    }
+    .choice:hover { border-color: #1da98b; background: #f1fbf8; }
+    .choice:has(input:checked) { border-color: #0e987c; background: #e9f8f4; box-shadow: 0 0 0 1px #0e987c inset; }
+    .choice input { margin-top: 5px; accent-color: #0e987c; }
+    .choice strong { display: block; }
+    .choice small { display: block; color: #71808b; margin-top: 2px; }
+    .model-box { margin-top: 14px; display: none; }
+    .model-box.visible { display: block; }
+    .summary {
+      margin-top: 20px;
+      background: #f0f7ff;
+      border: 1px solid #bed8f2;
+      border-radius: 9px;
+      padding: 14px 17px;
+    }
+    .summary strong { color: #245f93; }
+    .actions { display: flex; justify-content: flex-start; gap: 10px; margin-top: 22px; }
+    button { border: 0; border-radius: 7px; padding: 11px 20px; color: #fff; font-family: inherit; font-weight: bold; cursor: pointer; }
+    .save { background: #149779; }
+    .cancel { background: #89959d; }
+    .note { margin-top: 12px; color: #8a6410; background: #fff7df; padding: 10px 13px; border-radius: 7px; display: none; }
+    .note.visible { display: block; }
+    @media (max-width: 700px) {
+      .grid, .choices, .steps { grid-template-columns: 1fr; }
+      .panel { padding: 17px; }
+      .actions button { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="demo-banner">این صفحه فقط نمونه تعاملی طراحی است؛ چیزی در نرم‌افزار یا دیتابیس ذخیره نمی‌کند.</div>
+    <section class="panel">
+      <h1>ویرایش گروهی درب‌ها</h1>
+      <p class="sub">تعیین یراق برای ردیف‌های انتخاب‌شده از نمای درختی پروژه</p>
+
+      <div class="steps">
+        <div class="step">۱. انتخاب ردیف‌ها در نمای درختی</div>
+        <div class="step active">۲. تعیین یراق و نحوه تأمین</div>
+        <div class="step">۳. مشاهده لیست یراق پروژه</div>
+      </div>
+
+      <div class="selected">
+        <strong>۳ ردیف انتخاب شده است</strong>
+        <div class="chips">
+          <span class="chip">اتاق مدیریت</span>
+          <span class="chip">اتاق جلسات</span>
+          <span class="chip">ورودی واحد</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>یراق درب</h2>
+        <div class="grid">
+          <div>
+            <label class="title" for="handle">مدل دستگیره</label>
+            <select id="handle">
+              <option value="">— انتخاب کنید —</option>
+              <option value="normal">ایزدو</option>
+              <option value="normal">گریف ورک</option>
+              <option value="normal">دو تکه</option>
+              <option value="special">تک‌رزت</option>
+              <option value="special">مونتیس</option>
+              <option value="none">بدون دستگیره</option>
+            </select>
+            <div class="help">برای دستگیره‌های تک‌رزت و مونتیس، وضعیت قفل جداگانه پرسیده می‌شود.</div>
+          </div>
+          <div id="normalLock">
+            <label class="title" for="normalLockModel">مدل قفل</label>
+            <select id="normalLockModel">
+              <option>— انتخاب کنید —</option>
+              <option>STV</option>
+              <option>ایزدو</option>
+              <option>مگنتی</option>
+              <option>بدون قفل</option>
+            </select>
+            <div class="help">برای دستگیره معمولی، مدل قفل مستقیماً انتخاب می‌شود.</div>
+          </div>
+        </div>
+
+        <div id="specialFlow" class="conditional">
+          <label class="title">نحوه تأمین قفل</label>
+          <div class="choices">
+            <label class="choice">
+              <input type="radio" name="supply" value="bundle" checked>
+              <span><strong>قفل همراه دستگیره</strong><small>حالت معمول؛ قفل و سیلندر جداگانه محاسبه نمی‌شود.</small></span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="supply" value="customer">
+              <span><strong>فقط دستگیره؛ قفل با مشتری</strong><small>قفل در لیست خرید شرکت قرار نمی‌گیرد.</small></span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="supply" value="company">
+              <span><strong>قفل جداگانه از شرکت</strong><small>مدل قفل در مرحله بعد انتخاب می‌شود.</small></span>
+            </label>
+            <label class="choice">
+              <input type="radio" name="supply" value="none">
+              <span><strong>بدون قفل</strong><small>برای این درب هیچ قفلی نصب نمی‌شود.</small></span>
+            </label>
+          </div>
+
+          <div id="separateModel" class="model-box">
+            <label class="title" for="specialLockModel">مدل قفل جداگانه</label>
+            <select id="specialLockModel">
+              <option>— انتخاب کنید —</option>
+              <option>STV</option>
+              <option>ایزدو</option>
+              <option>مگنتی</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="missingNote" class="note">تا زمانی که مدل دستگیره و نحوه تأمین قفل مشخص نشود، در گزارش یراق هشدار نمایش داده خواهد شد.</div>
+      </div>
+
+      <div class="summary">
+        <strong>نتیجه‌ای که در لیست یراق ثبت می‌شود:</strong>
+        <div id="resultText">ابتدا مدل دستگیره را انتخاب کنید.</div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="save" onclick="alert('این فقط نمونه طراحی است و ذخیره‌ای انجام نمی‌شود.')">اعمال روی ۳ ردیف</button>
+        <button type="button" class="cancel">انصراف</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const handle = document.getElementById('handle');
+    const normalLock = document.getElementById('normalLock');
+    const specialFlow = document.getElementById('specialFlow');
+    const separateModel = document.getElementById('separateModel');
+    const resultText = document.getElementById('resultText');
+    const missingNote = document.getElementById('missingNote');
+
+    function updateResult() {
+      const handleType = handle.value;
+      const handleName = handle.options[handle.selectedIndex].text;
+      missingNote.classList.toggle('visible', !handleType);
+
+      if (!handleType) {
+        normalLock.style.display = 'block';
+        specialFlow.classList.remove('visible');
+        resultText.textContent = 'ابتدا مدل دستگیره را انتخاب کنید.';
+        return;
+      }
+      if (handleType === 'special') {
+        normalLock.style.display = 'none';
+        specialFlow.classList.add('visible');
+        const supply = document.querySelector('input[name="supply"]:checked').value;
+        separateModel.classList.toggle('visible', supply === 'company');
+        const messages = {
+          bundle: `${handleName}: یک عدد ست کامل؛ قفل و سیلندر جداگانه صفر.`,
+          customer: `${handleName}: یک عدد دستگیره؛ قفل با مشتری و در خرید شرکت صفر.`,
+          company: `${handleName}: یک عدد دستگیره + قفل جداگانه انتخابی از شرکت.`,
+          none: `${handleName}: یک عدد دستگیره؛ بدون قفل و بدون سیلندر.`
+        };
+        resultText.textContent = messages[supply];
+      } else if (handleType === 'none') {
+        normalLock.style.display = 'block';
+        specialFlow.classList.remove('visible');
+        resultText.textContent = 'دستگیره صفر؛ در صورت انتخاب قفل، قفل و سیلندر طبق مدل محاسبه می‌شود.';
+      } else {
+        normalLock.style.display = 'block';
+        specialFlow.classList.remove('visible');
+        resultText.textContent = `${handleName}: یک عدد؛ مدل قفل از فهرست روبه‌رو انتخاب و یک سیلندر محاسبه می‌شود.`;
+      }
+    }
+
+    handle.addEventListener('change', updateResult);
+    document.querySelectorAll('input[name="supply"]').forEach(input => input.addEventListener('change', updateResult));
+    updateResult();
+  </script>
+</body>
+</html>

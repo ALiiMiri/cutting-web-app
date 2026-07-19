@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدیریت بکاپ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .stat-card .label {
+            color: #666;
+            font-size: 14px;
+        }
+        .actions {
+            padding: 30px;
+            border-bottom: 1px solid #eee;
+        }
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #da190b;
+        }
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #45a049;
+        }
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+        .backups-list {
+            padding: 30px;
+        }
+        .backup-item {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            border-right: 4px solid #667eea;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+        .backup-item:hover {
+            background: #e9ecef;
+            transform: translateX(-5px);
+        }
+        .backup-info {
+            flex: 1;
+        }
+        .backup-info h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+        .backup-info .meta {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .backup-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .backup-actions button {
+            padding: 8px 20px;
+            font-size: 14px;
+        }
+        .alert {
+            padding: 15px 20px;
+            margin: 20px 30px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        .no-backups {
+            text-align: center;
+            padding: 60px 30px;
+            color: #999;
+        }
+        .no-backups i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            display: block;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        .modal-content h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .modal-content p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        .back-link {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #6c757d;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        .back-link:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ مدیریت بکاپ سیستم</h1>
+            <p>ایجاد، بازگردانی و مدیریت نسخه‌های پشتیبان دیتابیس</p>
+        </div>
+
+        {% if message %}
+        <div class="alert alert-{{ message_type }}">
+            {{ message }}
+        </div>
+        {% endif %}
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="number">{{ stats.total_backups }}</div>
+                <div class="label">تعداد بکاپ</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">{{ stats.total_size_mb }}</div>
+                <div class="label">حجم کل (مگابایت)</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">{% if stats.newest_backup %}{{ stats.newest_backup.get('datetime', stats.newest_backup.get('created', '-'))[:10] }}{% else %}-{% endif %}</div>
+                <div class="label">آخرین بکاپ</div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <a href="/" class="back-link">← بازگشت به صفحه اصلی</a>
+            <form method="post" action="{{ url_for('backup_create') }}" style="display:inline" onsubmit="return confirm('یک بکاپ سالم از وضعیت فعلی ساخته شود؟')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-primary" type="submit">🔄 ایجاد بکاپ جدید</button>
+            </form>
+            <form method="post" action="{{ url_for('backup_cleanup') }}" style="display:inline" onsubmit="return confirm('بکاپ‌های روزانه قدیمی‌تر از دوره نگهداری پاک شوند؟')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-warning" type="submit">🧹 پاکسازی بکاپ‌های قدیمی</button>
+            </form>
+        </div>
+
+        <div class="backups-list">
+            <h2 style="margin-bottom: 20px; color: #333;">لیست بکاپ‌ها</h2>
+            
+            {% if backups %}
+                {% for backup in backups %}
+                <div class="backup-item">
+                    <div class="backup-info">
+                        <h3>📦 {{ backup.filename }}</h3>
+                        <div class="meta">
+                            <strong>تاریخ:</strong> {{ backup.get('datetime', backup.get('created', '-'))[:19] }} |
+                            <strong>حجم:</strong> {{ "%.2f"|format(backup.size_bytes / (1024*1024)) }} MB |
+                            <strong>دلیل:</strong> {{ backup.reason if backup.reason else 'نامشخص' }}
+                        </div>
+                        {% if backup.table_counts %}
+                        <div class="meta">
+                            پروژه‌ها: {{ backup.table_counts.projects if backup.table_counts.projects != None else '؟' }} | 
+                            درها: {{ backup.table_counts.doors if backup.table_counts.doors != None else '؟' }} | 
+                            پروفیل‌ها: {{ backup.table_counts.profile_types if backup.table_counts.profile_types != None else '؟' }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="backup-actions">
+                        <a class="btn btn-success" href="{{ url_for('backup_download', filename=backup.filename) }}">⬇️ دانلود</a>
+                        <form method="post" action="{{ url_for('backup_restore', filename=backup.filename) }}" onsubmit="return confirm('سامانه موقتاً متوقف و این بکاپ بازگردانی می‌شود. قبل از آن یک بکاپ امنیتی ساخته خواهد شد. ادامه می‌دهید؟')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="btn btn-primary" type="submit">↩️ بازگردانی امن</button>
+                        </form>
+                        <form method="post" action="{{ url_for('backup_delete', filename=backup.filename) }}" onsubmit="return confirm('این فایل بکاپ حذف شود؟')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="btn btn-danger" type="submit">🗑️ حذف</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-backups">
+                    <i>📭</i>
+                    <h3>هیچ بکاپی وجود ندارد</h3>
+                    <p>برای ایجاد اولین بکاپ، دکمه "ایجاد بکاپ جدید" را بزنید.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+</body>
+</html>

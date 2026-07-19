@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تنظیمات قیمت پایه</title>
+    <style>
+        /* تعریف فونت وزیر */
+        @font-face {
+            font-family: 'Vazir';
+            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'Vazir', Tahoma, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+            background-color: #f4f7f6;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            margin-top: 0;
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+
+        .form-section h2 {
+            color: #3498db;
+            margin-top: 0;
+            font-size: 1.4em;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+
+        .row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .col {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        .flash {
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+
+        .flash.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .flash.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .nav-link {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-link:hover {
+            background-color: #2980b9;
+        }
+
+        .nav-link.home {
+            background-color: #9b59b6;
+        }
+
+        .nav-link.home:hover {
+            background-color: #8e44ad;
+        }
+
+        @media (max-width: 768px) {
+            .row {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .container {
+                padding: 15px;
+                width: 95%;
+            }
+
+            .nav-buttons {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .nav-link {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>تنظیمات قیمت پایه</h1>
+
+        <!-- نمایش پیام‌های فلش -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('price_calculator_settings') }}">
+            <div class="form-section">
+                <h2>وزن انواع پروفیل</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="فریم_لس_قدیمی">فریم لس قدیمی:</label>
+                            <input type="number" id="فریم_لس_قدیمی" name="فریم_لس_قدیمی" value="{{ prices.فریم_لس_قدیمی }}" required min="0" step="0.01">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="فریم_لس_قالب_جدید">فریم لس قالب جدید:</label>
+                            <input type="number" id="فریم_لس_قالب_جدید" name="فریم_لس_قالب_جدید" value="{{ prices.فریم_لس_قالب_جدید }}" required min="0" step="0.01">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="توچوب_دار">توچوب دار:</label>
+                            <input type="number" id="توچوب_دار" name="توچوب_دار" value="{{ prices.توچوب_دار }}" required min="0" step="0.01">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="دور_آلومینیوم">دور آلومینیوم:</label>
+                            <input type="number" id="دور_آلومینیوم" name="دور_آلومینیوم" value="{{ prices.دور_آلومینیوم }}" required min="0" step="0.01">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>قیمت ملزومات نصب</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="لاستیک">لاستیک (ریال به ازای هر متر):</label>
+                            <input type="number" id="لاستیک" name="لاستیک" value="{{ prices.لاستیک }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="بست_نصب">بست نصب (ریال):</label>
+                            <input type="number" id="بست_نصب" name="بست_نصب" value="{{ prices.بست_نصب }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>قیمت اجرت ماشین کاری</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="چهارچوب_فریم_لس">چهارچوب فریم لس (ریال):</label>
+                            <input type="number" id="چهارچوب_فریم_لس" name="چهارچوب_فریم_لس" value="{{ prices.چهارچوب_فریم_لس }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="داخل_چوب">داخل چوب (ریال):</label>
+                            <input type="number" id="داخل_چوب" name="داخل_چوب" value="{{ prices.داخل_چوب }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="دور_آلومینیوم_ماشین">دور آلومینیوم (ریال):</label>
+                            <input type="number" id="دور_آلومینیوم_ماشین" name="دور_آلومینیوم_ماشین" value="{{ prices.دور_آلومینیوم_ماشین }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>قیمت رنگ آلومینیوم</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="خام">خام (ریال):</label>
+                            <input type="number" id="خام" name="خام" value="{{ prices.خام }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="آنادایز">آنادایز (ریال):</label>
+                            <input type="number" id="آنادایز" name="آنادایز" value="{{ prices.آنادایز }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="رنگی">رنگی (ریال):</label>
+                            <input type="number" id="رنگی" name="رنگی" value="{{ prices.رنگی }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>قیمت جنس درب</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="پلای_وود">پلای وود (ریال):</label>
+                            <input type="number" id="پلای_وود" name="پلای_وود" value="{{ prices.پلای_وود }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>قیمت پایه درب خام بر اساس ارتفاع</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="تا_260">تا 260 سانتی متر (ریال):</label>
+                            <input type="number" id="تا_260" name="تا_260" value="{{ prices['تا_260'] }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="261_تا_320">261 تا 320 سانتی متر (ریال):</label>
+                            <input type="number" id="261_تا_320" name="261_تا_320" value="{{ prices['261_تا_320'] }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="321_تا_360">321 تا 360 سانتی متر (ریال):</label>
+                            <input type="number" id="321_تا_360" name="321_تا_360" value="{{ prices['321_تا_360'] }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="بیش_از_360">بیش از 360 سانتی متر (ریال):</label>
+                            <input type="number" id="بیش_از_360" name="بیش_از_360" value="{{ prices['بیش_از_360'] }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>قیمت خدمات رنگ</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="رنگ_نهایی_خارجی">رنگ نهایی خارجی (ریال):</label>
+                            <input type="number" id="رنگ_نهایی_خارجی" name="رنگ_نهایی_خارجی" value="{{ prices.رنگ_نهایی_خارجی }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="رنگ_نهایی_ایرانی">رنگ نهایی ایرانی (ریال):</label>
+                            <input type="number" id="رنگ_نهایی_ایرانی" name="رنگ_نهایی_ایرانی" value="{{ prices.رنگ_نهایی_ایرانی }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="زیر_سازی_خارجی">زیر سازی خارجی (ریال):</label>
+                            <input type="number" id="زیر_سازی_خارجی" name="زیر_سازی_خارجی" value="{{ prices.زیر_سازی_خارجی }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="زیر_سازی_ایرانی">زیر سازی ایرانی (ریال):</label>
+                            <input type="number" id="زیر_سازی_ایرانی" name="زیر_سازی_ایرانی" value="{{ prices.زیر_سازی_ایرانی }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="کد_رنگ_خارجی">کد رنگ خارجی (ریال):</label>
+                            <input type="number" id="کد_رنگ_خارجی" name="کد_رنگ_خارجی" value="{{ prices.کد_رنگ_خارجی }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="کد_رنگ_ایرانی">کد رنگ ایرانی (ریال):</label>
+                            <input type="number" id="کد_رنگ_ایرانی" name="کد_رنگ_ایرانی" value="{{ prices.کد_رنگ_ایرانی }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>قیمت یراق آلات</h2>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="لولا">لولا (ریال به ازای هر عدد):</label>
+                            <input type="number" id="لولا" name="لولا" value="{{ prices.لولا }}" required min="0">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="قفل">قفل (ریال):</label>
+                            <input type="number" id="قفل" name="قفل" value="{{ prices.قفل }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="سیلندر">سیلندر (ریال):</label>
+                            <input type="number" id="سیلندر" name="سیلندر" value="{{ prices.سیلندر }}" required min="0">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit">ذخیره تنظیمات</button>
+        </form>
+
+        <div class="nav-buttons">
+            <a href="{{ url_for('price_calculator') }}" class="nav-link">بازگشت به محاسبه قیمت</a>
+            <a href="{{ url_for('index') }}" class="nav-link home">بازگشت به صفحه اصلی</a>
+        </div>
+    </div>
+</body>
+
+</html>

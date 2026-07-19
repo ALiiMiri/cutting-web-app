@@ -1,0 +1,33 @@
+<style>
+    body.with-app-header{padding:0!important}
+    body.with-app-header>.container,body.with-app-header>main.container{width:calc(100% - 24px);margin-top:24px;margin-bottom:24px}
+    .app-header{position:sticky;top:0;z-index:1000;width:100%;height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 28px;color:#fff;background:#17243b;box-shadow:0 2px 12px rgba(15,24,39,.12);direction:rtl;font-family:Vazir,Tahoma,sans-serif}
+    .app-header a{text-decoration:none}.app-header-brand{min-width:0;display:inline-flex;align-items:center;gap:11px;color:#fff;font-size:14px;font-weight:900}.app-header-brand:hover,.app-header-brand:focus-visible{color:#fff;outline:none}
+    .app-header-brand-mark{width:34px;height:34px;display:grid;place-items:center;flex:0 0 34px;border-radius:10px;color:#17243b;background:#fff;font-size:13px;font-weight:900}
+    .app-header-actions{display:flex;align-items:center;gap:9px;direction:rtl}.app-user-home,.app-menu-button{height:38px;display:inline-flex;align-items:center;gap:8px;padding:0 10px;color:#fff;background:rgba(255,255,255,.1);border:0;border-radius:9px;font:inherit;font-size:11px;cursor:pointer}
+    .app-user-home:hover,.app-user-home:focus-visible,.app-menu-button:hover,.app-menu-button:focus-visible,.app-menu-button[aria-expanded="true"]{color:#fff;background:rgba(255,255,255,.18);outline:none}
+    .app-user-avatar{width:26px;height:26px;display:grid;place-items:center;flex:0 0 26px;border-radius:8px;color:#17243b;background:#fff;font-size:11px;font-weight:900}.app-menu-wrap{position:relative}
+    .app-menu-panel{position:absolute;z-index:1010;top:45px;left:0;width:225px;display:none;padding:7px;border:1px solid #dfe5ec;border-radius:11px;background:#fff;box-shadow:0 18px 45px rgba(10,18,30,.22)}.app-menu-panel.is-open{display:block}
+    .app-menu-panel a{width:100%;display:block;padding:9px 10px;color:#273449;border-radius:8px;text-align:right;font-size:11px}.app-menu-panel a+a{margin-top:2px}.app-menu-panel a:hover,.app-menu-panel a:focus-visible{color:#2563eb;background:#edf4ff;outline:none}.app-menu-panel .app-logout{color:#c23d4b;border-top:1px solid #dfe5ec;border-radius:0 0 8px 8px}
+    @media(max-width:640px){.app-header{padding:0 12px}.app-header-brand-text,.app-user-copy,.app-menu-label{display:none}.app-user-home,.app-menu-button{width:38px;justify-content:center;padding:0}}
+    @media print{.app-header{display:none!important}}
+</style>
+{% if current_user.role == 'admin' %}{% set app_role_label = 'مدیر سیستم' %}{% elif current_user.role == 'manager' %}{% set app_role_label = 'مدیر' %}{% elif current_user.role == 'staff' %}{% set app_role_label = 'کارمند' %}{% else %}{% set app_role_label = 'مشاهده‌گر' %}{% endif %}
+<header class="app-header">
+    <a class="app-header-brand" href="{{ url_for('index') }}" aria-label="رفتن به مدیریت سفارش درب"><span class="app-header-brand-mark">د</span><span class="app-header-brand-text">مدیریت سفارش درب</span></a>
+    <div class="app-header-actions">
+        <a class="app-user-home" href="{{ url_for('index') }}" aria-label="بازگشت {{ current_user.username }} به صفحه اصلی"><span class="app-user-avatar">{{ current_user.username[:1]|upper }}</span><span class="app-user-copy">{{ current_user.username }} · {{ app_role_label }}</span></a>
+        <div class="app-menu-wrap">
+            <button class="app-menu-button" data-app-menu-button type="button" aria-expanded="false" aria-controls="app-menu-panel"><span aria-hidden="true">☰</span><span class="app-menu-label">منوی اصلی</span></button>
+            <nav class="app-menu-panel" id="app-menu-panel" data-app-menu-panel aria-label="منوی اصلی نرم‌افزار">
+                {% if current_user.role in ['admin','manager'] %}<a href="{{ url_for('admin.users_list') }}">مدیریت کاربران</a><a href="{{ url_for('inventory_route') }}">مدیریت انبار</a>{% endif %}
+                <a href="{{ url_for('price_calculator') }}">محاسبه قیمت</a><a href="{{ url_for('saved_quotes') }}">قیمت‌دهی‌های ذخیره‌شده</a>
+                {% if current_user.role == 'admin' %}<a href="{{ url_for('backup_management') }}">نسخه‌های پشتیبان</a>{% endif %}
+                <a href="{{ url_for('auth.change_password') }}">تغییر رمز عبور</a><a class="app-logout" href="{{ url_for('auth.logout') }}">خروج</a>
+            </nav>
+        </div>
+    </div>
+</header>
+<script>
+(()=>{const button=document.querySelector('[data-app-menu-button]'),panel=document.querySelector('[data-app-menu-panel]');if(!button||!panel||button.dataset.bound==='true')return;button.dataset.bound='true';const close=()=>{panel.classList.remove('is-open');button.setAttribute('aria-expanded','false')};button.addEventListener('click',event=>{event.stopPropagation();const open=panel.classList.toggle('is-open');button.setAttribute('aria-expanded',String(open))});document.addEventListener('click',event=>{if(!panel.contains(event.target)&&!button.contains(event.target))close()});document.addEventListener('keydown',event=>{if(event.key==='Escape')close()})})();
+</script>

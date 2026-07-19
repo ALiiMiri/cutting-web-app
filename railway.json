@@ -1,0 +1,5 @@
+{
+    "build": "pip install -r requirements.txt",
+    "start": "python cutting_web_app.py"
+  }
+  

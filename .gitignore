@@ -1,0 +1,23 @@
+desktop.ini
+cutting_web_data.db
+__pycache__/
+*.py[cod]
+
+# Backup files
+backups/
+*.db.backup
+*_backup_*.db
+.maintenance.json
+static/exports/*.xlsx
+
+# --- extra safety (added during git setup) ---
+.env
+*.env
+*.db
+*.db-shm
+*.db-wal
+*.db.pre_hardening
+*.db.upgrade.lock
+logs/
+*.log
+static/exports/
