@@ -4,6 +4,7 @@ import os
 import random
 import math
 import secrets
+import json
 from config import Config
 from db_migrations import apply_migrations
 from datetime import datetime
@@ -2919,6 +2920,7 @@ def apply_cutting_plan_inventory_transaction(
     profile_requirements,
     used_inventory_pieces=None,
     actor_user_id=None,
+    plan_snapshot=None,
 ):
     """
     Apply a complete cutting plan to inventory in one SQLite transaction.
@@ -2928,6 +2930,17 @@ def apply_cutting_plan_inventory_transaction(
     completion marker together.
     """
     used_inventory_pieces = used_inventory_pieces or {}
+    try:
+        plan_snapshot_json = (
+            json.dumps(plan_snapshot, ensure_ascii=False, separators=(",", ":"))
+            if plan_snapshot is not None
+            else None
+        )
+    except (TypeError, ValueError) as exc:
+        return {
+            "status": "validation_error",
+            "errors": [f"نسخه ذخیره‌شده طرح برش معتبر نیست: {exc}"],
+        }
     conn = None
     try:
         conn = get_db_connection()
@@ -2965,7 +2978,9 @@ def apply_cutting_plan_inventory_transaction(
                 ],
             }
 
-        cursor.execute("SELECT id, name, min_waste, weight_per_meter FROM profile_types")
+        cursor.execute(
+            "SELECT id, name, default_length, min_waste, weight_per_meter FROM profile_types"
+        )
         profiles_by_name = {}
         ambiguous_profile_names = set()
         for row in cursor.fetchall():
@@ -3144,6 +3159,25 @@ def apply_cutting_plan_inventory_transaction(
                 errors.append(f"وزن هر متر پروفیل «{profile_name}» معتبر نیست.")
                 continue
 
+            try:
+                default_length = float(profile["default_length"])
+                planned_default_length = float(profile_data.get("default_length"))
+            except (TypeError, ValueError):
+                errors.append(f"طول استاندارد پروفیل «{profile_name}» معتبر نیست.")
+                continue
+            if not math.isfinite(default_length) or default_length <= 0:
+                errors.append(f"طول استاندارد پروفیل «{profile_name}» معتبر نیست.")
+                continue
+            if (
+                not math.isfinite(planned_default_length)
+                or abs(planned_default_length - default_length) > 0.001
+            ):
+                errors.append(
+                    f"طول استاندارد پروفیل «{profile_name}» پس از محاسبه تغییر کرده است؛ "
+                    "لطفاً گزارش برش را دوباره محاسبه کنید."
+                )
+                continue
+
             planned_min_waste = profile_data.get("min_waste")
             if planned_min_waste is not None:
                 try:
@@ -3175,6 +3209,14 @@ def apply_cutting_plan_inventory_transaction(
                 ):
                     errors.append(f"مقدار باقی‌مانده پروفیل «{profile_name}» معتبر نیست.")
                     continue
+                if (
+                    not bin_data.get("from_inventory_piece", False)
+                    and abs(initial_length - default_length) > 0.001
+                ):
+                    errors.append(
+                        f"طول شاخه جدید پروفیل «{profile_name}» با طول استاندارد انبار هماهنگ نیست."
+                    )
+                    continue
                 normalized_bins.append(
                     {
                         "remaining": remaining,
@@ -3191,6 +3233,7 @@ def apply_cutting_plan_inventory_transaction(
                     "color_name": color["name"],
                     "min_waste": min_waste,
                     "weight_per_meter": weight_per_meter,
+                    "default_length": default_length,
                     "new_bins_count": new_bins_count,
                     "current_stock": current_stock,
                     "pieces": prepared_pieces,
@@ -3421,8 +3464,8 @@ def apply_cutting_plan_inventory_transaction(
             """
             INSERT INTO inventory_cutting_applications
                 (project_id, applied_at, profile_count, total_stock_deducted,
-                 pieces_consumed, pieces_returned, operation_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 pieces_consumed, pieces_returned, operation_id, plan_snapshot_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 project_id,
@@ -3432,6 +3475,7 @@ def apply_cutting_plan_inventory_transaction(
                 total_pieces_consumed,
                 total_pieces_returned,
                 operation_id,
+                plan_snapshot_json,
             ),
         )
         conn.commit()

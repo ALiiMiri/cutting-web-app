@@ -422,6 +422,7 @@
             <thead>
                 <tr>
                     <th>نوع پروفیل</th>
+                    <th>طول استاندارد شاخه</th>
                     <th>وزن هر متر</th>
                     <th>حد ضایعات</th>
                     <th>ضایعات واقعی</th>
@@ -433,6 +434,7 @@
                 {% for summary in profile_summaries %}
                 <tr>
                     <td>{{ summary.profile_type }} — {{ summary.color_name }}</td>
+                    <td>{{ summary.default_length|round(1) }} cm</td>
                     <td>{{ summary.weight_per_meter|round(3) }} kg/m</td>
                     <td>{{ summary.min_waste|round(1) }} cm</td>
                     <td>{{ summary.discarded_length|round(1) }} cm / {{ summary.discarded_weight|round(2) }} kg</td>
@@ -489,8 +491,11 @@
 
                 <div>برش‌ها:</div>
                 <div class="bin-pieces">
-                    {% for piece in bin.pieces %}
-                    <span class="piece-item">{{ piece }} cm</span>
+                    {% for piece in bin.piece_details %}
+                    <span class="piece-item">
+                        <strong>{{ piece.length }} cm — {{ piece.member_label }}</strong><br>
+                        {{ piece.cut_instruction }}
+                    </span>
                     {% endfor %}
                 </div>
             </div>

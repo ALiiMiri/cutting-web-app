@@ -1,6 +1,8 @@
 """Pure cutting-plan calculations shared by the web report and Excel export."""
 
 from collections import defaultdict
+import hashlib
+import json
 
 from profile_names import normalize_profile_name
 
@@ -116,9 +118,47 @@ def _collect_requirements(doors):
             continue
 
         frame_type = normalize_frame_type(door.get("kolaft"))
-        requirements[(profile_name, color_name)].extend([height] * (quantity * 2))
-        if frame_type == THREE_SIDED_FRAME:
-            requirements[(profile_name, color_name)].extend([width] * quantity)
+        for _ in range(quantity):
+            if frame_type == TWO_SIDED_FRAME:
+                requirements[(profile_name, color_name)].extend(
+                    [
+                        {
+                            "length": height,
+                            "member_type": "vertical_left",
+                            "member_label": "قائم چپ چهارچوب دوطرفه",
+                            "cut_instruction": "بالا: صاف ۹۰ درجه؛ پایین: صاف ۹۰ درجه",
+                        },
+                        {
+                            "length": height,
+                            "member_type": "vertical_right",
+                            "member_label": "قائم راست چهارچوب دوطرفه",
+                            "cut_instruction": "بالا: صاف ۹۰ درجه؛ پایین: صاف ۹۰ درجه",
+                        },
+                    ]
+                )
+            else:
+                requirements[(profile_name, color_name)].extend(
+                    [
+                        {
+                            "length": height,
+                            "member_type": "vertical_left",
+                            "member_label": "قائم چپ چهارچوب سه‌طرفه",
+                            "cut_instruction": "بالا: فارسی‌بُر ۴۵ درجه چپ؛ پایین: صاف ۹۰ درجه",
+                        },
+                        {
+                            "length": height,
+                            "member_type": "vertical_right",
+                            "member_label": "قائم راست چهارچوب سه‌طرفه",
+                            "cut_instruction": "بالا: فارسی‌بُر ۴۵ درجه راست؛ پایین: صاف ۹۰ درجه",
+                        },
+                        {
+                            "length": width,
+                            "member_type": "horizontal_top",
+                            "member_label": "بالای چهارچوب سه‌طرفه",
+                            "cut_instruction": "دو سر فارسی‌بُر ۴۵ درجه و قرینه",
+                        },
+                    ]
+                )
         valid_rows += 1
 
     if not requirements:
@@ -127,6 +167,73 @@ def _collect_requirements(doors):
         )
 
     return dict(requirements), valid_rows, invalid_rows
+
+
+def _cutting_plan_fingerprint(
+    requirements,
+    profile_settings,
+    inventory_snapshot,
+    *,
+    use_inventory,
+    prefer_inventory_pieces,
+    optimization_strategy,
+    blade_width,
+):
+    """Build a stable signature for all inputs that can change a cutting plan."""
+    variants = []
+    for (profile_name, color_name), pieces in sorted(requirements.items()):
+        settings = profile_settings[(profile_name, color_name)]
+        variant_key = make_inventory_variant_key(profile_name, color_name)
+        variants.append(
+            {
+                "profile_name": profile_name,
+                "color_name": color_name,
+                "pieces": sorted(
+                    (
+                        {
+                            "length": float(piece["length"]),
+                            "member_type": piece["member_type"],
+                            "cut_instruction": piece["cut_instruction"],
+                        }
+                        for piece in pieces
+                    ),
+                    key=lambda piece: (
+                        piece["length"],
+                        piece["member_type"],
+                        piece["cut_instruction"],
+                    ),
+                ),
+                "settings": {
+                    "profile_id": settings["id"],
+                    "default_length": settings["default_length"],
+                    "weight_per_meter": settings["weight_per_meter"],
+                    "min_waste": settings["min_waste"],
+                },
+                "inventory_pieces": sorted(
+                    (
+                        {
+                            "id": piece.get("id"),
+                            "length": float(piece["length"]),
+                        }
+                        for piece in inventory_snapshot.get(variant_key, [])
+                        if piece.get("length") is not None
+                    ),
+                    key=lambda piece: (piece["length"], piece["id"] or 0),
+                ),
+            }
+        )
+
+    payload = {
+        "variants": variants,
+        "use_inventory": bool(use_inventory),
+        "prefer_inventory_pieces": bool(prefer_inventory_pieces),
+        "optimization_strategy": optimization_strategy,
+        "blade_width": blade_width,
+    }
+    encoded = json.dumps(
+        payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _future_fit_score(capacity, current_consumed, later_consumed):
@@ -257,10 +364,12 @@ def calculate_cutting_plan(
     results_by_profile = {}
     used_inventory_pieces = {}
     all_bins = []
+    inventory_snapshot = {}
 
     for (profile_name, color_name), required_pieces in requirements.items():
         variant_key = make_inventory_variant_key(profile_name, color_name)
         settings = profile_settings[(profile_name, color_name)]
+        profile_stock_length = settings["default_length"]
         bins = []
         used_piece_ids = []
         available_pieces = [
@@ -269,15 +378,24 @@ def calculate_cutting_plan(
                 variant_key, available_pieces_by_profile.get((profile_name, color_name), [])
             )
         ]
+        inventory_snapshot[variant_key] = [dict(piece) for piece in available_pieces]
 
-        sorted_pieces = sorted(required_pieces, reverse=True)
-        consumed_requirements = [length + blade_width for length in sorted_pieces]
-        for requirement_index, piece_length in enumerate(sorted_pieces):
+        sorted_pieces = sorted(
+            required_pieces,
+            key=lambda piece: (piece["length"], piece["member_type"]),
+            reverse=True,
+        )
+        consumed_requirements = [
+            piece["length"] + blade_width for piece in sorted_pieces
+        ]
+        for requirement_index, piece_detail in enumerate(sorted_pieces):
+            piece_length = piece_detail["length"]
             consumed_length = piece_length + blade_width
-            if consumed_length > stock_length:
+            if consumed_length > profile_stock_length:
                 raise CuttingPlanError(
                     f"امکان برش قطعه {piece_length:g} سانتی‌متری از شاخه "
-                    f"{stock_length:g} سانتی‌متری با تیغ ۵ میلی‌متری وجود ندارد "
+                    f"{profile_stock_length:g} سانتی‌متری با تیغ "
+                    f"{blade_width * 10:g} میلی‌متری وجود ندارد "
                     f"(پروفیل: {profile_name})."
                 )
 
@@ -285,6 +403,7 @@ def calculate_cutting_plan(
             open_bin = _choose_open_bin(bins, consumed_length, optimization_strategy)
             if open_bin is not None:
                 open_bin["pieces"].append(piece_length)
+                open_bin["piece_details"].append(dict(piece_detail))
                 open_bin["remaining"] -= consumed_length
                 placed = True
 
@@ -293,7 +412,7 @@ def calculate_cutting_plan(
                     available_pieces,
                     consumed_length,
                     consumed_requirements[requirement_index + 1 :],
-                    stock_length,
+                    profile_stock_length,
                     optimization_strategy,
                     prefer_inventory_pieces,
                 )
@@ -306,6 +425,7 @@ def calculate_cutting_plan(
                     bins.append(
                         {
                             "pieces": [piece_length],
+                            "piece_details": [dict(piece_detail)],
                             "remaining": inventory_length - consumed_length,
                             "profile_type": profile_name,
                             "color_name": color_name,
@@ -320,11 +440,12 @@ def calculate_cutting_plan(
                 bins.append(
                     {
                         "pieces": [piece_length],
-                        "remaining": stock_length - consumed_length,
+                        "piece_details": [dict(piece_detail)],
+                        "remaining": profile_stock_length - consumed_length,
                         "profile_type": profile_name,
                         "color_name": color_name,
                         "from_inventory_piece": False,
-                        "initial_length": stock_length,
+                        "initial_length": profile_stock_length,
                     }
                 )
 
@@ -344,7 +465,7 @@ def calculate_cutting_plan(
 
             if remaining_type == "discarded":
                 display_type = "small"
-            elif remaining < stock_length / 2:
+            elif remaining < initial_length / 2:
                 display_type = "medium"
             else:
                 display_type = "large"
@@ -398,6 +519,7 @@ def calculate_cutting_plan(
             "color_name": color_name,
             "weight_per_meter": settings["weight_per_meter"],
             "min_waste": settings["min_waste"],
+            "default_length": settings["default_length"],
             "bin_count": len(profile_bins),
             "discarded_length": 0.0,
             "discarded_weight": 0.0,
@@ -446,6 +568,10 @@ def calculate_cutting_plan(
                 **bin_data,
                 "index": index,
                 "pieces": [round(piece, 1) for piece in bin_data["pieces"]],
+                "piece_details": [
+                    {**piece, "length": round(piece["length"], 1)}
+                    for piece in bin_data["piece_details"]
+                ],
                 "remaining": round(bin_data["remaining"], 1),
                 "remaining_weight": round(bin_data["remaining_weight"], 2),
                 "initial_length": round(initial_length, 1),
@@ -458,7 +584,7 @@ def calculate_cutting_plan(
                 "source_text": (
                     f"قطعه انبار با شناسه {bin_data.get('inventory_piece_id')}"
                     if bin_data["from_inventory_piece"]
-                    else f"از شاخه جدید {stock_length:g} سانتی‌متری"
+                    else f"از شاخه جدید {initial_length:g} سانتی‌متری"
                 ),
                 "source_class": "source-inventory" if bin_data["from_inventory_piece"] else "source-new",
             }
@@ -466,6 +592,12 @@ def calculate_cutting_plan(
 
     return {
         "requirements": {
+            make_inventory_variant_key(profile_name, color_name): [
+                piece["length"] for piece in pieces
+            ]
+            for (profile_name, color_name), pieces in requirements.items()
+        },
+        "requirement_details": {
             make_inventory_variant_key(profile_name, color_name): pieces
             for (profile_name, color_name), pieces in requirements.items()
         },
@@ -476,6 +608,7 @@ def calculate_cutting_plan(
                 "color_name": profile_result["color_name"],
                 "total_bins": profile_result["total_bins"],
                 "min_waste": profile_settings[(profile_result["profile_name"], profile_result["color_name"])]["min_waste"],
+                "default_length": profile_settings[(profile_result["profile_name"], profile_result["color_name"])]["default_length"],
                 "bins": [
                     {
                         "remaining": bin_data["remaining"],
@@ -499,4 +632,13 @@ def calculate_cutting_plan(
         "stock_length": stock_length,
         "blade_width": blade_width,
         "optimization_strategy": optimization_strategy,
+        "fingerprint": _cutting_plan_fingerprint(
+            requirements,
+            profile_settings,
+            inventory_snapshot,
+            use_inventory=use_inventory,
+            prefer_inventory_pieces=prefer_inventory_pieces,
+            optimization_strategy=optimization_strategy,
+            blade_width=blade_width,
+        ),
     }

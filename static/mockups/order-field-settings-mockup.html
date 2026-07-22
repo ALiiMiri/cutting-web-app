@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>نمونه تنظیمات فیلدهای سفارش</title>
+  <style>
+    @font-face {
+      font-family: Vazir;
+      src: url("../Vazir.ttf") format("truetype");
+      font-display: swap;
+    }
+
+    :root {
+      --navy: #17243b;
+      --ink: #273449;
+      --muted: #6f7b8d;
+      --line: #e1e6ec;
+      --surface: #ffffff;
+      --canvas: #f4f6f8;
+      --blue: #2563eb;
+      --blue-soft: #edf4ff;
+      --green: #16835f;
+      --green-soft: #eaf8f2;
+      --amber: #aa6800;
+      --amber-soft: #fff6df;
+      --red: #c23d4b;
+      --shadow: 0 8px 30px rgba(23, 36, 59, .08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--canvas);
+      font-family: Vazir, Tahoma, sans-serif;
+      line-height: 1.7;
+    }
+
+    button, input, select { font: inherit; }
+
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .topbar {
+      height: 68px;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+      background: var(--navy);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      color: var(--navy);
+      font-size: 18px;
+    }
+
+    .demo-badge {
+      padding: 5px 10px;
+      border: 1px solid rgba(255, 255, 255, .25);
+      border-radius: 999px;
+      color: #dce6f5;
+      font-size: 12px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 24px 56px;
+    }
+
+    .breadcrumb {
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .breadcrumb span { color: var(--ink); }
+
+    .heading-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 5px;
+      color: var(--navy);
+      font-size: clamp(24px, 3vw, 32px);
+      line-height: 1.4;
+    }
+
+    .subtitle { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .back-button, .primary-button, .outline-button, .text-button, .icon-button {
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    .back-button {
+      flex: 0 0 auto;
+      padding: 10px 15px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid var(--line);
+    }
+
+    .back-button:hover { border-color: #bfc8d4; background: #fafbfc; }
+
+    .order-card {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 1px;
+      overflow: hidden;
+      margin-bottom: 16px;
+      background: var(--line);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .order-data { padding: 16px 18px; background: var(--surface); }
+    .order-label { display: block; margin-bottom: 3px; color: var(--muted); font-size: 12px; }
+    .order-value { color: var(--navy); font-weight: 800; }
+
+    .scope-note {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding: 14px 16px;
+      color: #12593f;
+      background: var(--green-soft);
+      border: 1px solid #bde8d6;
+      border-radius: 12px;
+      font-size: 14px;
+    }
+
+    .scope-icon {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: var(--green);
+      border-radius: 50%;
+      font-weight: 900;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 18px;
+      padding: 5px;
+      background: #e8ecf1;
+      border-radius: 12px;
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 9px 16px;
+      border: 0;
+      border-radius: 9px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .tab.active { color: var(--navy); background: #fff; box-shadow: 0 2px 8px rgba(23,36,59,.08); font-weight: 800; }
+
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .section-card {
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 19px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head h2 { margin: 0 0 3px; color: var(--navy); font-size: 18px; }
+    .section-head p { margin: 0; color: var(--muted); font-size: 13px; }
+    .count { min-width: 76px; color: var(--blue); font-size: 13px; text-align: left; }
+
+    .field-list { min-height: 120px; }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(190px, 1.25fr) minmax(140px, .8fr) minmax(150px, .8fr) auto;
+      align-items: center;
+      gap: 16px;
+      min-height: 76px;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .field-row:last-child { border-bottom: 0; }
+    .field-row:hover { background: #fbfcfd; }
+
+    .field-title { color: var(--navy); font-weight: 800; }
+    .field-help { display: block; margin-top: 1px; color: var(--muted); font-size: 12px; }
+
+    .type-pill {
+      width: fit-content;
+      padding: 4px 9px;
+      color: #526174;
+      background: #f0f3f6;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    .visibility {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
+    .switch input { position: absolute; opacity: 0; pointer-events: none; }
+    .switch-track { position: absolute; inset: 0; border-radius: 999px; background: #c5ccd5; cursor: pointer; transition: .2s; }
+    .switch-track::after { content: ""; position: absolute; top: 4px; right: 4px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: .2s; }
+    .switch input:checked + .switch-track { background: var(--green); }
+    .switch input:checked + .switch-track::after { transform: translateX(-20px); }
+
+    .row-actions { display: flex; align-items: center; gap: 8px; }
+
+    .text-button {
+      padding: 7px 10px;
+      color: var(--blue);
+      background: transparent;
+      font-size: 13px;
+    }
+
+    .text-button:hover { background: var(--blue-soft); }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 20px;
+    }
+
+    .icon-button:hover { color: var(--red); background: #fff0f1; }
+
+    .library-tools {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .search {
+      flex: 1;
+      height: 44px;
+      padding: 0 14px;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: none;
+    }
+
+    .search:focus { border-color: #8eb4ff; box-shadow: 0 0 0 3px var(--blue-soft); }
+
+    .primary-button { padding: 10px 16px; color: #fff; background: var(--blue); font-weight: 800; }
+    .primary-button:hover { background: #1d4ed8; transform: translateY(-1px); }
+
+    .outline-button { padding: 8px 13px; color: var(--blue); background: #fff; border: 1px solid #bcd0f9; }
+    .outline-button:hover { background: var(--blue-soft); }
+
+    .available-row {
+      display: grid;
+      grid-template-columns: minmax(190px, 1.3fr) minmax(140px, .8fr) minmax(140px, .8fr) auto;
+      align-items: center;
+      gap: 16px;
+      min-height: 74px;
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .available-row:last-child { border-bottom: 0; }
+    .available-row:hover { background: #fbfcfd; }
+    .used-before { color: var(--muted); font-size: 12px; }
+
+    .empty {
+      padding: 40px 20px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .empty strong { display: block; color: var(--ink); margin-bottom: 3px; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(15, 24, 39, .52);
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(100%, 510px);
+      overflow: hidden;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 24px 70px rgba(0,0,0,.24);
+    }
+
+    .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+    .modal-head h3 { margin: 0; color: var(--navy); font-size: 18px; }
+    .modal-body { padding: 20px; }
+    .modal-note { margin: 0 0 18px; padding: 11px 13px; color: var(--amber); background: var(--amber-soft); border-radius: 9px; font-size: 13px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; color: var(--ink); font-size: 13px; font-weight: 800; }
+    .form-control { width: 100%; height: 43px; padding: 0 12px; color: var(--ink); background: #fff; border: 1px solid #ccd4de; border-radius: 9px; outline: none; }
+    .form-control:focus { border-color: #8eb4ff; box-shadow: 0 0 0 3px var(--blue-soft); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 15px 20px; background: #f8fafb; border-top: 1px solid var(--line); }
+
+    .toast {
+      position: fixed;
+      z-index: 30;
+      bottom: 24px;
+      left: 24px;
+      max-width: min(420px, calc(100vw - 48px));
+      padding: 12px 16px;
+      color: #fff;
+      background: var(--navy);
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.22);
+      opacity: 0;
+      transform: translateY(15px);
+      pointer-events: none;
+      transition: .25s;
+      font-size: 13px;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 780px) {
+      .topbar { height: 60px; padding: 0 16px; }
+      .page { padding: 20px 14px 40px; }
+      .heading-row { flex-direction: column; }
+      .back-button { width: 100%; }
+      .order-card { grid-template-columns: 1fr; }
+      .tabs { width: 100%; overflow-x: auto; }
+      .tab { flex: 1 0 auto; }
+      .field-row, .available-row { grid-template-columns: 1fr auto; gap: 9px; padding: 15px; }
+      .field-row > :nth-child(2), .available-row > :nth-child(2) { grid-column: 1; }
+      .field-row > :nth-child(3), .available-row > :nth-child(3) { grid-column: 1; }
+      .row-actions, .available-row > :last-child { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+      .section-head { padding: 16px; }
+      .library-tools { flex-direction: column; }
+      .primary-button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">د</span><span>مدیریت سفارش درب</span></div>
+    <span class="demo-badge">نمونه نمایشی — بدون اطلاعات واقعی</span>
+  </header>
+
+  <main class="page">
+    <div class="breadcrumb">سفارش‌ها / سفارش ۱۴۰۵-۰۲۱۸ / <span>تنظیمات فیلدها</span></div>
+
+    <div class="heading-row">
+      <div>
+        <h1>تنظیمات فیلدهای سفارش</h1>
+        <p class="subtitle">اطلاعاتی را که برای ثبت درب‌های این سفارش نیاز دارید، انتخاب کنید.</p>
+      </div>
+      <button class="back-button" type="button" data-demo>← بازگشت به جدول درب‌ها</button>
+    </div>
+
+    <section class="order-card" aria-label="مشخصات سفارش">
+      <div class="order-data"><span class="order-label">مشتری</span><span class="order-value">شرکت معماری آریا</span></div>
+      <div class="order-data"><span class="order-label">شماره سفارش</span><span class="order-value">۱۴۰۵-۰۲۱۸</span></div>
+      <div class="order-data"><span class="order-label">تعداد درب‌ها</span><span class="order-value">۲۴ درب</span></div>
+    </section>
+
+    <div class="scope-note">
+      <span class="scope-icon">✓</span>
+      <span><strong>این تنظیمات فقط برای همین سفارش است.</strong> فیلدهای ساخته‌شده برای استفاده در سفارش‌های آینده نیز در فهرست آماده باقی می‌مانند.</span>
+    </div>
+
+    <nav class="tabs" aria-label="بخش‌های تنظیمات">
+      <button class="tab active" data-tab="current">فیلدهای این سفارش <span id="tabCurrentCount">۵</span></button>
+      <button class="tab" data-tab="library">فیلدهای آماده <span id="tabLibraryCount">۴</span></button>
+    </nav>
+
+    <section class="panel active" id="panel-current">
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <h2>فیلدهای این سفارش</h2>
+            <p>خاموش‌کردن یک فیلد، اطلاعات قبلی آن را پاک نمی‌کند.</p>
+          </div>
+          <span class="count" id="activeCount">۴ فیلد فعال</span>
+        </div>
+        <div class="field-list" id="currentFields"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-library">
+      <div class="library-tools">
+        <input class="search" id="searchInput" type="search" placeholder="جستجو در فیلدهای آماده...">
+        <button class="primary-button" id="openCreateModal" type="button">+ ساخت فیلد جدید</button>
+      </div>
+      <div class="section-card">
+        <div class="section-head">
+          <div>
+            <h2>فیلدهای آماده</h2>
+            <p>فیلدهایی که قبلاً ساخته شده‌اند و می‌توانید به این سفارش اضافه کنید.</p>
+          </div>
+          <span class="count" id="libraryCount">۴ فیلد آماده</span>
+        </div>
+        <div id="libraryFields"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="createModal" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="createTitle">ساخت فیلد جدید</h3>
+        <button class="icon-button" id="closeModal" type="button" aria-label="بستن">×</button>
+      </div>
+      <form id="createForm">
+        <div class="modal-body">
+          <p class="modal-note">فیلد جدید به همین سفارش اضافه می‌شود و برای سفارش‌های آینده هم در فهرست آماده باقی می‌ماند.</p>
+          <div class="form-group">
+            <label for="fieldName">نام فیلد</label>
+            <input class="form-control" id="fieldName" required placeholder="مثلاً: نوع شیشه">
+          </div>
+          <div class="form-group">
+            <label for="fieldType">روش واردکردن اطلاعات</label>
+            <select class="form-control" id="fieldType">
+              <option value="متن آزاد">نوشتن متن</option>
+              <option value="انتخاب از فهرست">انتخاب از فهرست آماده</option>
+              <option value="عدد">واردکردن عدد</option>
+              <option value="بله یا خیر">بله یا خیر</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="back-button" id="cancelModal" type="button">انصراف</button>
+          <button class="primary-button" type="submit">ساخت و افزودن به سفارش</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const fields = [
+      { id: 1, name: 'رنگ', type: 'انتخاب از فهرست', active: true, options: true, usage: 18 },
+      { id: 2, name: 'نوع پروفیل', type: 'انتخاب از فهرست', active: true, options: true, usage: 22 },
+      { id: 3, name: 'وضعیت تولید', type: 'انتخاب از فهرست', active: true, options: true, usage: 15 },
+      { id: 4, name: 'توضیحات', type: 'متن آزاد', active: true, options: false, usage: 24 },
+      { id: 5, name: 'کد نقشه', type: 'متن آزاد', active: false, options: false, usage: 7 }
+    ];
+
+    const library = [
+      { id: 101, name: 'نوع شیشه', type: 'انتخاب از فهرست', usage: 9 },
+      { id: 102, name: 'طبقه نصب', type: 'عدد', usage: 6 },
+      { id: 103, name: 'نیاز به آرام‌بند', type: 'بله یا خیر', usage: 4 },
+      { id: 104, name: 'کد بسته‌بندی', type: 'متن آزاد', usage: 3 }
+    ];
+
+    const currentFields = document.getElementById('currentFields');
+    const libraryFields = document.getElementById('libraryFields');
+    const createModal = document.getElementById('createModal');
+    const toast = document.getElementById('toast');
+    let toastTimer;
+
+    function typeLabel(type) {
+      return type === 'متن آزاد' ? 'نوشتن متن' : type;
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+    }
+
+    function renderCurrent() {
+      currentFields.innerHTML = fields.length ? fields.map(field => `
+        <div class="field-row" data-id="${field.id}">
+          <div><span class="field-title">${field.name}</span><span class="field-help">در جدول درب‌ها نمایش داده می‌شود</span></div>
+          <span class="type-pill">${typeLabel(field.type)}</span>
+          <div class="visibility">
+            <label class="switch" aria-label="نمایش ${field.name}">
+              <input type="checkbox" ${field.active ? 'checked' : ''} data-action="toggle" data-id="${field.id}">
+              <span class="switch-track"></span>
+            </label>
+            <span>${field.active ? 'نمایش داده شود' : 'نمایش داده نشود'}</span>
+          </div>
+          <div class="row-actions">
+            ${field.options ? `<button class="text-button" type="button" data-action="options" data-id="${field.id}">ویرایش گزینه‌ها</button>` : ''}
+            <button class="icon-button" type="button" data-action="remove" data-id="${field.id}" title="برداشتن از این سفارش">×</button>
+          </div>
+        </div>`).join('') : `<div class="empty"><strong>هنوز فیلدی به سفارش اضافه نشده است.</strong>از بخش «فیلدهای آماده» شروع کنید.</div>`;
+
+      const active = fields.filter(field => field.active).length;
+      document.getElementById('activeCount').textContent = `${active} فیلد فعال`;
+      document.getElementById('tabCurrentCount').textContent = fields.length;
+    }
+
+    function renderLibrary(query = '') {
+      const normalized = query.trim().toLowerCase();
+      const items = library.filter(field => field.name.toLowerCase().includes(normalized));
+      libraryFields.innerHTML = items.length ? items.map(field => `
+        <div class="available-row" data-id="${field.id}">
+          <div><span class="field-title">${field.name}</span><span class="field-help">برای استفاده دوباره آماده است</span></div>
+          <span class="type-pill">${typeLabel(field.type)}</span>
+          <span class="used-before">استفاده در ${field.usage} سفارش قبلی</span>
+          <button class="outline-button" type="button" data-action="add" data-id="${field.id}">+ افزودن به سفارش</button>
+        </div>`).join('') : `<div class="empty"><strong>فیلدی با این نام پیدا نشد.</strong>می‌توانید یک فیلد جدید بسازید.</div>`;
+      document.getElementById('libraryCount').textContent = `${library.length} فیلد آماده`;
+      document.getElementById('tabLibraryCount').textContent = library.length;
+    }
+
+    function selectTab(name) {
+      document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === name));
+      document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === `panel-${name}`));
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.tab)));
+
+    currentFields.addEventListener('change', event => {
+      if (event.target.dataset.action !== 'toggle') return;
+      const field = fields.find(item => item.id === Number(event.target.dataset.id));
+      field.active = event.target.checked;
+      renderCurrent();
+      showToast(field.active ? `«${field.name}» در این سفارش نمایش داده می‌شود.` : `«${field.name}» پنهان شد؛ اطلاعات قبلی آن محفوظ است.`);
+    });
+
+    currentFields.addEventListener('click', event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const fieldIndex = fields.findIndex(item => item.id === Number(button.dataset.id));
+      const field = fields[fieldIndex];
+      if (button.dataset.action === 'options') {
+        showToast(`در نسخه اصلی، گزینه‌های «${field.name}» اینجا مدیریت می‌شوند.`);
+      }
+      if (button.dataset.action === 'remove') {
+        fields.splice(fieldIndex, 1);
+        library.unshift({ ...field, id: Date.now(), usage: field.usage || 1 });
+        renderCurrent();
+        renderLibrary(document.getElementById('searchInput').value);
+        showToast(`«${field.name}» فقط از این سفارش برداشته شد و در فهرست آماده باقی ماند.`);
+      }
+    });
+
+    libraryFields.addEventListener('click', event => {
+      const button = event.target.closest('button[data-action="add"]');
+      if (!button) return;
+      const index = library.findIndex(item => item.id === Number(button.dataset.id));
+      const field = library[index];
+      library.splice(index, 1);
+      fields.push({ ...field, id: Date.now(), active: true, options: field.type === 'انتخاب از فهرست' });
+      renderCurrent();
+      renderLibrary(document.getElementById('searchInput').value);
+      showToast(`«${field.name}» به همین سفارش اضافه شد.`);
+    });
+
+    document.getElementById('searchInput').addEventListener('input', event => renderLibrary(event.target.value));
+
+    function openModal() {
+      createModal.classList.add('open');
+      setTimeout(() => document.getElementById('fieldName').focus(), 50);
+    }
+
+    function closeModal() {
+      createModal.classList.remove('open');
+      document.getElementById('createForm').reset();
+    }
+
+    document.getElementById('openCreateModal').addEventListener('click', openModal);
+    document.getElementById('closeModal').addEventListener('click', closeModal);
+    document.getElementById('cancelModal').addEventListener('click', closeModal);
+    createModal.addEventListener('click', event => { if (event.target === createModal) closeModal(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
+
+    document.getElementById('createForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const name = document.getElementById('fieldName').value.trim();
+      const type = document.getElementById('fieldType').value;
+      if (!name) return;
+      fields.push({ id: Date.now(), name, type, active: true, options: type === 'انتخاب از فهرست', usage: 1 });
+      renderCurrent();
+      closeModal();
+      selectTab('current');
+      showToast(`«${name}» ساخته شد و به همین سفارش اضافه شد.`);
+    });
+
+    document.querySelectorAll('[data-demo]').forEach(button => button.addEventListener('click', () => showToast('این دکمه در نمونه نمایشی به صفحه دیگری متصل نیست.')));
+
+    renderCurrent();
+    renderLibrary();
+  </script>
+</body>
+</html>
