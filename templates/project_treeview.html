@@ -5,24 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>جدول درب‌های سفارش - {{ project.customer_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
     <!-- افزودن Font Awesome از CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* تعریف فونت وزیر - اگر در پوشه static است */
-        @font-face {
-            font-family: 'Vazir';
-            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
         /* استایل‌های پایه */
         * {
             box-sizing: border-box;
         }
 
         body {
-            font-family: 'Vazir', Tahoma, sans-serif;
+            font-family: var(--font-family-base);
             padding: 0;
             background-color: #f4f7f6;
             margin: 0;
@@ -456,7 +449,7 @@
         .customer-info-label {
             margin-bottom: 2px;
             color: #6f7b8d;
-            font-size: 11px;
+            font-size:13px;
             font-weight: normal;
         }
 
@@ -546,7 +539,7 @@
         .menu-section-title {
             padding: 6px 10px;
             color: #6f7b8d;
-            font-size: 11px;
+            font-size:13px;
         }
 
         .more-actions-menu a {

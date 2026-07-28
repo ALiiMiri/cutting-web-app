@@ -5,17 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>افزودن درب جدید - {{ project_info.customer_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
     <style>
-        /* تعریف فونت وزیر */
-        @font-face {
-            font-family: 'Vazir';
-            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
         body {
-            font-family: 'Vazir', Tahoma, sans-serif;
+            font-family: var(--font-family-base);
             padding: 20px;
             line-height: 1.6;
             background-color: #f4f7f6;
