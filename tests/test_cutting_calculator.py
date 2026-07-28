@@ -34,6 +34,24 @@ def door(
 
 
 class CuttingCalculatorTests(unittest.TestCase):
+    def test_profile_uses_its_registered_stock_length(self):
+        custom_profile = profile("پروفیل", 1.2)
+        custom_profile["default_length"] = 500
+
+        plan = calculate_cutting_plan(
+            [door("پروفیل", width=100, height=240, frame_type="سه طرفه")],
+            [custom_profile],
+        )
+
+        self.assertEqual(plan["total_bins"], 2)
+        self.assertTrue(
+            all(source["initial_length"] == 500 for source in plan["bins"])
+        )
+        self.assertEqual(plan["profile_summaries"][0]["default_length"], 500)
+        self.assertEqual(
+            plan["inventory_application_data"]["پروفیل"]["default_length"], 500
+        )
+
     def test_three_sided_frame_cuts_two_verticals_and_one_top(self):
         plan = calculate_cutting_plan(
             [door("پروفیل", width=100, height=200, quantity=2, frame_type="سه طرفه")],
@@ -43,6 +61,15 @@ class CuttingCalculatorTests(unittest.TestCase):
         pieces = [piece for source in plan["bins"] for piece in source["pieces"]]
         self.assertEqual(sorted(pieces), [100.0, 100.0, 200.0, 200.0, 200.0, 200.0])
         self.assertEqual(sum(source["cut_count"] for source in plan["bins"]), 6)
+
+        details = [
+            piece for source in plan["bins"] for piece in source["piece_details"]
+        ]
+        top = [piece for piece in details if piece["member_type"] == "horizontal_top"]
+        verticals = [piece for piece in details if piece["member_type"].startswith("vertical_")]
+        self.assertEqual(len(top), 2)
+        self.assertTrue(all("دو سر فارسی‌بُر" in piece["cut_instruction"] for piece in top))
+        self.assertTrue(all("پایین: صاف ۹۰ درجه" in piece["cut_instruction"] for piece in verticals))
 
     def test_two_sided_frame_omits_top_member_and_its_blade_loss(self):
         plan = calculate_cutting_plan(
@@ -54,6 +81,27 @@ class CuttingCalculatorTests(unittest.TestCase):
         self.assertEqual(pieces, [200.0, 200.0, 200.0, 200.0])
         self.assertEqual(sum(source["cut_count"] for source in plan["bins"]), 4)
         self.assertAlmostEqual(plan["stats"]["total_kerf_length"], 2.0)
+        details = [
+            piece for source in plan["bins"] for piece in source["piece_details"]
+        ]
+        self.assertTrue(
+            all(
+                piece["cut_instruction"]
+                == "بالا: صاف ۹۰ درجه؛ پایین: صاف ۹۰ درجه"
+                for piece in details
+            )
+        )
+        self.assertFalse(any(piece["member_type"] == "horizontal_top" for piece in details))
+
+    def test_fingerprint_changes_when_registered_stock_length_changes(self):
+        first_profile = profile("پروفیل", 1.2)
+        second_profile = profile("پروفیل", 1.2)
+        second_profile["default_length"] = 580
+
+        first = calculate_cutting_plan([door("پروفیل")], [first_profile])
+        second = calculate_cutting_plan([door("پروفیل")], [second_profile])
+
+        self.assertNotEqual(first["fingerprint"], second["fingerprint"])
 
     def test_missing_or_retired_frame_type_keeps_three_sided_calculation(self):
         for frame_type in (None, "", "یک طرفه", "بدون کلافت"):

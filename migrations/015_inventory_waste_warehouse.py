@@ -59,4 +59,3 @@ def apply(conn):
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_waste_movements_item ON inventory_waste_movements(waste_item_id, id DESC)"
     )
-

@@ -45,6 +45,13 @@ class InventoryUndoTests(unittest.TestCase):
         return value
 
     def apply(self, requirements, used_pieces=None):
+        requirements = {
+            name: {
+                **profile_data,
+                "default_length": profile_data.get("default_length", 600),
+            }
+            for name, profile_data in requirements.items()
+        }
         return database.apply_cutting_plan_inventory_transaction(
             1,
             {"customer_name": "مشتری", "project_code": "1001"},

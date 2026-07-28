@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -33,6 +34,7 @@ CREATE TABLE users (
 CREATE TABLE profile_types (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
+    default_length REAL NOT NULL DEFAULT 600,
     min_waste REAL DEFAULT 70,
     weight_per_meter REAL DEFAULT 1.9
     ,is_active INTEGER NOT NULL DEFAULT 1
@@ -95,7 +97,8 @@ CREATE TABLE inventory_cutting_applications (
     total_stock_deducted INTEGER NOT NULL DEFAULT 0,
     pieces_consumed INTEGER NOT NULL DEFAULT 0,
     pieces_returned INTEGER NOT NULL DEFAULT 0,
-    operation_id INTEGER
+    operation_id INTEGER,
+    plan_snapshot_json TEXT
 );
 CREATE TABLE inventory_operations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,12 +203,20 @@ class InventoryApplicationTests(unittest.TestCase):
         conn.close()
         return value
 
-    def apply(self, requirements, used_pieces=None):
+    def apply(self, requirements, used_pieces=None, plan_snapshot=None):
+        requirements = {
+            name: {
+                **profile_data,
+                "default_length": profile_data.get("default_length", 600),
+            }
+            for name, profile_data in requirements.items()
+        }
         return database.apply_cutting_plan_inventory_transaction(
             1,
             {"customer_name": "مشتری", "project_code": "1001"},
             requirements,
             used_pieces or {},
+            plan_snapshot=plan_snapshot,
         )
 
     def test_insufficient_one_profile_changes_nothing(self):
@@ -226,6 +237,35 @@ class InventoryApplicationTests(unittest.TestCase):
         self.assertEqual(self.fetch_value("SELECT COUNT(*) FROM inventory_cutting_applications"), 0)
         self.assertEqual(self.fetch_value("SELECT COUNT(*) FROM inventory_operations"), 0)
         self.assertEqual(self.fetch_value("SELECT COUNT(*) FROM inventory_waste_items"), 0)
+
+    def test_changed_profile_length_blocks_old_cutting_plan(self):
+        self.add_profile(1, "پروفیل", 2)
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("UPDATE profile_types SET default_length = 580 WHERE id = 1")
+        conn.commit()
+        conn.close()
+
+        result = self.apply(
+            {
+                "پروفیل": {
+                    "default_length": 600,
+                    "bins": [
+                        {
+                            "initial_length": 600,
+                            "remaining": 100,
+                            "from_inventory_piece": False,
+                        }
+                    ],
+                }
+            }
+        )
+
+        self.assertEqual(result["status"], "validation_error")
+        self.assertTrue(any("طول استاندارد" in error for error in result["errors"]))
+        self.assertEqual(
+            self.fetch_value("SELECT quantity FROM inventory_items WHERE profile_type_id = 1"),
+            2,
+        )
 
     def test_deduction_uses_only_the_requested_color(self):
         self.add_profile(1, "پروفیل", 0)
@@ -289,6 +329,33 @@ class InventoryApplicationTests(unittest.TestCase):
         self.assertEqual(second_result["status"], "already_applied")
         self.assertEqual(self.fetch_value("SELECT quantity FROM inventory_items WHERE profile_type_id = 1"), 2)
         self.assertEqual(self.fetch_value("SELECT COUNT(*) FROM inventory_logs"), 3)
+
+    def test_success_persists_exact_cutting_plan_snapshot(self):
+        self.add_profile(1, "پروفیل", 2)
+        snapshot = {
+            "schema_version": 1,
+            "processed_bins": [{"index": 1, "color_name": "مشکی"}],
+            "profile_summaries": [],
+            "stats": {"total_kerf_length": 1.5},
+            "total_bins": 1,
+            "blade_width": 0.5,
+            "optimization_strategy": "minimize_waste",
+        }
+
+        result = self.apply(
+            {
+                "پروفیل": {
+                    "bins": [{"remaining": 80, "from_inventory_piece": False}]
+                }
+            },
+            plan_snapshot=snapshot,
+        )
+
+        self.assertEqual(result["status"], "success")
+        stored = self.fetch_value(
+            "SELECT plan_snapshot_json FROM inventory_cutting_applications"
+        )
+        self.assertEqual(json.loads(stored), snapshot)
 
     def test_trailing_space_in_stored_profile_name_does_not_block_application(self):
         self.add_profile(1, "پروفیل جدید فریم لس ", 5)

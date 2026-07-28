@@ -100,6 +100,48 @@ class CuttingEndToEndTests(unittest.TestCase):
         self.assertEqual(stock, 2)
         self.assertEqual(remaining_lengths, [19.5, 49.0])
 
+    def test_registered_five_meter_profile_controls_plan_and_stock_deduction(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("DELETE FROM inventory_pieces")
+        conn.execute("UPDATE profile_types SET default_length = 500 WHERE id = 1")
+        conn.commit()
+        conn.close()
+
+        doors = [
+            {
+                "id": 3,
+                "width": 100,
+                "height": 240,
+                "quantity": 1,
+                "noe_profile": "پروفیل تست",
+                "rang": "مشکی",
+                "kolaft": "سه طرفه",
+            }
+        ]
+        profiles = [
+            {
+                "id": 1,
+                "name": "پروفیل تست",
+                "min_waste": 10,
+                "weight_per_meter": 1.5,
+                "default_length": 500,
+            }
+        ]
+        plan = calculate_cutting_plan(doors, profiles)
+
+        self.assertEqual(plan["total_bins"], 2)
+        self.assertTrue(all(item["initial_length"] == 500 for item in plan["bins"]))
+
+        result = database.apply_cutting_plan_inventory_transaction(
+            901,
+            {"customer_name": "پروژه تست قطعات برش‌خورده", "project_code": "T901"},
+            plan["inventory_application_data"],
+            plan["used_inventory_pieces"],
+        )
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["application"]["total_stock_deducted"], 2)
+
     def test_two_sided_frame_does_not_cut_or_deduct_an_upper_member(self):
         conn = sqlite3.connect(self.db_path)
         conn.execute("DELETE FROM inventory_pieces")

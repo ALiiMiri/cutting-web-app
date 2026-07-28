@@ -482,6 +482,18 @@ def apply_migrations(conn, allow_changes=False):
             ],
             "execution_type": "python_module",
             "module_name": "023_user_orders_view_preference",
+        },
+        {
+            "name": "024_cutting_plan_snapshot",
+            "description": "Persist the exact applied cutting plan for later exports",
+            "check_logic": lambda c: "plan_snapshot_json" not in [
+                col[1]
+                for col in c.execute(
+                    "PRAGMA table_info(inventory_cutting_applications)"
+                ).fetchall()
+            ],
+            "execution_type": "python_module",
+            "module_name": "024_cutting_plan_snapshot",
         }
     ]
 
