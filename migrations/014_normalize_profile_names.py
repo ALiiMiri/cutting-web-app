@@ -24,6 +24,7 @@ def apply(conn):
             "UPDATE profile_types SET name = ? WHERE id = ?",
             (normalized_name, profile_id),
         )
+
     column_row = cursor.execute(
         "SELECT id FROM custom_columns WHERE column_name = 'noe_profile'"
     ).fetchone()
@@ -58,3 +59,4 @@ def apply(conn):
             "UPDATE door_custom_values SET value = ? WHERE door_id = ? AND column_id = ?",
             (normalize_profile_name(raw_value), door_id, column_id),
         )
+

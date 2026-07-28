@@ -479,13 +479,13 @@
                 </div>
                 <div class="stat-card stat-card-green">
                     <div class="stat-icon"><i class="fas fa-cubes"></i></div>
-                    <div class="stat-value">{{ stats.total_complete_pieces }}</div>
-                    <div class="stat-label">تعداد شاخه کامل</div>
+                    <div class="stat-value">{{ stats.available_complete_pieces }}</div>
+                    <div class="stat-label">شاخه کامل آزاد (فیزیکی {{ stats.total_complete_pieces }} / رزرو {{ stats.reserved_complete_pieces }})</div>
                 </div>
                 <div class="stat-card stat-card-orange">
                     <div class="stat-icon"><i class="fas fa-cut"></i></div>
-                    <div class="stat-value">{{ stats.total_cut_pieces }}</div>
-                    <div class="stat-label">تعداد قطعات برش خورده</div>
+                    <div class="stat-value">{{ stats.available_cut_pieces }}</div>
+                    <div class="stat-label">قطعه آزاد (فیزیکی {{ stats.total_cut_pieces }} / رزرو {{ stats.reserved_cut_pieces }})</div>
                 </div>
                 <div class="stat-card stat-card-red">
                     <div class="stat-icon"><i class="fas fa-weight-hanging"></i></div>
@@ -538,12 +538,12 @@
                     <div class="profile-content">
                         <div class="profile-stats">
                             <div class="profile-stat">
-                                <div class="profile-stat-value">{{ profile.complete_count }}</div>
-                                <div class="profile-stat-label">شاخه کامل</div>
+                                <div class="profile-stat-value">{{ profile.available_complete_count }}</div>
+                                <div class="profile-stat-label">شاخه کامل آزاد (فیزیکی {{ profile.complete_count }} / رزرو {{ profile.reserved_complete_count }})</div>
                             </div>
                             <div class="profile-stat">
-                                <div class="profile-stat-value">{{ profile.cut_count }}</div>
-                                <div class="profile-stat-label">قطعه برش خورده</div>
+                                <div class="profile-stat-value">{{ profile.available_cut_count }}</div>
+                                <div class="profile-stat-label">قطعه آزاد (فیزیکی {{ profile.cut_count }} / رزرو {{ profile.reserved_cut_count }})</div>
                             </div>
                             <div class="profile-stat">
                                 <div class="profile-stat-value">{{ (profile.total_length or 0)|round(1) }} m</div>

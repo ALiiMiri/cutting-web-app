@@ -12,7 +12,7 @@
     @media(max-width:640px){.app-header{padding:0 12px}.app-header-brand-text,.app-user-copy,.app-menu-label{display:none}.app-user-home,.app-menu-button{width:38px;justify-content:center;padding:0}}
     @media print{.app-header{display:none!important}}
 </style>
-{% if current_user.role == 'admin' %}{% set app_role_label = 'مدیر سیستم' %}{% elif current_user.role == 'manager' %}{% set app_role_label = 'مدیر' %}{% elif current_user.role == 'staff' %}{% set app_role_label = 'کارمند' %}{% else %}{% set app_role_label = 'مشاهده‌گر' %}{% endif %}
+{% if current_user.role == 'admin' %}{% set app_role_label = 'مدیر سیستم' %}{% elif current_user.role == 'manager' %}{% set app_role_label = 'مدیر' %}{% elif current_user.role == 'staff' %}{% set app_role_label = 'کارمند' %}{% elif current_user.role == 'factory' %}{% set app_role_label = 'کارخانه' %}{% else %}{% set app_role_label = 'مشاهده‌گر' %}{% endif %}
 <header class="app-header">
     <a class="app-header-brand" href="{{ url_for('index') }}" aria-label="رفتن به مدیریت سفارش درب"><span class="app-header-brand-mark">د</span><span class="app-header-brand-text">مدیریت سفارش درب</span></a>
     <div class="app-header-actions">
@@ -21,7 +21,7 @@
             <button class="app-menu-button" data-app-menu-button type="button" aria-expanded="false" aria-controls="app-menu-panel"><span aria-hidden="true">☰</span><span class="app-menu-label">منوی اصلی</span></button>
             <nav class="app-menu-panel" id="app-menu-panel" data-app-menu-panel aria-label="منوی اصلی نرم‌افزار">
                 {% if current_user.role in ['admin','manager'] %}<a href="{{ url_for('admin.users_list') }}">مدیریت کاربران</a><a href="{{ url_for('inventory_route') }}">مدیریت انبار</a>{% endif %}
-                <a href="{{ url_for('price_calculator') }}">محاسبه قیمت</a><a href="{{ url_for('saved_quotes') }}">قیمت‌دهی‌های ذخیره‌شده</a>
+                <a href="{{ url_for('cutting_orders_list') }}">سفارش‌های برش</a><a href="{{ url_for('price_calculator') }}">محاسبه قیمت</a><a href="{{ url_for('saved_quotes') }}">قیمت‌دهی‌های ذخیره‌شده</a>
                 {% if current_user.role == 'admin' %}<a href="{{ url_for('backup_management') }}">نسخه‌های پشتیبان</a>{% endif %}
                 <a href="{{ url_for('auth.change_password') }}">تغییر رمز عبور</a><a class="app-logout" href="{{ url_for('auth.logout') }}">خروج</a>
             </nav>

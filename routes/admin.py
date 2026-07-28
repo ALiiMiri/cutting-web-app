@@ -33,13 +33,13 @@ def _can_manage_target(target):
         return False
     if current_user.role == 'admin':
         return True
-    return target.role in ('staff', 'read_only')
+    return target.role in ('staff', 'factory', 'read_only')
 
 
 def _available_roles():
     if current_user.role == 'admin':
         return VALID_ROLES
-    return ('staff', 'read_only')
+    return ('staff', 'factory', 'read_only')
 
 
 def _render_users_page(shown_credentials=None):

@@ -25,4 +25,5 @@ if sys.platform == 'win32':
 # Now import and run the Flask app
 if __name__ == "__main__":
     from cutting_web_app import app
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+    port = int(os.getenv("PORT", "5000"))
+    app.run(debug=True, host='0.0.0.0', port=port, use_reloader=False)

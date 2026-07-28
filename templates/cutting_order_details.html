@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>{{ order.order_number }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cutting_orders.css') }}">
+</head>
+<body class="with-app-header">
+{% include '_app_header.html' %}
+<main class="page">
+    <div class="crumb"><a href="{{ url_for('index') }}">سفارش‌ها</a> / <a href="{{ url_for('cutting_orders_list') }}">سفارش‌های برش</a> / {{ order.order_number }}</div>
+    <div class="head">
+        <div><h1>{{ order.order_number }}</h1><p>نسخه {{ order.version }} · ساخته‌شده توسط {{ order.creator_username or 'کاربر حذف‌شده' }} در {{ order.created_at }}</p></div>
+        <div class="actions">
+            <a class="btn btn-light" href="{{ url_for('cutting_order_excel', order_id=order.id) }}">خروجی Excel</a>
+            {% if current_user.role in ['admin','manager'] and order.status == 'draft' %}
+            <form method="post" action="{{ url_for('reserve_cutting_order_route', order_id=order.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-primary" type="submit">رزرو همه منابع</button></form>
+            {% endif %}
+            {% if current_user.role in ['admin','manager'] and order.status == 'reserved' %}
+            <form method="post" action="{{ url_for('send_cutting_order_route', order_id=order.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-green" type="submit">قفل و ارسال به کارخانه</button></form>
+            {% endif %}
+        </div>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+
+    {% set cut_count = order.bars|selectattr('status','equalto','cut')|list|length %}
+    {% set reserved_count = order.bars|selectattr('status','equalto','reserved')|list|length %}
+    {% set can_confirm_cuts = current_user.role in ['admin','manager','factory'] and order.status in ['sent_to_factory','partially_cut'] and reserved_count > 0 %}
+    <section class="summary">
+        <div class="summary-card"><span>وضعیت کل</span><strong><span class="status status-{{ order.status }}">{{ order.status_label }}</span></strong></div>
+        <div class="summary-card"><span>تعداد پروژه</span><strong>{{ order.projects|length }}</strong></div>
+        <div class="summary-card"><span>کل شاخه‌ها</span><strong>{{ order.bars|length }}</strong></div>
+        <div class="summary-card"><span>برش‌خورده</span><strong>{{ cut_count }}</strong></div>
+        <div class="summary-card"><span>در انتظار برش</span><strong>{{ reserved_count }}</strong></div>
+    </section>
+    {% if order.status == 'draft' %}<div class="notice">این فقط نتیجه محاسبه است؛ هنوز هیچ موجودی رزرو یا کم نشده است.</div>{% elif order.status == 'reserved' %}<div class="notice">منابع رزرو شده‌اند، اما هنوز چیزی از موجودی فیزیکی کم نشده است.</div>{% endif %}
+
+    <div class="project-list">
+    {% for project in order.projects %}<div class="project-chip"><strong>{{ project.project_order_ref_snapshot or project.project_id }}</strong> — {{ project.project_name_snapshot }}{% if project.project_code_snapshot %} ({{ project.project_code_snapshot }}){% endif %}</div>{% endfor %}
+    </div>
+
+    <h2 class="section-title">وضعیت موجودی مرتبط</h2>
+    <div class="surface table-wrap">
+        <table>
+            <thead><tr><th>پروفیل و رنگ</th><th>شاخه فیزیکی</th><th>شاخه رزرو</th><th>شاخه آزاد</th><th>تکه فیزیکی</th><th>تکه رزرو</th><th>تکه آزاد</th></tr></thead>
+            <tbody>{% for item in order.inventory_summary %}<tr><td>{{ item.profile_name_snapshot }} — {{ item.color_name_snapshot }}</td><td>{{ item.physical_stock }}</td><td>{{ item.reserved_stock }}</td><td><strong>{{ item.available_stock }}</strong></td><td>{{ item.physical_pieces }}</td><td>{{ item.reserved_pieces }}</td><td><strong>{{ item.available_pieces }}</strong></td></tr>{% endfor %}</tbody>
+        </table>
+    </div>
+
+    <h2 class="section-title">شاخه‌ها و محل مصرف قطعات</h2>
+    {% if can_confirm_cuts %}
+    <form id="bulk-cut-form" class="bulk-cut-toolbar" method="post" action="{{ url_for('confirm_cutting_order_bars_route', order_id=order.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="select-all-cuts"><input id="select-all-cuts" type="checkbox"> <span>انتخاب همه {{ reserved_count }} شاخه در انتظار</span></label>
+        <div class="bulk-cut-summary"><strong id="selected-cut-count">۰</strong> شاخه انتخاب شده</div>
+        <button class="btn btn-green" id="bulk-cut-submit" type="submit" disabled>تأیید شاخه‌های انتخاب‌شده</button>
+    </form>
+    <div class="bulk-cut-help">قبل از تأیید، در صورت نیاز مقدار «باقی‌مانده واقعی» هر شاخه را اصلاح کنید.</div>
+    {% endif %}
+    <section class="bar-list">
+    {% for bar in order.bars %}
+        <article class="bar" id="bar-{{ bar.id }}">
+            <div class="bar-head">
+                <div class="bar-title">
+                    {% if can_confirm_cuts and bar.status == 'reserved' %}<input class="bar-cut-selector" form="bulk-cut-form" name="bar_ids" value="{{ bar.id }}" type="checkbox" aria-label="انتخاب شاخه {{ bar.sequence_no }}">{% endif %}
+                    <strong>شاخه {{ bar.sequence_no }}</strong><span class="status status-{{ bar.status }}">{{ bar.status_label }}</span>
+                </div>
+                <div class="bar-meta">{{ bar.profile_name_snapshot }} — {{ bar.color_name_snapshot }}</div>
+            </div>
+            <div class="bar-body">
+                <div class="source-box">
+                    <div><strong>منبع:</strong> {% if bar.source_type == 'inventory_piece' %}قطعه انبار شماره {{ bar.source_inventory_piece_id }}{% else %}شاخه کامل جدید{% endif %}</div>
+                    <div><strong>طول اولیه:</strong> {{ bar.initial_length|round(1) }} سانتی‌متر</div>
+                    <div><strong>افت تیغ:</strong> {{ bar.kerf_loss|round(1) }} سانتی‌متر</div>
+                    <div><strong>باقی‌مانده برنامه:</strong> {{ bar.planned_remaining|round(1) }} سانتی‌متر</div>
+                    {% if bar.status == 'cut' %}<div><strong>باقی‌مانده واقعی:</strong> {{ bar.actual_remaining|round(1) }} سانتی‌متر</div>{% endif %}
+                    {% if bar.returned_piece_id %}<div><strong>نتیجه:</strong> قطعه شماره {{ bar.returned_piece_id }} به انبار برگشت.</div>{% elif bar.waste_item_id %}<div><strong>نتیجه:</strong> به‌عنوان ضایعات شماره {{ bar.waste_item_id }} ثبت شد.</div>{% endif %}
+                </div>
+                <div class="pieces">
+                {% for piece in bar.pieces %}
+                    <div class="piece">
+                        <strong>{{ piece.length|round(1) }} سانتی‌متر — {{ piece.member_label }}</strong>
+                        <small>سفارش {{ piece.project_order_ref_snapshot or piece.project_id }} · ردیف {{ piece.door_row_number or '—' }} · {{ piece.door_location_snapshot or 'بدون محل' }}</small>
+                        <small>{{ piece.cut_instruction }}</small>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+            {% if can_confirm_cuts and bar.status == 'reserved' %}
+            <div class="bar-action">
+                <div><label for="remaining-{{ bar.id }}">باقی‌مانده واقعی (سانتی‌متر)</label><input form="bulk-cut-form" id="remaining-{{ bar.id }}" name="actual_remaining_{{ bar.id }}" type="number" min="0" max="{{ bar.initial_length }}" step="0.1" value="{{ bar.planned_remaining }}"></div>
+                <button class="btn btn-light single-cut-submit" form="bulk-cut-form" name="single_bar_id" value="{{ bar.id }}" type="submit">فقط تأیید همین شاخه</button>
+            </div>
+            {% endif %}
+        </article>
+    {% endfor %}
+    </section>
+
+    {% if current_user.role in ['admin','manager'] and order.status not in ['completed','cancelled'] %}
+    <div class="cancel-box">
+        <p>اگر اطلاعات پروژه تغییر کرده، «نسخه جدید» رزروهای برش‌نخورده را آزاد می‌کند و دوباره محاسبه می‌کند. برش‌های تأییدشده تکرار نمی‌شوند.</p>
+        <form method="post" action="{{ url_for('revise_cutting_order_route', order_id=order.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input name="reason" minlength="3" placeholder="دلیل ساخت نسخه جدید" required>
+            <button class="btn btn-primary" type="submit">آزادسازی و ساخت نسخه جدید</button>
+        </form>
+        <form method="post" action="{{ url_for('cancel_cutting_order_route', order_id=order.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input name="reason" minlength="3" placeholder="دلیل لغو یا آزادکردن باقی‌مانده‌ها" required>
+            <button class="btn btn-red" type="submit">لغو باقی‌مانده سفارش</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <h2 class="section-title">تاریخچه عملیات</h2>
+    <section class="event-list">
+    {% for event in order.events %}<div class="event"><span>{{ event.event_label }} · {{ event.actor_username or 'سیستم' }}</span><span>{{ event.created_at }}</span></div>{% endfor %}
+    </section>
+</main>
+{% if can_confirm_cuts %}
+<script>
+(() => {
+    const form = document.getElementById('bulk-cut-form');
+    const selectAll = document.getElementById('select-all-cuts');
+    const selectors = [...document.querySelectorAll('.bar-cut-selector')];
+    const selectedCount = document.getElementById('selected-cut-count');
+    const bulkSubmit = document.getElementById('bulk-cut-submit');
+    const faNumber = new Intl.NumberFormat('fa-IR');
+
+    function refreshSelection() {
+        const checked = selectors.filter(item => item.checked);
+        selectedCount.textContent = faNumber.format(checked.length);
+        bulkSubmit.disabled = checked.length === 0;
+        selectAll.checked = selectors.length > 0 && checked.length === selectors.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < selectors.length;
+        selectors.forEach(item => {
+            item.closest('.bar').classList.toggle('bulk-selected', item.checked);
+        });
+    }
+
+    selectAll.addEventListener('change', () => {
+        selectors.forEach(item => { item.checked = selectAll.checked; });
+        refreshSelection();
+    });
+    selectors.forEach(item => item.addEventListener('change', refreshSelection));
+    form.addEventListener('submit', event => {
+        const isSingle = event.submitter && event.submitter.name === 'single_bar_id';
+        if (isSingle) return;
+        const count = selectors.filter(item => item.checked).length;
+        if (!count || !window.confirm(`تأیید برش ${faNumber.format(count)} شاخه و ثبت موجودی آن‌ها انجام شود؟`)) {
+            event.preventDefault();
+            return;
+        }
+        bulkSubmit.disabled = true;
+        bulkSubmit.textContent = 'در حال ثبت…';
+    });
+    refreshSelection();
+})();
+</script>
+{% endif %}
+</body>
+</html>

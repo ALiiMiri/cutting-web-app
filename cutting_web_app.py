@@ -1,5 +1,5 @@
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, render_template_string, get_flashed_messages
+from flask import Flask, g, render_template, request, redirect, url_for, flash, session, render_template_string, get_flashed_messages
 from flask_login import LoginManager, login_required, current_user, logout_user
 import os
 import sqlite3
@@ -110,7 +110,13 @@ from auth_utils import (
 )
 
 # Import decorators
-from decorators import admin_required, manager_or_admin_required, staff_or_admin_required, prevent_read_only
+from decorators import (
+    admin_required,
+    manager_or_admin_required,
+    roles_required,
+    staff_or_admin_required,
+    prevent_read_only,
+)
 from security_utils import PROJECT_EDIT_ENDPOINTS, access_denial_message, csrf_protected, get_csrf_token
 from cutting_calculator import (
     CuttingPlanError,
@@ -122,6 +128,23 @@ from cutting_excel import (
     add_cutting_results_sheet,
     create_cutting_plan_snapshot,
     resolve_applied_cutting_plan,
+)
+from cutting_order_excel import create_cutting_order_workbook
+from cutting_orders import (
+    CuttingOrderError,
+    archive_project_safely,
+    can_view_cutting_order,
+    cancel_cutting_order,
+    confirm_bar_cut,
+    confirm_bars_cut,
+    create_cutting_order,
+    get_cutting_order,
+    get_project_cutting_blockers,
+    list_cutting_orders,
+    project_cutting_history,
+    reserve_cutting_order,
+    revise_cutting_order,
+    send_cutting_order,
 )
 from hardware_calculator import calculate_project_hardware
 from measurements import (
@@ -145,6 +168,7 @@ DB_NAME = Config.DB_NAME
 # --- Flask App Setup ---
 app = Flask(__name__, template_folder='templates')
 app.secret_key = Config.SECRET_KEY
+app.logger.setLevel("INFO")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
@@ -172,6 +196,20 @@ def inject_security_values():
 
 
 # Configure Flask to use UTF-8 encoding
+@app.before_request
+def record_request_start():
+    """Log enough context to identify requests that never complete."""
+    g.request_started_at = time.monotonic()
+    g.request_id = secrets.token_hex(4)
+    if request.endpoint != "healthz":
+        app.logger.info(
+            "REQUEST_START id=%s method=%s path=%s",
+            g.request_id,
+            request.method,
+            request.path,
+        )
+
+
 @app.after_request
 def set_charset(response):
     """Ensure all responses use UTF-8 encoding"""
@@ -185,6 +223,19 @@ def set_charset(response):
         request.endpoint.startswith('admin.') or request.endpoint.startswith('auth.')
     ):
         response.headers['Cache-Control'] = 'no-store'
+    if request.endpoint != "healthz":
+        started_at = getattr(g, "request_started_at", None)
+        duration_ms = (
+            round((time.monotonic() - started_at) * 1000)
+            if started_at is not None
+            else -1
+        )
+        app.logger.info(
+            "REQUEST_END id=%s status=%s duration_ms=%s",
+            getattr(g, "request_id", "-"),
+            response.status_code,
+            duration_ms,
+        )
     return response
 
 # Configure Jinja2 to use UTF-8
@@ -220,7 +271,7 @@ def require_login():
             "<p>اطلاعات شما محفوظ است؛ لطفاً چند دقیقه دیگر دوباره تلاش کنید.</p></body></html>"
         ), 503
     # مسیرهای استثنا (که نیاز به لاگین ندارند)
-    allowed_endpoints = ['auth.login', 'static']
+    allowed_endpoints = ['auth.login', 'healthz', 'static']
     
     # اگر کاربر لاگین نیست و مسیر جاری در لیست استثنا نیست
     if not current_user.is_authenticated:
@@ -282,6 +333,27 @@ print("--- Table checks completed ---\n")
 # --- Routes (آدرس‌های وب) ---
 
 
+@app.route("/healthz")
+def healthz():
+    """Check both worker responsiveness and read access to the live database."""
+    connection = None
+    try:
+        connection = sqlite3.connect(
+            f"file:{DB_NAME}?mode=ro",
+            uri=True,
+            timeout=1,
+        )
+        connection.execute("PRAGMA busy_timeout = 1000")
+        connection.execute("SELECT 1 FROM schema_migrations LIMIT 1").fetchone()
+        return jsonify(status="ok")
+    except sqlite3.Error:
+        app.logger.exception("HEALTHCHECK_DATABASE_FAILED")
+        return jsonify(status="error"), 503
+    finally:
+        if connection is not None:
+            connection.close()
+
+
 @app.route("/")
 def index():
     print("DEBUG: Route / (index) called.")
@@ -321,6 +393,11 @@ def index():
             project['can_edit'] = user_can_edit_project(
                 current_user.id, current_user.role, project['id']
             )
+        cutting_blockers = get_project_cutting_blockers(
+            [project['id'] for project in result['projects']]
+        )
+        for project in result['projects']:
+            project['cutting_blocker'] = cutting_blockers.get(project['id'])
         
         # Get unique customers for filter dropdown
         unique_customers = get_unique_customers()
@@ -378,6 +455,255 @@ def save_orders_view_preference():
     if not set_orders_view_preference(current_user.id, preference):
         return jsonify({"success": False, "error": "ذخیره نوع نمایش انجام نشد."}), 500
     return jsonify({"success": True, "view": preference})
+
+
+@app.route("/cutting-orders")
+def cutting_orders_list():
+    return render_template(
+        "cutting_orders.html",
+        cutting_orders=list_cutting_orders(current_user.id, current_user.role),
+    )
+
+
+@app.route("/cutting-orders/calculate", methods=["POST"])
+@staff_or_admin_required
+@csrf_protected
+def calculate_grouped_cutting_order():
+    project_ids = request.form.getlist("project_ids")
+    if not project_ids:
+        flash("حداقل یک سفارش را برای محاسبه برش انتخاب کنید.", "warning")
+        return redirect(url_for("index"))
+    try:
+        normalized_ids = [int(value) for value in project_ids]
+    except (TypeError, ValueError):
+        flash("انتخاب سفارش‌ها معتبر نیست.", "error")
+        return redirect(url_for("index"))
+    inaccessible = [
+        project_id
+        for project_id in normalized_ids
+        if not user_can_edit_project(current_user.id, current_user.role, project_id)
+    ]
+    if inaccessible:
+        flash(
+            "کارمند فقط می‌تواند سفارش‌های واگذارشده به خودش را محاسبه کند.",
+            "error",
+        )
+        return redirect(url_for("index"))
+    try:
+        order_id = create_cutting_order(normalized_ids, current_user.id)
+        flash(
+            "محاسبه ثبت شد؛ هنوز هیچ چیزی از انبار رزرو یا کم نشده است.",
+            "success",
+        )
+        return redirect(url_for("cutting_order_details", order_id=order_id))
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+    except sqlite3.Error:
+        app.logger.exception("GROUPED_CUTTING_ORDER_CREATE_FAILED")
+        flash("ثبت سفارش برش انجام نشد؛ هیچ تغییری در انبار ایجاد نشد.", "error")
+    return redirect(url_for("index"))
+
+
+@app.route("/cutting-orders/<int:order_id>")
+def cutting_order_details(order_id):
+    if not can_view_cutting_order(
+        order_id, current_user.id, current_user.role
+    ):
+        flash("شما اجازه مشاهده این سفارش برش را ندارید.", "error")
+        return redirect(url_for("cutting_orders_list"))
+    order = get_cutting_order(order_id)
+    if not order:
+        flash("سفارش برش پیدا نشد.", "error")
+        return redirect(url_for("cutting_orders_list"))
+    return render_template("cutting_order_details.html", order=order)
+
+
+@app.route("/cutting-orders/<int:order_id>/reserve", methods=["POST"])
+@manager_or_admin_required
+@csrf_protected
+def reserve_cutting_order_route(order_id):
+    try:
+        changed = reserve_cutting_order(order_id, current_user.id)
+        flash(
+            "تمام منابع این سفارش با موفقیت رزرو شد."
+            if changed
+            else "این سفارش قبلاً رزرو شده است.",
+            "success" if changed else "warning",
+        )
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+    except sqlite3.Error:
+        app.logger.exception("CUTTING_ORDER_RESERVE_FAILED")
+        flash("رزرو انجام نشد و هیچ رزرو ناقصی ثبت نشد.", "error")
+    return redirect(url_for("cutting_order_details", order_id=order_id))
+
+
+@app.route(
+    "/cutting-orders/<int:order_id>/confirm-cuts",
+    methods=["POST"],
+)
+@roles_required("admin", "manager", "factory")
+@csrf_protected
+def confirm_cutting_order_bars_route(order_id):
+    single_bar_id = request.form.get("single_bar_id", type=int)
+    selected_values = (
+        [str(single_bar_id)]
+        if single_bar_id
+        else request.form.getlist("bar_ids")
+    )
+    try:
+        bar_ids = []
+        for value in selected_values:
+            bar_id = int(value)
+            if bar_id <= 0 or bar_id in bar_ids:
+                raise ValueError
+            bar_ids.append(bar_id)
+    except (TypeError, ValueError):
+        flash("انتخاب شاخه‌ها معتبر نیست.", "error")
+        return redirect(url_for("cutting_order_details", order_id=order_id))
+
+    updates = [
+        {
+            "bar_id": bar_id,
+            "actual_remaining": request.form.get(f"actual_remaining_{bar_id}"),
+        }
+        for bar_id in bar_ids
+    ]
+    try:
+        confirmed_count = confirm_bars_cut(
+            order_id,
+            updates,
+            current_user.id,
+        )
+        flash(
+            f"{confirmed_count} شاخه با موفقیت تأیید شد و موجودی همه آن‌ها ثبت شد.",
+            "success",
+        )
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+    except sqlite3.Error:
+        app.logger.exception("CUTTING_ORDER_BULK_CUT_FAILED")
+        flash(
+            "تأیید گروهی انجام نشد؛ موجودی هیچ‌کدام از شاخه‌ها تغییر نکرد.",
+            "error",
+        )
+    return redirect(url_for("cutting_order_details", order_id=order_id))
+
+
+@app.route("/cutting-orders/<int:order_id>/send", methods=["POST"])
+@manager_or_admin_required
+@csrf_protected
+def send_cutting_order_route(order_id):
+    try:
+        changed = send_cutting_order(order_id, current_user.id)
+        flash(
+            "سفارش قفل و برای کارخانه ارسال شد."
+            if changed
+            else "این سفارش قبلاً برای کارخانه ارسال شده است.",
+            "success" if changed else "warning",
+        )
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cutting_order_details", order_id=order_id))
+
+
+@app.route(
+    "/cutting-orders/<int:order_id>/bars/<int:bar_id>/confirm-cut",
+    methods=["POST"],
+)
+@roles_required("admin", "manager", "factory")
+@csrf_protected
+def confirm_cutting_order_bar_route(order_id, bar_id):
+    try:
+        changed = confirm_bar_cut(
+            order_id,
+            bar_id,
+            current_user.id,
+            request.form.get("actual_remaining"),
+        )
+        flash(
+            "برش این شاخه تأیید و موجودی همان شاخه ثبت شد."
+            if changed
+            else "این شاخه قبلاً تأیید شده است.",
+            "success" if changed else "warning",
+        )
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+    except sqlite3.Error:
+        app.logger.exception("CUTTING_ORDER_BAR_CUT_FAILED")
+        flash("ثبت برش انجام نشد؛ موجودی این شاخه تغییر نکرد.", "error")
+    return redirect(
+        url_for(
+            "cutting_order_details",
+            order_id=order_id,
+            _anchor=f"bar-{bar_id}",
+        )
+    )
+
+
+@app.route("/cutting-orders/<int:order_id>/cancel", methods=["POST"])
+@manager_or_admin_required
+@csrf_protected
+def cancel_cutting_order_route(order_id):
+    try:
+        changed = cancel_cutting_order(
+            order_id, current_user.id, request.form.get("reason")
+        )
+        flash(
+            "رزرو شاخه‌های برش‌نخورده آزاد شد؛ سابقه برش‌های انجام‌شده حفظ شد."
+            if changed
+            else "این سفارش قبلاً بسته شده است.",
+            "success" if changed else "warning",
+        )
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("cutting_order_details", order_id=order_id))
+
+
+@app.route("/cutting-orders/<int:order_id>/revise", methods=["POST"])
+@manager_or_admin_required
+@csrf_protected
+def revise_cutting_order_route(order_id):
+    try:
+        new_order_id = revise_cutting_order(
+            order_id, current_user.id, request.form.get("reason")
+        )
+        flash(
+            "رزرو شاخه‌های برش‌نخورده آزاد و نسخه جدید محاسبه شد؛ "
+            "قطعاتی که قبلاً برش خورده‌اند دوباره در برنامه نیامده‌اند.",
+            "success",
+        )
+        return redirect(
+            url_for("cutting_order_details", order_id=new_order_id)
+        )
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+    except sqlite3.Error:
+        app.logger.exception("CUTTING_ORDER_REVISION_FAILED")
+        flash("ساخت نسخه جدید انجام نشد.", "error")
+    return redirect(url_for("cutting_order_details", order_id=order_id))
+
+
+@app.route("/cutting-orders/<int:order_id>/excel")
+def cutting_order_excel(order_id):
+    if not can_view_cutting_order(
+        order_id, current_user.id, current_user.role
+    ):
+        flash("شما اجازه دریافت این خروجی را ندارید.", "error")
+        return redirect(url_for("cutting_orders_list"))
+    order = get_cutting_order(order_id)
+    if not order:
+        flash("سفارش برش پیدا نشد.", "error")
+        return redirect(url_for("cutting_orders_list"))
+    output = create_cutting_order_workbook(order)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f"{order['order_number']}.xlsx",
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+    )
 
 
 @app.route("/home")
@@ -548,6 +874,26 @@ def delete_project_route(project_id):
             print(f"✓ بکاپ قبل از حذف پروژه ایجاد شد: {backup_result}")
         else:
             flash(f"حذف متوقف شد؛ ایجاد بکاپ ایمنی ناموفق بود: {backup_result}", "error")
+            return redirect(url_for("index"))
+
+        cutting_history = project_cutting_history(project_id)
+        if cutting_history["order_count"]:
+            archived, affected_orders = archive_project_safely(
+                project_id, current_user.id
+            )
+            if archived:
+                flash(
+                    "سفارش بایگانی شد؛ رزروهای برش‌نخورده آزاد شدند و "
+                    "تاریخچه شاخه‌های واقعاً بریده‌شده، تکه‌ها و ضایعات حفظ شد."
+                    + (
+                        f" {len(affected_orders)} دستور برش باز نیز بسته شد."
+                        if affected_orders
+                        else ""
+                    ),
+                    "success",
+                )
+            else:
+                flash("بایگانی سفارش انجام نشد.", "error")
             return redirect(url_for("index"))
 
         success = delete_project_db(project_id)
@@ -1570,7 +1916,25 @@ def calculate_cutting(project_id):
 
 @app.route("/project/<int:project_id>/apply_cutting_plan", methods=["POST"])
 def apply_cutting_plan(project_id):
-    """اعمال کامل طرح برش در انبار به‌صورت تراکنشی (همه یا هیچ)."""
+    """Compatibility entrypoint: persist an order; never deduct stock directly."""
+    if not user_can_edit_project(current_user.id, current_user.role, project_id):
+        flash("فقط مسئول این پروژه یا مدیر می‌تواند سفارش برش بسازد.", "error")
+        return redirect(url_for("view_project", project_id=project_id))
+    try:
+        order_id = create_cutting_order([project_id], current_user.id)
+        session.pop(f"cutting_result_{project_id}", None)
+        flash(
+            "سفارش برش ثبت شد؛ هنوز هیچ موجودی رزرو یا کم نشده است.",
+            "success",
+        )
+        return redirect(url_for("cutting_order_details", order_id=order_id))
+    except CuttingOrderError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("calculate_cutting", project_id=project_id))
+
+    # The legacy direct-deduction implementation intentionally remains below for
+    # audit/reference compatibility, but is unreachable. All new physical
+    # consumption must pass through reserve -> send -> per-bar confirmation.
     project_info = get_project_details_db(project_id)
     if not project_info:
         flash("پروژه مورد نظر یافت نشد.", "error")
@@ -4280,4 +4644,5 @@ if __name__ == "__main__":
     # اگر این تابع قبل از مایگریشن اجرا شود، ستون‌ها را بدون column_type اضافه می‌کند
     # همه ستون‌های پیش‌فرض اکنون به درستی به عنوان dropdown تنظیم شده‌اند
     
-    app.run(debug=False, host='0.0.0.0', port=5000, use_reloader=False)
+    port = int(os.getenv("PORT", "5000"))
+    app.run(debug=False, host='0.0.0.0', port=port, use_reloader=False)

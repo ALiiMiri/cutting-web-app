@@ -90,4 +90,4 @@ def apply(conn):
     except Exception as e:
         print(f"!!! FAILED to apply migration 002_seed_base_custom_columns: {e}")
         # Rollback should be handled by the main migration script.
-        raise
+        raise 

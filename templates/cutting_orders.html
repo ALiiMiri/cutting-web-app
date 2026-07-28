@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>سفارش‌های برش</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cutting_orders.css') }}">
+</head>
+<body class="with-app-header">
+{% include '_app_header.html' %}
+<main class="page">
+    <div class="crumb"><a href="{{ url_for('index') }}">سفارش‌ها</a> / سفارش‌های برش</div>
+    <div class="head">
+        <div><h1>سفارش‌های برش</h1><p>هر محاسبه مستقل است و وضعیت رزرو، ارسال و برش شاخه‌ها را نگه می‌دارد.</p></div>
+        <div class="actions"><a class="btn btn-light" href="{{ url_for('index') }}">انتخاب سفارش و محاسبه جدید</a></div>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+    {% if cutting_orders %}
+    <div class="surface table-wrap">
+        <table>
+            <thead><tr><th>شماره سفارش برش</th><th>وضعیت</th><th>پروژه‌ها</th><th>پیشرفت شاخه‌ها</th><th>ایجادکننده</th><th>تاریخ ساخت</th><th>عملیات</th></tr></thead>
+            <tbody>
+            {% for order in cutting_orders %}
+                <tr>
+                    <td><strong>{{ order.order_number }}</strong><br><small>نسخه {{ order.version }}</small></td>
+                    <td><span class="status status-{{ order.status }}">{{ order.status_label }}</span></td>
+                    <td>{{ order.project_count }}</td>
+                    <td>{{ order.cut_count }} از {{ order.bar_count }}<div class="progress"><span style="width:{{ ((order.cut_count / order.bar_count * 100) if order.bar_count else 0)|round }}%"></span></div></td>
+                    <td>{{ order.creator_username or '—' }}</td>
+                    <td>{{ order.created_at }}</td>
+                    <td><a class="btn btn-light" href="{{ url_for('cutting_order_details', order_id=order.id) }}">بازکردن</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="surface empty">هنوز سفارش برشی ساخته نشده است. از صفحه سفارش‌ها، یک یا چند مورد را انتخاب کنید.</div>
+    {% endif %}
+</main>
+</body>
+</html>

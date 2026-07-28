@@ -494,6 +494,23 @@ def apply_migrations(conn, allow_changes=False):
             ],
             "execution_type": "python_module",
             "module_name": "024_cutting_plan_snapshot",
+        },
+        {
+            "name": "025_cutting_orders",
+            "description": "Create persistent grouped cutting orders and atomic inventory reservations",
+            "check_logic": lambda c: (
+                not c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='cutting_orders'"
+                ).fetchone()
+                or not c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+                ).fetchone()
+                or "archived_at" not in [
+                    col[1] for col in c.execute("PRAGMA table_info(projects)").fetchall()
+                ]
+            ),
+            "execution_type": "python_module",
+            "module_name": "025_cutting_orders",
         }
     ]
 

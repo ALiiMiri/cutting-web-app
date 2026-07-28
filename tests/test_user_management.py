@@ -37,7 +37,7 @@ class UserManagementTests(unittest.TestCase):
         import_module('migrations.021_user_management_security').apply(conn)
         for username, role in (
             ('sysadmin', 'admin'), ('manager1', 'manager'),
-            ('staff1', 'staff'), ('viewer1', 'read_only'),
+            ('staff1', 'staff'), ('factory1', 'factory'), ('viewer1', 'read_only'),
         ):
             conn.execute(
                 "INSERT INTO users(username,password_hash,role) VALUES (?,?,?)",
@@ -170,7 +170,7 @@ class UserManagementTests(unittest.TestCase):
         )
 
     def test_staff_and_read_only_cannot_open_inventory(self):
-        for role in ('staff', 'read_only'):
+        for role in ('staff', 'factory', 'read_only'):
             self.assertIsNotNone(
                 access_denial_message(role, 'GET', 'inventory.dashboard', '/inventory')
             )
@@ -181,9 +181,12 @@ class UserManagementTests(unittest.TestCase):
             access_denial_message('manager', 'GET', 'inventory.dashboard', '/inventory')
         )
 
-    def test_staff_cannot_apply_inventory_deduction(self):
-        self.assertIsNotNone(
-            access_denial_message('staff', 'POST', 'apply_cutting_plan', '/project/17/apply_cutting_plan')
+    def test_staff_may_apply_cutting_for_an_owned_project(self):
+        self.assertIsNone(
+            access_denial_message(
+                'staff', 'POST', 'apply_cutting_plan',
+                '/project/17/apply_cutting_plan',
+            )
         )
 
 

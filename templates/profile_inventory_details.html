@@ -400,15 +400,15 @@
 
         <h3>موجودی شاخه کامل به تفکیک رنگ</h3>
         <table>
-            <thead><tr><th>رنگ واقعی پروفیل</th><th>تعداد شاخه</th></tr></thead>
+            <thead><tr><th>رنگ واقعی پروفیل</th><th>فیزیکی</th><th>رزروشده</th><th>آزاد</th></tr></thead>
             <tbody>
                 {% for stock in details.stock_by_color if stock.quantity > 0 %}
                 <tr>
                     <td><span style="display:inline-block;width:18px;height:18px;border:1px solid #999;border-radius:50%;background:{{ stock.hex_code }};vertical-align:middle;margin-left:8px"></span>{{ stock.color_name }}</td>
-                    <td>{{ stock.quantity }}</td>
+                    <td>{{ stock.quantity }}</td><td>{{ stock.reserved_quantity }}</td><td><strong>{{ stock.available_quantity }}</strong></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="2">هنوز موجودی شاخه کامل ثبت نشده است.</td></tr>
+                <tr><td colspan="4">هنوز موجودی شاخه کامل ثبت نشده است.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -432,7 +432,7 @@
 
         <div class="stats-row">
             <div class="stat-box">
-                <div class="stat-box-title">شاخه‌های کامل</div>
+                <div class="stat-box-title">شاخه‌های کامل آزاد</div>
                 <div class="stat-box-value">{{ details.full_items }}</div>
                 <div class="stat-box-unit">عدد</div>
             </div>
@@ -473,7 +473,7 @@
             <div class="form-column">
                 <h3>کاهش از موجودی</h3>
                 <form method="post" action="{{ url_for('inventory.remove_items', profile_id=details.profile.id) }}">
-                    <div class="form-group"><label for="remove_color_id">رنگ پروفیل:</label><select id="remove_color_id" name="color_id" required><option value="">انتخاب رنگ</option>{% for color in details.colors %}<option value="{{ color.color_id }}">{{ color.color_name }} ({{ color.quantity }} شاخه)</option>{% endfor %}</select></div>
+                    <div class="form-group"><label for="remove_color_id">رنگ پروفیل:</label><select id="remove_color_id" name="color_id" required><option value="">انتخاب رنگ</option>{% for color in details.colors %}<option value="{{ color.color_id }}">{{ color.color_name }} (آزاد {{ color.available_quantity }} / فیزیکی {{ color.quantity }} / رزرو {{ color.reserved_quantity }})</option>{% endfor %}</select></div>
                     <div class="form-group">
                         <label for="remove_quantity">تعداد شاخه:</label>
                         <input type="number" id="remove_quantity" name="quantity" required min="1" value="1" max="{{ details.full_items }}">
@@ -560,11 +560,11 @@
                     <td>{{ piece.id }}</td>
                     <td>{{ piece.length }}</td>
                     <td><span style="display:inline-block;width:14px;height:14px;border:1px solid #999;border-radius:50%;background:{{ piece.hex_code }};vertical-align:middle"></span> {{ piece.color_name }}</td>
-                    <td>{{ piece.created_at }}</td>
+                    <td>{{ piece.created_at }}{% if piece.is_reserved %}<br><strong style="color:#a96508">رزرو سفارش برش</strong>{% endif %}</td>
                     <td class="action-cell">
                         <form method="post" action="{{ url_for('inventory.remove_piece', piece_id=piece.id) }}" style="display: inline;">
                             <input type="hidden" name="profile_id" value="{{ details.profile.id }}">
-                            <button type="submit" class="btn btn-danger" onclick="return confirm('آیا از حذف این شاخه برش‌خورده اطمینان دارید؟');">
+                            <button type="submit" class="btn btn-danger" {% if piece.is_reserved %}disabled title="این قطعه رزرو شده است"{% else %}onclick="return confirm('آیا از حذف این شاخه برش‌خورده اطمینان دارید؟');"{% endif %}>
                                 <i class="fas fa-trash"></i>
                                 حذف
                             </button>

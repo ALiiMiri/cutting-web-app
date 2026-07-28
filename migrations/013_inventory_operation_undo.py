@@ -49,6 +49,7 @@ def apply(conn):
         )
         """
     )
+
     log_columns = _column_names(cursor, "inventory_logs")
     if "operation_id" not in log_columns:
         cursor.execute("ALTER TABLE inventory_logs ADD COLUMN operation_id INTEGER")
@@ -66,3 +67,4 @@ def apply(conn):
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_inventory_logs_operation ON inventory_logs(operation_id)"
     )
+

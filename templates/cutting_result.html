@@ -507,13 +507,14 @@
                 <i class="fas fa-print"></i>
                 چاپ نتایج
             </a>
-            {% if current_user.role in ['admin', 'manager'] %}
-            <form method="POST" action="{{ url_for('apply_cutting_plan', project_id=project.id) }}" 
-                  onsubmit="return confirm('آیا از کسر این شاخه‌ها از انبار اطمینان دارید؟\n\nسیستم به طور خودکار بر اساس نوع پروفیل‌های تعریف‌شده در درب‌ها، از انبار کسر خواهد کرد.');" 
+            {% if current_user_can_edit_project(project.id) %}
+            <form method="POST" action="{{ url_for('calculate_grouped_cutting_order') }}"
                   style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="project_ids" value="{{ project.id }}">
                 <button type="submit" class="inventory-button" style="background-color: #e74c3c; border: none; cursor: pointer;">
-                    <i class="fas fa-minus-circle"></i>
-                    کسر از انبار
+                    <i class="fas fa-clipboard-list"></i>
+                    ثبت سفارش برش (بدون کسر انبار)
                 </button>
             </form>
             {% endif %}

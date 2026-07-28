@@ -35,11 +35,12 @@
     <div class="page-head">
         <div><h1>سفارش‌ها</h1><p>سفارش موردنظر را پیدا کنید یا یک سفارش جدید بسازید.</p></div>
         <div class="head-actions">
+            <a class="switch-draft" href="{{ url_for('cutting_orders_list') }}">سفارش‌های برش</a>
             <div class="view-switch" aria-label="نوع نمایش سفارش‌ها">
                 <button class="view-option{% if orders_view_preference == 'table' %} active{% endif %}" type="button" data-view-option="table" aria-pressed="{{ 'true' if orders_view_preference == 'table' else 'false' }}"><span class="view-icon">☷</span>نمایش جدولی</button>
                 <button class="view-option{% if orders_view_preference == 'cards' %} active{% endif %}" type="button" data-view-option="cards" aria-pressed="{{ 'true' if orders_view_preference == 'cards' else 'false' }}"><span class="view-icon">▦</span>نمایش کارتی</button>
             </div>
-            {% if current_user.role != 'read_only' %}<a class="add-order" href="{{ url_for('add_project_form') }}">＋ ایجاد سفارش جدید</a>{% endif %}
+            {% if current_user.role in ['admin','manager','staff'] %}<a class="add-order" href="{{ url_for('add_project_form') }}">＋ ایجاد سفارش جدید</a>{% endif %}
         </div>
     </div>
     <div class="preference-note">نوع نمایش انتخابی، <strong>فقط برای حساب شما</strong> ذخیره می‌شود.</div>
@@ -82,14 +83,22 @@
     </div>
 
     {% if projects %}
+    {% if current_user.role in ['admin','manager','staff'] %}
+    <form method="post" action="{{ url_for('calculate_grouped_cutting_order') }}" id="grouped-cutting-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="group-cutting-bar">
+            <span><strong id="selected-project-count">۰</strong> سفارش انتخاب شده</span>
+            <button type="submit" id="group-cutting-submit" disabled>محاسبه برش گروهی</button>
+        </div>
+    {% endif %}
     <section class="section-surface{% if orders_view_preference != 'table' %} hidden{% endif %}" id="table-view">
-        <div class="table-scroll"><table class="orders-table"><thead><tr><th>{{ sort_link('شماره سفارش', 'order_ref') }}</th><th>{{ sort_link('نام مشتری', 'customer_name') }}</th><th>{{ sort_link('تاریخ', 'date_shamsi') }}</th><th>مسئول سفارش</th><th>عملیات</th></tr></thead><tbody>
-        {% for project in projects %}<tr><td><span class="order-number">{{ project.order_ref or '—' }}</span><span class="subtext">شناسه داخلی {{ project.id }}</span></td><td><span class="customer">{{ project.cust_name or 'نام مشتری ثبت نشده' }}</span></td><td>{{ project.date_shamsi or '—' }}</td><td>{% if project.assigned_to_username %}<div class="person"><span class="person-avatar">{{ project.assigned_to_username[:1]|upper }}</span><span><strong>{{ project.assigned_to_username }}</strong><small class="subtext">سازنده: {{ project.created_by_username or 'ثبت نشده' }}</small></span></div>{% else %}<span class="unassigned">بدون مسئول</span>{% endif %}</td><td class="action-cell">{{ project_actions(project, 'table') }}</td></tr>{% endfor %}
+        <div class="table-scroll"><table class="orders-table"><thead><tr>{% if current_user.role in ['admin','manager','staff'] %}<th class="select-column">انتخاب</th>{% endif %}<th>{{ sort_link('شماره سفارش', 'order_ref') }}</th><th>{{ sort_link('نام مشتری', 'customer_name') }}</th><th>{{ sort_link('تاریخ', 'date_shamsi') }}</th><th>مسئول سفارش</th><th>عملیات</th></tr></thead><tbody>
+        {% for project in projects %}<tr>{% if current_user.role in ['admin','manager','staff'] %}<td class="select-column">{% if project.can_edit and not project.cutting_blocker %}<input class="project-selector" data-select-project="{{ project.id }}" name="project_ids" value="{{ project.id }}" type="checkbox" aria-label="انتخاب سفارش {{ project.order_ref }}">{% elif project.cutting_blocker %}<span class="cutting-locked" title="{{ project.cutting_blocker.message }}">برش انجام شده</span>{% else %}<span class="no-action">غیرقابل انتخاب</span>{% endif %}</td>{% endif %}<td><span class="order-number">{{ project.order_ref or '—' }}</span><span class="subtext">شناسه داخلی {{ project.id }}</span></td><td><span class="customer">{{ project.cust_name or 'نام مشتری ثبت نشده' }}</span></td><td>{{ project.date_shamsi or '—' }}</td><td>{% if project.assigned_to_username %}<div class="person"><span class="person-avatar">{{ project.assigned_to_username[:1]|upper }}</span><span><strong>{{ project.assigned_to_username }}</strong><small class="subtext">سازنده: {{ project.created_by_username or 'ثبت نشده' }}</small></span></div>{% else %}<span class="unassigned">بدون مسئول</span>{% endif %}</td><td class="action-cell">{{ project_actions(project, 'table') }}</td></tr>{% endfor %}
         </tbody></table></div>
     </section>
 
     <section class="cards-view{% if orders_view_preference != 'cards' %} hidden{% endif %}" id="cards-view"><div class="cards-grid">
-        {% for project in projects %}<article class="order-card"><div class="card-top"><div class="card-order"><span>شماره سفارش</span><strong>{{ project.order_ref or '—' }}</strong></div><span class="card-date">{{ project.date_shamsi or '—' }}</span></div><div class="card-customer"><h3>{{ project.cust_name or 'نام مشتری ثبت نشده' }}</h3><span>شناسه داخلی {{ project.id }}</span></div><div class="card-meta"><div><span class="meta-label">مسئول سفارش</span>{% if project.assigned_to_username %}<span class="meta-value"><span class="mini-avatar">{{ project.assigned_to_username[:1]|upper }}</span>{{ project.assigned_to_username }}</span>{% else %}<span class="unassigned">بدون مسئول</span>{% endif %}</div><div><span class="meta-label">ایجادکننده</span><span class="meta-value">{{ project.created_by_username or 'ثبت نشده' }}</span></div></div><div class="card-actions">{{ project_actions(project, 'card') }}</div></article>{% endfor %}
+        {% for project in projects %}<article class="order-card"><div class="card-top"><div class="card-order"><span>شماره سفارش</span><strong>{{ project.order_ref or '—' }}</strong></div><div class="card-select-wrap"><span class="card-date">{{ project.date_shamsi or '—' }}</span>{% if current_user.role in ['admin','manager','staff'] and project.can_edit and not project.cutting_blocker %}<label class="card-selector"><input class="project-selector" data-select-project="{{ project.id }}" name="project_ids" value="{{ project.id }}" type="checkbox"> انتخاب</label>{% elif project.cutting_blocker %}<span class="cutting-locked" title="{{ project.cutting_blocker.message }}">برش انجام شده</span>{% endif %}</div></div><div class="card-customer"><h3>{{ project.cust_name or 'نام مشتری ثبت نشده' }}</h3><span>شناسه داخلی {{ project.id }}</span></div><div class="card-meta"><div><span class="meta-label">مسئول سفارش</span>{% if project.assigned_to_username %}<span class="meta-value"><span class="mini-avatar">{{ project.assigned_to_username[:1]|upper }}</span>{{ project.assigned_to_username }}</span>{% else %}<span class="unassigned">بدون مسئول</span>{% endif %}</div><div><span class="meta-label">ایجادکننده</span><span class="meta-value">{{ project.created_by_username or 'ثبت نشده' }}</span></div></div><div class="card-actions">{{ project_actions(project, 'card') }}</div></article>{% endfor %}
     </div></section>
 
     <div class="pagination">
@@ -101,6 +110,7 @@
             {% if pagination.page < pagination.pages %}<a href="{{ url_for('index', page=pagination.page+1, search=search, sort_by=sort_by, sort_order=sort_order, date_from=date_from, date_to=date_to, customer_filter=customer_filter, scope=scope, per_page=per_page) }}">›</a>{% else %}<span class="disabled">›</span>{% endif %}
         </div>
     </div>
+    {% if current_user.role in ['admin','manager','staff'] %}</form>{% endif %}
     {% else %}
     <div class="section-surface empty">{% if search or customer_filter or date_from or date_to or scope != 'all' %}سفارشی با این مشخصات پیدا نشد.{% else %}هنوز سفارشی ثبت نشده است.{% endif %}</div>
     {% endif %}
@@ -129,6 +139,9 @@
     document.querySelectorAll('[data-edit-project]').forEach(button=>button.addEventListener('click',()=>{const project=projectsById.get(button.dataset.editProject);document.getElementById('edit-form').action=`/project/${project.id}/update`;document.getElementById('edit-customer').value=project.cust_name||'';document.getElementById('edit-order-ref').value=project.order_ref||'';document.getElementById('edit-date').value=project.date_shamsi||'';closeMenus();openModal(document.getElementById('edit-modal'))}));
     document.querySelectorAll('[data-assign-project]').forEach(button=>button.addEventListener('click',()=>{const project=projectsById.get(button.dataset.assignProject);document.getElementById('assign-form').action=`/project/${project.id}/assign`;document.getElementById('assigned-user').value=project.assigned_to_user_id||'';document.getElementById('assign-summary').textContent=`سفارش ${project.order_ref||project.id} — ${project.cust_name||''}`;closeMenus();openModal(document.getElementById('assign-modal'))}));
     document.querySelectorAll('[data-delete-project]').forEach(button=>button.addEventListener('click',()=>{const project=projectsById.get(button.dataset.deleteProject);document.getElementById('delete-form').action=`/project/${project.id}/delete`;document.getElementById('delete-summary').textContent=`سفارش ${project.order_ref||project.id} — ${project.cust_name||''}`;closeMenus();openModal(document.getElementById('delete-modal'))}));
+    const selectors=[...document.querySelectorAll('.project-selector')],selectedCount=document.getElementById('selected-project-count'),groupSubmit=document.getElementById('group-cutting-submit');
+    function updateGroupedSelection(changed){if(changed){selectors.filter(item=>item.dataset.selectProject===changed.dataset.selectProject).forEach(item=>item.checked=changed.checked)}const selected=new Set(selectors.filter(item=>item.checked).map(item=>item.dataset.selectProject));if(selectedCount)selectedCount.textContent=selected.size.toLocaleString('fa-IR');if(groupSubmit)groupSubmit.disabled=selected.size===0}
+    selectors.forEach(selector=>selector.addEventListener('change',()=>updateGroupedSelection(selector)));updateGroupedSelection();
     applyView(document.body.dataset.view);
 })();
 </script>

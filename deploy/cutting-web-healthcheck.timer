@@ -1,0 +1,12 @@
+[Unit]
+Description=Monitor Cutting Web App responsiveness
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+Persistent=true
+Unit=cutting-web-healthcheck.service
+
+[Install]
+WantedBy=timers.target

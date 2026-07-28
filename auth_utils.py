@@ -10,11 +10,12 @@ from date_utils import get_shamsi_datetime_iso, get_shamsi_now
 
 DB_NAME = Config.DB_NAME
 
-VALID_ROLES = ('admin', 'manager', 'staff', 'read_only')
+VALID_ROLES = ('admin', 'manager', 'staff', 'factory', 'read_only')
 ROLE_LABELS = {
     'admin': 'مدیر سیستم',
     'manager': 'مدیر',
     'staff': 'کارمند',
+    'factory': 'کارخانه',
     'read_only': 'فقط مشاهده',
 }
 VALID_ORDERS_VIEW_PREFERENCES = ('table', 'cards')

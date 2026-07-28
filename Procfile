@@ -1,0 +1,1 @@
+web: gunicorn --workers 4 --worker-class sync --timeout 120 --graceful-timeout 30 --max-requests 500 --max-requests-jitter 50 --bind 0.0.0.0:${PORT:-5000} cutting_web_app:app

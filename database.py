@@ -99,13 +99,20 @@ def get_all_projects():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        archive_filter = (
+            "WHERE p.archived_at IS NULL"
+            if "archived_at"
+            in {row[1] for row in cursor.execute("PRAGMA table_info(projects)")}
+            else ""
+        )
         cursor.execute(
-            """
+            f"""
             SELECT p.id, p.customer_name, p.order_ref, p.date_shamsi, p.project_code,
                    p.assigned_to_user_id, assignee.username, creator.username
             FROM projects AS p
             LEFT JOIN users AS assignee ON assignee.id=p.assigned_to_user_id
             LEFT JOIN users AS creator ON creator.id=p.created_by_user_id
+            {archive_filter}
             ORDER BY p.id DESC
             """
         )
@@ -152,7 +159,12 @@ def get_projects_paginated(page=1, per_page=15, search="", sort_by="id", sort_or
         cursor = conn.cursor()
 
         # Build WHERE clause
-        where_conditions = []
+        project_columns = {
+            row[1] for row in cursor.execute("PRAGMA table_info(projects)")
+        }
+        where_conditions = (
+            ["archived_at IS NULL"] if "archived_at" in project_columns else []
+        )
         params = []
 
         # Search filter
@@ -257,12 +269,16 @@ def get_project_dashboard_counts(user_id):
     conn = None
     try:
         conn = get_db_connection()
+        has_archived = "archived_at" in {
+            column[1] for column in conn.execute("PRAGMA table_info(projects)")
+        }
         row = conn.execute(
-            """
+            f"""
             SELECT COUNT(*),
                    SUM(CASE WHEN assigned_to_user_id = ? THEN 1 ELSE 0 END),
                    SUM(CASE WHEN assigned_to_user_id IS NULL THEN 1 ELSE 0 END)
             FROM projects
+            {"WHERE archived_at IS NULL" if has_archived else ""}
             """,
             (user_id,),
         ).fetchone()
@@ -284,7 +300,14 @@ def get_unique_customers():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT customer_name FROM projects WHERE customer_name IS NOT NULL AND customer_name != '' ORDER BY customer_name")
+        has_archived = "archived_at" in {
+            row[1] for row in cursor.execute("PRAGMA table_info(projects)")
+        }
+        cursor.execute(
+            "SELECT DISTINCT customer_name FROM projects WHERE "
+            + ("archived_at IS NULL AND " if has_archived else "")
+            + "customer_name IS NOT NULL AND customer_name != '' ORDER BY customer_name"
+        )
         customers = [row[0] for row in cursor.fetchall()]
         return customers
     except sqlite3.Error as e:
@@ -1696,13 +1719,34 @@ def get_all_profile_types(include_inactive=False):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        has_reservations = cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+        ).fetchone()
+        reserved_stock_expr = (
+            "(SELECT COUNT(*) FROM inventory_reservations r "
+            "WHERE r.profile_type_id=pt.id AND r.resource_type='stock' "
+            "AND r.status='active')"
+            if has_reservations
+            else "0"
+        )
+        reserved_piece_expr = (
+            "(SELECT COUNT(*) FROM inventory_reservations r "
+            "WHERE r.profile_type_id=pt.id AND r.resource_type='piece' "
+            "AND r.status='active')"
+            if has_reservations
+            else "0"
+        )
 
         # دریافت اطلاعات پروفیل به همراه آمار موجودی
-        query = """
+        query = f"""
         SELECT
             pt.*,
             COALESCE(SUM(ii.quantity), 0) as complete_count,
             (SELECT COUNT(*) FROM inventory_pieces ip WHERE ip.profile_type_id = pt.id) as cut_count,
+            {reserved_stock_expr} AS reserved_complete_count,
+            MAX(0,COALESCE(SUM(ii.quantity),0)-{reserved_stock_expr}) AS available_complete_count,
+            {reserved_piece_expr} AS reserved_cut_count,
+            MAX(0,(SELECT COUNT(*) FROM inventory_pieces ip WHERE ip.profile_type_id=pt.id)-{reserved_piece_expr}) AS available_cut_count,
             -- total_length is returned in meters (default_length/length are stored in centimeters)
             ((COALESCE(SUM(ii.quantity), 0) * pt.default_length) / 100.0) +
             (COALESCE((SELECT SUM(length) FROM inventory_pieces ip WHERE ip.profile_type_id = pt.id), 0) / 100.0) as total_length,
@@ -2087,7 +2131,11 @@ def get_inventory_stats():
         "total_complete_length": 0,
         "total_cut_length": 0,
         "total_length": 0,
-        "average_piece_length": 0
+        "average_piece_length": 0,
+        "reserved_complete_pieces": 0,
+        "reserved_cut_pieces": 0,
+        "available_complete_pieces": 0,
+        "available_cut_pieces": 0,
     }
     try:
         conn = get_db_connection()
@@ -2139,6 +2187,35 @@ def get_inventory_stats():
             stats["total_cut_length"] = row[1] or 0
             stats["total_weight"] += row[2] or 0
 
+        if cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+        ).fetchone():
+            stats["reserved_complete_pieces"] = int(
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM inventory_reservations
+                    WHERE resource_type='stock' AND status='active'
+                    """
+                ).fetchone()[0]
+            )
+            stats["reserved_cut_pieces"] = int(
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) FROM inventory_reservations
+                    WHERE resource_type='piece' AND status='active'
+                    """
+                ).fetchone()[0]
+            )
+        stats["available_complete_pieces"] = max(
+            0,
+            int(stats["total_complete_pieces"] or 0)
+            - stats["reserved_complete_pieces"],
+        )
+        stats["available_cut_pieces"] = max(
+            0,
+            int(stats["total_cut_pieces"] or 0) - stats["reserved_cut_pieces"],
+        )
+
         # محاسبات نهایی
         stats["total_length"] = stats["total_complete_length"] + stats["total_cut_length"]
         total_pieces = stats["total_complete_pieces"] + stats["total_cut_pieces"]
@@ -2159,6 +2236,40 @@ def _get_profile_name_for_operation(cursor, profile_id):
     if not row:
         raise sqlite3.IntegrityError(f"Profile {profile_id} not found")
     return row["name"]
+
+
+def _active_stock_reservations(cursor, profile_id, color_id):
+    if not cursor.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+    ).fetchone():
+        return 0
+    return int(
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM inventory_reservations
+            WHERE profile_type_id=? AND color_id=?
+              AND resource_type='stock' AND status='active'
+            """,
+            (profile_id, color_id),
+        ).fetchone()[0]
+    )
+
+
+def _inventory_piece_is_reserved(cursor, piece_id):
+    if not cursor.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+    ).fetchone():
+        return False
+    return (
+        cursor.execute(
+            """
+            SELECT 1 FROM inventory_reservations
+            WHERE inventory_piece_id=? AND resource_type='piece' AND status='active'
+            """,
+            (piece_id,),
+        ).fetchone()
+        is not None
+    )
 
 
 def _get_color_for_operation(cursor, color_id=None, color_name=None):
@@ -2420,10 +2531,13 @@ def remove_inventory_stock(
         )
         row = cursor.fetchone()
         current_qty = row[0] if row else 0
+        reserved_qty = _active_stock_reservations(cursor, profile_id, color["id"])
 
-        if current_qty < quantity:
+        if current_qty - reserved_qty < quantity:
             conn.rollback()
-            return False, "موجودی کافی نیست."
+            return False, (
+                f"موجودی آزاد کافی نیست؛ {reserved_qty} شاخه برای سفارش برش رزرو شده است."
+            )
         after_quantity = current_qty - quantity
         operation_id = _create_inventory_operation(
             cursor,
@@ -2593,6 +2707,9 @@ def remove_inventory_piece(
         if not row:
             conn.rollback()
             return False, "قطعه یافت نشد."
+        if _inventory_piece_is_reserved(cursor, piece_id):
+            conn.rollback()
+            return False, "این قطعه برای یک سفارش برش رزرو شده و قابل حذف نیست."
 
         profile_id, color_id, length = row
         profile_name = _get_profile_name_for_operation(cursor, profile_id)
@@ -2673,9 +2790,12 @@ def transfer_inventory_stock_color(
         )
         row = cursor.fetchone()
         source_before = int(row["quantity"]) if row else 0
-        if source_before < quantity:
+        source_reserved = _active_stock_reservations(
+            cursor, profile_id, source["id"]
+        )
+        if source_before - source_reserved < quantity:
             conn.rollback()
-            return False, "موجودی رنگ مبدأ برای انتقال کافی نیست."
+            return False, "موجودی آزاد رنگ مبدأ برای انتقال کافی نیست."
         cursor.execute(
             "INSERT OR IGNORE INTO inventory_items (profile_type_id,color_id,quantity) VALUES (?,?,0)",
             (profile_id, target["id"]),
@@ -2761,11 +2881,15 @@ def correct_inventory_stock(profile_id, color_id, quantity_delta, reason, actor_
             ).fetchone()["quantity"]
         )
         after = before + quantity_delta
-        if after < 0:
+        reserved_qty = _active_stock_reservations(cursor, profile_id, color["id"])
+        if after < reserved_qty:
             conn.rollback()
             return {
                 "status": "validation_error",
-                "message": f"موجودی کافی نیست؛ مقدار فعلی {before} شاخه است.",
+                "message": (
+                    f"این اصلاح موجودی را از تعداد رزروشده کمتر می‌کند؛ "
+                    f"موجودی فیزیکی {before} و رزرو فعال {reserved_qty} شاخه است."
+                ),
             }
         operation_id = _create_inventory_operation(
             cursor,
@@ -3137,10 +3261,26 @@ def apply_cutting_plan_inventory_transaction(
             )
             stock_row = cursor.fetchone()
             current_stock = int(stock_row["quantity"]) if stock_row else 0
-            if current_stock < new_bins_count:
+            reservations_table = cursor.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+            ).fetchone()
+            reserved_stock = 0
+            if reservations_table:
+                reserved_stock = int(
+                    cursor.execute(
+                        """
+                        SELECT COUNT(*) FROM inventory_reservations
+                        WHERE profile_type_id=? AND color_id=?
+                          AND resource_type='stock' AND status='active'
+                        """,
+                        (profile["id"], color["id"]),
+                    ).fetchone()[0]
+                )
+            available_stock = current_stock - reserved_stock
+            if available_stock < new_bins_count:
                 errors.append(
                     f"موجودی «{profile_name}» با رنگ «{color['name']}» کافی نیست؛ نیاز: {new_bins_count} شاخه، "
-                    f"موجودی: {current_stock} شاخه."
+                    f"موجودی آزاد: {available_stock} شاخه."
                 )
 
             try:
@@ -4269,32 +4409,78 @@ def get_profile_stock_details(profile_id):
         cursor = conn.cursor()
 
         # موجودی کامل
-        cursor.execute(
-            """
-            SELECT pc.id AS color_id, pc.name AS color_name, pc.hex_code,
-                   COALESCE(ii.quantity, 0) AS quantity
-            FROM profile_colors pc
-            LEFT JOIN inventory_items ii
-              ON ii.color_id = pc.id AND ii.profile_type_id = ?
-            WHERE pc.is_active = 1
-            ORDER BY CASE WHEN pc.name='تعیین‌نشده' THEN 1 ELSE 0 END, pc.name
-            """,
-            (profile_id,),
-        )
+        has_reservations = cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+        ).fetchone()
+        if has_reservations:
+            cursor.execute(
+                """
+                SELECT pc.id AS color_id,pc.name AS color_name,pc.hex_code,
+                       COALESCE(ii.quantity,0) AS quantity,
+                       (
+                           SELECT COUNT(*) FROM inventory_reservations r
+                           WHERE r.profile_type_id=? AND r.color_id=pc.id
+                             AND r.resource_type='stock' AND r.status='active'
+                       ) AS reserved_quantity,
+                       MAX(0,COALESCE(ii.quantity,0)-(
+                           SELECT COUNT(*) FROM inventory_reservations r
+                           WHERE r.profile_type_id=? AND r.color_id=pc.id
+                             AND r.resource_type='stock' AND r.status='active'
+                       )) AS available_quantity
+                FROM profile_colors pc
+                LEFT JOIN inventory_items ii
+                  ON ii.color_id=pc.id AND ii.profile_type_id=?
+                WHERE pc.is_active=1
+                ORDER BY CASE WHEN pc.name='تعیین‌نشده' THEN 1 ELSE 0 END,pc.name
+                """,
+                (profile_id, profile_id, profile_id),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT pc.id AS color_id,pc.name AS color_name,pc.hex_code,
+                       COALESCE(ii.quantity,0) AS quantity,0 AS reserved_quantity,
+                       COALESCE(ii.quantity,0) AS available_quantity
+                FROM profile_colors pc
+                LEFT JOIN inventory_items ii
+                  ON ii.color_id=pc.id AND ii.profile_type_id=?
+                WHERE pc.is_active=1
+                ORDER BY CASE WHEN pc.name='تعیین‌نشده' THEN 1 ELSE 0 END,pc.name
+                """,
+                (profile_id,),
+            )
         details["stock_by_color"] = [dict(row) for row in cursor.fetchall()]
         details["colors"] = [dict(row) for row in details["stock_by_color"]]
-        details["complete_pieces"] = sum(row["quantity"] for row in details["stock_by_color"])
+        details["complete_pieces"] = sum(
+            row["available_quantity"] for row in details["stock_by_color"]
+        )
 
         # تکه‌ها
-        cursor.execute(
-            """
-            SELECT ip.*, pc.name AS color_name, pc.hex_code
-            FROM inventory_pieces ip
-            JOIN profile_colors pc ON pc.id = ip.color_id
-            WHERE ip.profile_type_id = ? ORDER BY ip.length DESC
-            """,
-            (profile_id,),
-        )
+        if has_reservations:
+            cursor.execute(
+                """
+                SELECT ip.*,pc.name AS color_name,pc.hex_code,
+                       EXISTS(
+                           SELECT 1 FROM inventory_reservations r
+                           WHERE r.inventory_piece_id=ip.id
+                             AND r.resource_type='piece' AND r.status='active'
+                       ) AS is_reserved
+                FROM inventory_pieces ip
+                JOIN profile_colors pc ON pc.id=ip.color_id
+                WHERE ip.profile_type_id=? ORDER BY ip.length DESC
+                """,
+                (profile_id,),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT ip.*,pc.name AS color_name,pc.hex_code,0 AS is_reserved
+                FROM inventory_pieces ip
+                JOIN profile_colors pc ON pc.id=ip.color_id
+                WHERE ip.profile_type_id=? ORDER BY ip.length DESC
+                """,
+                (profile_id,),
+            )
         details["pieces"] = [dict(row) for row in cursor.fetchall()]
 
         # آخرین لاگ‌ها
@@ -4340,13 +4526,31 @@ def get_available_inventory_pieces(profile_name, color_name=None):
 
         # دریافت قطعات برش‌خورده مرتب‌شده به صورت نزولی
         color = _get_color_for_operation(cursor, color_name=color_name)
-        cursor.execute(
-            """
-            SELECT id, length, color_id FROM inventory_pieces
-            WHERE profile_type_id = ? AND color_id = ? ORDER BY length DESC
-            """,
-            (profile_id, color["id"]),
-        )
+        reservations_table = cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_reservations'"
+        ).fetchone()
+        if reservations_table:
+            cursor.execute(
+                """
+                SELECT ip.id,ip.length,ip.color_id FROM inventory_pieces ip
+                WHERE ip.profile_type_id=? AND ip.color_id=?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM inventory_reservations r
+                    WHERE r.resource_type='piece' AND r.inventory_piece_id=ip.id
+                      AND r.status='active'
+                  )
+                ORDER BY ip.length DESC
+                """,
+                (profile_id, color["id"]),
+            )
+        else:
+            cursor.execute(
+                """
+                SELECT id, length, color_id FROM inventory_pieces
+                WHERE profile_type_id = ? AND color_id = ? ORDER BY length DESC
+                """,
+                (profile_id, color["id"]),
+            )
         pieces = [dict(row) for row in cursor.fetchall()]
 
     except sqlite3.Error as e:

@@ -19,7 +19,7 @@ MANAGER_ONLY_ENDPOINTS = {
     'inventory.delete_profile_type_route', 'inventory.reactivate_profile',
     'inventory.corrections', 'inventory.correct_stock', 'inventory.correct_color',
     'inventory.correct_piece_add', 'inventory.correct_piece_remove',
-    'inventory.settings', 'inventory.undo_operation', 'apply_cutting_plan',
+    'inventory.settings', 'inventory.undo_operation',
 }
 
 PROJECT_EDIT_ENDPOINTS = {
@@ -37,7 +37,7 @@ PROJECT_EDIT_ENDPOINTS = {
 
 def access_denial_message(role, method, endpoint, path=''):
     """Return a user-facing reason when a role must not perform the request."""
-    if role in {'staff', 'read_only'} and path.startswith('/inventory'):
+    if role in {'staff', 'factory', 'read_only'} and path.startswith('/inventory'):
         return 'بخش انبار فقط در اختیار مدیر و مدیر سیستم است.'
     if (
         role == 'read_only'

@@ -99,11 +99,12 @@ def _profile_settings_for(required_profiles, profiles):
     return settings
 
 
-def _collect_requirements(doors):
+def _collect_requirements(doors, exclude_piece_keys=None):
     requirements = defaultdict(list)
     valid_rows = 0
     invalid_rows = []
 
+    exclude_piece_keys = set(exclude_piece_keys or ())
     for row_number, door in enumerate(doors, start=1):
         try:
             width = float(door["width"])
@@ -118,47 +119,70 @@ def _collect_requirements(doors):
             continue
 
         frame_type = normalize_frame_type(door.get("kolaft"))
-        for _ in range(quantity):
+        source_metadata = {
+            "project_id": door.get("_project_id", door.get("project_id")),
+            "project_name": door.get("_project_name"),
+            "project_order_ref": door.get("_project_order_ref"),
+            "project_code": door.get("_project_code"),
+            "door_id": door.get("id"),
+            "door_row_number": door.get("row_number", row_number),
+            "door_location": door.get("location"),
+        }
+        for quantity_index in range(1, quantity + 1):
+            piece_metadata = {
+                **source_metadata,
+                "door_quantity_index": quantity_index,
+            }
             if frame_type == TWO_SIDED_FRAME:
-                requirements[(profile_name, color_name)].extend(
-                    [
+                candidates = [
                         {
+                            **piece_metadata,
                             "length": height,
                             "member_type": "vertical_left",
                             "member_label": "قائم چپ چهارچوب دوطرفه",
                             "cut_instruction": "بالا: صاف ۹۰ درجه؛ پایین: صاف ۹۰ درجه",
                         },
                         {
+                            **piece_metadata,
                             "length": height,
                             "member_type": "vertical_right",
                             "member_label": "قائم راست چهارچوب دوطرفه",
                             "cut_instruction": "بالا: صاف ۹۰ درجه؛ پایین: صاف ۹۰ درجه",
                         },
                     ]
-                )
             else:
-                requirements[(profile_name, color_name)].extend(
-                    [
+                candidates = [
                         {
+                            **piece_metadata,
                             "length": height,
                             "member_type": "vertical_left",
                             "member_label": "قائم چپ چهارچوب سه‌طرفه",
                             "cut_instruction": "بالا: فارسی‌بُر ۴۵ درجه چپ؛ پایین: صاف ۹۰ درجه",
                         },
                         {
+                            **piece_metadata,
                             "length": height,
                             "member_type": "vertical_right",
                             "member_label": "قائم راست چهارچوب سه‌طرفه",
                             "cut_instruction": "بالا: فارسی‌بُر ۴۵ درجه راست؛ پایین: صاف ۹۰ درجه",
                         },
                         {
+                            **piece_metadata,
                             "length": width,
                             "member_type": "horizontal_top",
                             "member_label": "بالای چهارچوب سه‌طرفه",
                             "cut_instruction": "دو سر فارسی‌بُر ۴۵ درجه و قرینه",
                         },
                     ]
+            for candidate in candidates:
+                piece_key = (
+                    candidate.get("project_id"),
+                    candidate.get("door_id"),
+                    candidate.get("door_quantity_index"),
+                    candidate.get("member_type"),
                 )
+                if piece_key not in exclude_piece_keys:
+                    requirements[(profile_name, color_name)].append(candidate)
         valid_rows += 1
 
     if not requirements:
@@ -194,6 +218,9 @@ def _cutting_plan_fingerprint(
                             "length": float(piece["length"]),
                             "member_type": piece["member_type"],
                             "cut_instruction": piece["cut_instruction"],
+                            "project_id": piece.get("project_id"),
+                            "door_id": piece.get("door_id"),
+                            "door_quantity_index": piece.get("door_quantity_index"),
                         }
                         for piece in pieces
                     ),
@@ -340,6 +367,7 @@ def calculate_cutting_plan(
     optimization_strategy="minimize_waste",
     stock_length=600,
     blade_width=BLADE_WIDTH_CM,
+    exclude_piece_keys=None,
 ):
     """Calculate a cutting plan and weight-aware remaining-material statistics.
 
@@ -357,7 +385,9 @@ def calculate_cutting_plan(
     if optimization_strategy not in OPTIMIZATION_STRATEGIES:
         optimization_strategy = "minimize_waste"
 
-    requirements, valid_rows, invalid_rows = _collect_requirements(doors)
+    requirements, valid_rows, invalid_rows = _collect_requirements(
+        doors, exclude_piece_keys=exclude_piece_keys
+    )
     profile_settings = _profile_settings_for(requirements, profiles)
     available_pieces_by_profile = available_pieces_by_profile or {}
 

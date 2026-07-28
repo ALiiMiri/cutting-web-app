@@ -39,7 +39,14 @@ if ! runuser -u cuttingapp -- /bin/sh -c \
     exit 1
 fi
 
+install -m 0644 "$TARGET"/deploy/cutting-web-app.service /etc/systemd/system/cutting-web-app.service
+install -m 0644 "$TARGET"/deploy/cutting-web-healthcheck.service /etc/systemd/system/cutting-web-healthcheck.service
+install -m 0644 "$TARGET"/deploy/cutting-web-healthcheck.timer /etc/systemd/system/cutting-web-healthcheck.timer
+systemctl daemon-reload
+systemctl enable cutting-web-app.service cutting-web-healthcheck.timer >/dev/null
 systemctl start cutting-web-app.service
+systemctl start cutting-web-healthcheck.timer
 systemctl is-active --quiet cutting-web-app.service
+systemctl is-active --quiet cutting-web-healthcheck.timer
 trap - EXIT
 echo "PUBLISH_OK"

@@ -18,3 +18,4 @@ def apply(conn):
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_profile_types_active ON profile_types(is_active, name)"
     )
+
