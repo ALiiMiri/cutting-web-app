@@ -156,8 +156,9 @@
         }
 
         .btn-sm {
-            padding: 5px 10px;
-            font-size: 12px;
+            min-height: 40px;
+            padding: 7px 10px;
+            font-size: 13px;
         }
 
         table {
@@ -228,6 +229,7 @@
 
         .actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 5px;
         }
 
@@ -322,6 +324,28 @@
             font-size: 13px;
             margin-top: 15px;
         }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 16px 12px;
+            }
+
+            .container {
+                margin: 18px auto;
+                padding: 0 12px;
+            }
+
+            .card {
+                padding: 18px;
+            }
+
+            .form-inline,
+            .password-field,
+            .credential-row {
+                align-items: stretch;
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -400,6 +424,7 @@
         <!-- لیست کاربران -->
         <div class="card">
             <h2>لیست کاربران</h2>
+            <div class="table-responsive">
             <table>
                 <thead>
                     <tr>
@@ -466,11 +491,13 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
 
         <div class="card">
             <h2>تاریخچه مدیریت کاربران</h2>
             <div class="info-box">در این قسمت مشخص است چه کسی، چه تغییری را روی کدام کاربر انجام داده است.</div>
+            <div class="table-responsive">
             <table>
                 <thead><tr><th>زمان</th><th>انجام‌دهنده</th><th>عملیات</th><th>کاربر</th></tr></thead>
                 <tbody>
@@ -486,6 +513,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
         </div>
     </div>
 

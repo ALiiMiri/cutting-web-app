@@ -61,6 +61,26 @@ class TypographyFoundationTests(unittest.TestCase):
         self.assertIn("@media(max-width:900px)", dashboard)
         self.assertIn("@media(max-width:580px)", dashboard)
         self.assertIn(".orders-table{min-width:760px}", dashboard)
+        self.assertIn(".tab{height:40px", dashboard)
+
+        admin_users = (TEMPLATES / "admin/users.html").read_text(encoding="utf-8")
+        self.assertIn("@media (max-width: 768px)", admin_users)
+        self.assertGreaterEqual(admin_users.count('class="table-responsive"'), 2)
+        self.assertIn("min-height: 40px", admin_users)
+
+        legacy_style = (CSS / "style.css").read_text(encoding="utf-8")
+        self.assertRegex(
+            legacy_style,
+            r"\.btn\s*\{[^}]*min-height:\s*40px",
+        )
+
+    def test_treeview_column_setup_has_no_jquery_dependency(self):
+        treeview = (TEMPLATES / "project_treeview.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("$(", treeview)
+        self.assertNotIn("$.ajax", treeview)
+        self.assertIn("document.addEventListener('DOMContentLoaded'", treeview)
 
     def test_key_pages_load_the_shared_design_system(self):
         for template_name in self.DIRECT_TEMPLATES:

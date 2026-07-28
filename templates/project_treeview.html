@@ -1429,14 +1429,18 @@
             
             // ستون‌های سفارشی را بر اساس وضعیت نمایش مدیریت می‌کنیم
             // ابتدا همه ستون‌های سفارشی را مخفی می‌کنیم
-            $('.column-custom').hide();
+            document.querySelectorAll('.column-custom').forEach(element => {
+                element.style.display = 'none';
+            });
             
             // سپس فقط ستون‌هایی را که در لیست visible_columns هستند نمایش می‌دهیم
             if (visibleColumns) {
                 visibleColumns.forEach(function(columnKey) {
                     // بررسی می‌کنیم که آیا ستون پایه است یا خیر
                     if (!basicColumns.includes(columnKey)) {
-                        $('.column-' + columnKey).show();
+                        document.querySelectorAll('.column-' + CSS.escape(columnKey)).forEach(element => {
+                            element.style.display = '';
+                        });
                         console.log("نمایش ستون:", columnKey);
                     }
                 });
@@ -1444,29 +1448,35 @@
             
             // به‌روزرسانی وضعیت چک‌باکس‌ها
             // ابتدا همه چک‌باکس‌ها را غیرفعال می‌کنیم
-            $('input[data-column]').prop('checked', false);
+            document.querySelectorAll('input[data-column]').forEach(input => {
+                input.checked = false;
+            });
             
             // سپس چک‌باکس‌هایی که باید فعال باشند را فعال می‌کنیم
             if (checkedColumns && checkedColumns.length > 0) {
                 checkedColumns.forEach(function(columnKey) {
-                    $('input[data-column="' + columnKey + '"]').prop('checked', true);
+                    const input = document.querySelector(
+                        `input[data-column="${CSS.escape(columnKey)}"]`
+                    );
+                    if (input) {
+                        input.checked = true;
+                    }
                     console.log("فعال کردن چک‌باکس:", columnKey);
                 });
             }
         }
 
         // اجرای اولیه برای اطمینان از نمایش صحیح ستون‌ها
-        $(document).ready(function() {
+        document.addEventListener('DOMContentLoaded', function() {
             // دریافت وضعیت ستون‌های نمایشی از سرور
-            $.ajax({
-                url: '/project/{{ project.id }}/get_visible_columns',
-                method: 'GET',
-                success: function(response) {
+            fetch('/project/{{ project.id }}/get_visible_columns')
+                .then(response => response.json())
+                .then(response => {
                     if (response.success) {
                         updateUI([], response.visible_columns);
                     }
-                }
-            });
+                })
+                .catch(error => console.error('Error:', error));
         });
     </script>
     
