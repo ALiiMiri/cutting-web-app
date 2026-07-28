@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         body {
-            font-family: 'Vazirmatn', sans-serif;
+            font-family: var(--font-family-base);
             padding: 20px;
             line-height: 1.6;
             background-color: #f8f9fa;
@@ -283,7 +283,7 @@
             }
             return confirm('آیا از حذف موارد انتخاب شده مطمئن هستید؟');
         }
-        
+
         var allQuotesData = JSON.parse('{{ all_quotes_json|safe }}');
 
         // Function to find a quote by ID
@@ -307,7 +307,7 @@
                 document.getElementById('modal_quote_id').textContent = quote.id;
                 document.getElementById('modal_customer_name').textContent = quote.customer_name || 'نامشخص';
                 document.getElementById('modal_customer_mobile').textContent = quote.customer_mobile || 'نامشخص';
-                
+
                 // Timestamp handling - assuming it's a string like 'YYYY-MM-DD HH:MM:SS' from Python
                 // You might want to format it differently or handle it as a Date object if needed
                 let displayTimestamp = 'نامشخص';
@@ -401,4 +401,4 @@
         }
     </script>
 </body>
-</html> 
+</html>

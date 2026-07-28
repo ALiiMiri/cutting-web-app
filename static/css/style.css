@@ -1,10 +1,10 @@
 /* فایل CSS برای برنامه محاسبه‌گر قیمت */
 
-/* فونت فارسی */
-@import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css');
+/* زیرساخت محلی فونت و تایپوگرافی */
+@import url("./design-system.css");
 
 * {
-    font-family: 'Vazirmatn', sans-serif;
+    font-family: var(--font-family-base);
 }
 
 body {
@@ -209,16 +209,16 @@ body {
         padding: 10px;
         margin: 10px;
     }
-    
+
     .table {
         font-size: 0.8em;
     }
-    
+
     .btn-sm {
         padding: 2px 6px;
         font-size: 0.75em;
     }
-    
+
     .nav-buttons .btn {
         margin: 5px;
         display: block;
@@ -303,4 +303,4 @@ h1, h2, h3, h4, h5, h6 {
 .table-primary th {
     background-color: #0d6efd;
     color: white;
-} 
+}

@@ -4,16 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ project.cust_name }} - {{ project.order_ref }} - خروجی PDF</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
     <style>
-        @font-face {
-            font-family: 'Vazir';
-            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
-            font-weight: normal;
-            font-style: normal;
-        }
-        
         body {
-            font-family: 'Vazir', Tahoma, sans-serif;
+            font-family: var(--font-family-base);
             direction: rtl;
             padding: 20px;
             font-size: 12px;
@@ -51,7 +45,7 @@
         
         .footer {
             text-align: center;
-            font-size: 10px;
+            font-size: 12px;
             margin-top: 20px;
             color: #666;
         }

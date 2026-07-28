@@ -1,0 +1,224 @@
+@font-face {
+    font-family: "Vazirmatn";
+    src: url("../fonts/Vazirmatn-Variable.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 400 700;
+    font-display: swap;
+}
+
+:root {
+    --font-family-base: "Vazirmatn", Tahoma, Arial, sans-serif;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --text-xs: 12px;
+    --text-sm: 13px;
+    --text-base: 14px;
+    --text-card-title: 16px;
+    --text-section-title: 18px;
+    --text-page-title: clamp(26px, 3vw, 30px);
+    --line-height-base: 1.75;
+    --line-height-heading: 1.45;
+
+    --color-navy: #17243b;
+    --color-ink: #273449;
+    --color-muted: #657286;
+    --color-blue: #2563eb;
+    --color-green: #16835f;
+    --color-red: #b42335;
+    --color-amber: #8a5a12;
+    --color-canvas: #f4f6f8;
+    --color-surface: #ffffff;
+    --color-line: #dfe5ec;
+    --color-blue-soft: #edf4ff;
+    --color-green-soft: #e8f7f1;
+    --color-red-soft: #fff0f1;
+    --color-amber-soft: #fff7e8;
+    --radius-control: 9px;
+    --radius-card: 14px;
+    --shadow-card: 0 8px 28px rgba(23, 36, 59, 0.07);
+    --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+html {
+    direction: rtl;
+    font-size: 100%;
+}
+
+body {
+    direction: rtl;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    font-family: var(--font-family-base);
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-regular);
+    line-height: var(--line-height-base);
+    text-align: right;
+    text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea,
+table {
+    font-family: var(--font-family-base);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--color-navy);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-heading);
+}
+
+h1 {
+    font-size: var(--text-page-title);
+}
+
+h2 {
+    font-size: var(--text-section-title);
+}
+
+h3 {
+    font-size: var(--text-card-title);
+}
+
+label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+small,
+.helper-text,
+.form-text,
+.text-muted {
+    font-size: var(--text-xs);
+    line-height: 1.7;
+}
+
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+.btn {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+select,
+textarea {
+    min-height: 40px;
+    font-size: var(--text-base);
+    line-height: 1.5;
+}
+
+textarea {
+    min-height: 96px;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+[tabindex]:not([tabindex="-1"]) {
+    outline-offset: 2px;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-blue);
+    box-shadow: var(--focus-ring);
+}
+
+table {
+    font-size: var(--text-sm);
+    line-height: 1.65;
+}
+
+th {
+    font-weight: var(--font-weight-semibold);
+}
+
+.table-scroll,
+.table-responsive {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.alert,
+.flash {
+    border: 1px solid transparent;
+    border-inline-start-width: 4px;
+    font-size: var(--text-sm);
+    line-height: 1.7;
+}
+
+.alert-success,
+.flash.success {
+    color: #155f45;
+    background: var(--color-green-soft);
+    border-color: #9fd9c3;
+}
+
+.alert-error,
+.alert-danger,
+.flash.error {
+    color: #8c2430;
+    background: var(--color-red-soft);
+    border-color: #efb6be;
+}
+
+.alert-warning,
+.flash.warning {
+    color: #79520e;
+    background: var(--color-amber-soft);
+    border-color: #ecd092;
+}
+
+.alert-info,
+.flash.info {
+    color: #1f4e9a;
+    background: var(--color-blue-soft);
+    border-color: #b7cdf8;
+}
+
+.ltr,
+.numeric,
+.dimension,
+[dir="ltr"] {
+    direction: ltr;
+    unicode-bidi: isolate;
+}
+
+@media (max-width: 768px) {
+    body {
+        font-size: var(--text-base);
+    }
+
+    .form-grid,
+    .form-inline {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media print {
+    body {
+        color: #111;
+        background: #fff;
+        font-family: var(--font-family-base);
+        font-size: 11pt;
+    }
+
+    a {
+        color: inherit;
+        text-decoration: none;
+    }
+}

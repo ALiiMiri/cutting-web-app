@@ -5,19 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تاریخچه تغییرات انبار</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
-        @font-face {
-            font-family: 'Vazir';
-            src: url('/static/fonts/Vazir.eot');
-            src: url('/static/fonts/Vazir.eot?#iefix') format('embedded-opentype'),
-                 url('/static/fonts/Vazir.woff2') format('woff2'),
-                 url('/static/fonts/Vazir.woff') format('woff'),
-                 url('/static/fonts/Vazir.ttf') format('truetype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
         * {
             margin: 0;
             padding: 0;
@@ -25,7 +15,7 @@
         }
 
         body {
-            font-family: 'Vazir', Tahoma, Arial, sans-serif;
+            font-family: var(--font-family-base);
             background-color: #f5f7fa;
             color: #333;
             line-height: 1.6;

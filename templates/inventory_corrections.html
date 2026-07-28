@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مرکز اصلاحات انبار</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @font-face{font-family:Vazir;src:url("{{ url_for('static',filename='Vazir.ttf') }}") format('truetype')}
-        *{box-sizing:border-box} body{margin:0;background:#f3f6f8;color:#263238;font-family:Vazir,Tahoma,sans-serif}
+        *{box-sizing:border-box} body{margin:0;background:#f3f6f8;color:#263238;font-family:var(--font-family-base)}
         .container{max-width:1250px;margin:22px auto;padding:0 16px}.header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
         h1{margin:0;color:#1f3b4d}h2{font-size:1.2rem;margin:0 0 16px;color:#24495e}.subtitle{color:#607d8b;margin-top:6px}
         .btn{border:0;border-radius:7px;padding:10px 15px;color:#fff;text-decoration:none;cursor:pointer;font:inherit;display:inline-flex;align-items:center;gap:7px}

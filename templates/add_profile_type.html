@@ -5,18 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>افزودن نوع پروفیل جدید</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
     <!-- افزودن Font Awesome از CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* تعریف فونت وزیر */
-        @font-face {
-            font-family: 'Vazir';
-            src: url('{{ url_for("static", filename="fonts/Vazir.woff2") }}') format('woff2'),
-                 url('{{ url_for("static", filename="fonts/Vazir.woff") }}') format('woff');
-            font-weight: normal;
-            font-style: normal;
-        }
-
         * {
             box-sizing: border-box;
             margin: 0;
@@ -24,7 +16,7 @@
         }
 
         body {
-            font-family: 'Vazir', Tahoma, Arial, sans-serif;
+            font-family: var(--font-family-base);
             background-color: #f5f7fa;
             color: #333;
             line-height: 1.6;
@@ -322,12 +314,12 @@
         document.addEventListener('DOMContentLoaded', function() {
             const colorPicker = document.getElementById('color');
             const colorHexInput = document.getElementById('color_hex');
-            
+
             // به‌روزرسانی فیلد متنی هنگام تغییر رنگ
             colorPicker.addEventListener('input', function() {
                 colorHexInput.value = this.value;
             });
-            
+
             // به‌روزرسانی رنگ انتخاب شده هنگام تغییر متن
             colorHexInput.addEventListener('input', function() {
                 if (/^#[0-9A-F]{6}$/i.test(this.value)) {
@@ -338,4 +330,4 @@
     </script>
 </body>
 
-</html> 
+</html>

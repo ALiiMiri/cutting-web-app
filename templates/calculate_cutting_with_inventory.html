@@ -5,19 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>محاسبه برش بهینه با انبار - {{ project.name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
     <!-- افزودن Font Awesome از CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* تعریف فونت وزیر */
-        @font-face {
-            font-family: 'Vazir';
-            src: url("{{ url_for('static', filename='Vazir.ttf') }}") format('truetype');
-            font-weight: normal;
-            font-style: normal;
-        }
-
         body {
-            font-family: 'Vazir', Tahoma, sans-serif;
+            font-family: var(--font-family-base);
             padding: 0;
             background-color: #f4f7f6;
             margin: 0;
@@ -538,7 +531,7 @@
 
         <div class="tab-content active" id="summary">
             <h2>خلاصه نتایج برش</h2>
-            
+
             <div class="stats-row">
                 <div class="stat-box">
                     <div class="stat-box-title">کل شاخه‌های مورد نیاز</div>
@@ -560,7 +553,7 @@
                     <div class="stat-box-value">{{ total_stats.saving_percentage }}%</div>
                 </div>
             </div>
-            
+
             <h3>خلاصه به تفکیک پروفیل</h3>
             <table>
                 <thead>
@@ -586,13 +579,13 @@
                     {% endfor %}
                 </tbody>
             </table>
-            
+
             <div style="margin-top: 30px; display: flex; justify-content: space-between;">
                 <a href="{{ url_for('export_cutting_plan', project_id=project.id, with_inventory=1) }}" class="btn btn-success">
                     <i class="fas fa-file-export"></i>
                     خروجی اکسل
                 </a>
-                
+
                 <a href="{{ url_for('apply_cutting_plan', project_id=project.id) }}" class="btn btn-warning" onclick="return confirm('این عملیات موجودی انبار را بر اساس طرح برش تغییر می‌دهد. آیا اطمینان دارید؟');">
                     <i class="fas fa-check-circle"></i>
                     اعمال طرح برش در انبار
@@ -602,7 +595,7 @@
 
         <div class="tab-content" id="diagrams">
             <h2>طرح برش</h2>
-            
+
             <div class="diagram-legend">
                 <div class="legend-item">
                     <div class="legend-color color-cut"></div>
@@ -617,13 +610,13 @@
                     <span>از انبار</span>
                 </div>
             </div>
-            
+
             {% for profile_type in results %}
                 <div class="cutting-diagram">
                     <div class="profile-header">
                         {{ profile_type.profile_name }} - {{ profile_type.color }}
                     </div>
-                    
+
                     {% for pattern in profile_type.cutting_patterns %}
                         <div style="padding: 10px; border-bottom: 1px solid #eee;">
                             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
@@ -640,14 +633,14 @@
                                     <span style="margin-right: 15px;">پرت: {{ pattern.waste }} سانتی‌متر ({{ pattern.waste_percentage }}%)</span>
                                 </div>
                             </div>
-                            
+
                             <div class="diagram-bar">
                                 {% for cut in pattern.cuts %}
                                 <div class="diagram-piece diagram-piece-cut" style="left: {{ cut.start_percent }}%; width: {{ cut.width_percent }}%;">
                                     {{ cut.length }}
                                 </div>
                                 {% endfor %}
-                                
+
                                 {% if pattern.waste > 0 %}
                                 <div class="diagram-piece diagram-piece-waste" style="left: {{ pattern.waste_start_percent }}%; width: {{ pattern.waste_width_percent }}%;">
                                     پرت: {{ pattern.waste }}
@@ -662,14 +655,14 @@
 
         <div class="tab-content" id="details">
             <h2>جزئیات کامل برش</h2>
-            
+
             {% for profile_type in results %}
                 <div class="card">
                     <div class="card-header">
                         <i class="fas fa-bezier-curve"></i>
                         {{ profile_type.profile_name }} - {{ profile_type.color }}
                     </div>
-                    
+
                     <div class="stats-row">
                         <div class="stat-box">
                             <div class="stat-box-title">تعداد کل قطعات</div>
@@ -691,7 +684,7 @@
                             <div class="stat-box-value">{{ profile_type.waste_percentage }}%</div>
                         </div>
                     </div>
-                    
+
                     <h3>قطعات مورد نیاز</h3>
                     <table>
                         <thead>
@@ -717,7 +710,7 @@
                             {% endfor %}
                         </tbody>
                     </table>
-                    
+
                     <h3>الگوهای برش</h3>
                     <table>
                         <thead>
@@ -769,20 +762,20 @@
         // برای مدیریت تب‌ها
         document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.tab');
-            
+
             tabs.forEach(tab => {
                 tab.addEventListener('click', function() {
                     // حذف کلاس active از همه تب‌ها
                     tabs.forEach(t => t.classList.remove('active'));
-                    
+
                     // اضافه کردن کلاس active به تب کلیک شده
                     this.classList.add('active');
-                    
+
                     // مخفی کردن همه محتوای تب‌ها
                     document.querySelectorAll('.tab-content').forEach(content => {
                         content.classList.remove('active');
                     });
-                    
+
                     // نمایش محتوای تب متناظر
                     const tabId = this.getAttribute('data-tab');
                     document.getElementById(tabId).classList.add('active');
@@ -792,4 +785,4 @@
     </script>
 </body>
 
-</html> 
+</html>
