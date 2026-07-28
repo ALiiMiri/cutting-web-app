@@ -1,5 +1,7 @@
 desktop.ini
 cutting_web_data.db
+*.db-wal
+*.db-shm
 __pycache__/
 *.py[cod]
 
