@@ -66,6 +66,20 @@ class ProjectOwnershipTests(unittest.TestCase):
         self.assertTrue(database.user_can_edit_project(2, 'manager', 16))
         self.assertTrue(database.user_can_edit_project(1, 'admin', 16))
 
+    def test_loaded_assignment_can_be_checked_without_another_query(self):
+        self.assertTrue(
+            database.user_can_edit_project_assignment(4, 'staff', 4)
+        )
+        self.assertFalse(
+            database.user_can_edit_project_assignment(4, 'staff', 5)
+        )
+        self.assertTrue(
+            database.user_can_edit_project_assignment(2, 'manager', None)
+        )
+        self.assertFalse(
+            database.user_can_edit_project_assignment(4, 'read_only', 4)
+        )
+
     def test_new_project_is_owned_by_its_creator(self):
         project_id = database.add_project_db(
             'جدید', '20', '1405/04/24', '20', created_by_user_id=5

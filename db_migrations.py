@@ -511,6 +511,28 @@ def apply_migrations(conn, allow_changes=False):
             ),
             "execution_type": "python_module",
             "module_name": "025_cutting_orders",
+        },
+        {
+            "name": "026_project_query_indexes",
+            "description": "Keep project lists, customer filters and door lookups fast as data grows",
+            "check_logic": lambda c: not {
+                "idx_projects_active_id",
+                "idx_projects_active_assignee_id",
+                "idx_projects_active_customer_id",
+                "idx_projects_active_order_ref_id",
+                "idx_projects_active_date_id",
+                "idx_projects_project_code",
+                "idx_doors_project_id",
+            }.issubset(
+                {
+                    row[0]
+                    for row in c.execute(
+                        "SELECT name FROM sqlite_master WHERE type='index'"
+                    ).fetchall()
+                }
+            ),
+            "execution_type": "python_module",
+            "module_name": "026_project_query_indexes",
         }
     ]
 

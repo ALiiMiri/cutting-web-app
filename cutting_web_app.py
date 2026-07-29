@@ -33,7 +33,7 @@ from database import (
     check_table_exists,
     get_all_projects,
     get_projects_paginated,
-    get_unique_customers,
+    get_recent_customers,
     add_project_db,
     get_project_details_db,
     generate_unique_project_code,
@@ -89,6 +89,7 @@ from database import (
     init_db,
     get_available_inventory_pieces,
     user_can_edit_project,
+    user_can_edit_project_assignment,
     get_assignable_project_users,
     assign_project_user,
     get_project_assignment_logs,
@@ -390,17 +391,16 @@ def index():
             current_user_id=current_user.id,
         )
         for project in result['projects']:
-            project['can_edit'] = user_can_edit_project(
-                current_user.id, current_user.role, project['id']
+            project['can_edit'] = user_can_edit_project_assignment(
+                current_user.id,
+                current_user.role,
+                project['assigned_to_user_id'],
             )
         cutting_blockers = get_project_cutting_blockers(
             [project['id'] for project in result['projects']]
         )
         for project in result['projects']:
             project['cutting_blocker'] = cutting_blockers.get(project['id'])
-        
-        # Get unique customers for filter dropdown
-        unique_customers = get_unique_customers()
         
         return render_template(
             "index.html",
@@ -414,7 +414,7 @@ def index():
             customer_filter=customer_filter,
             scope=scope,
             per_page=per_page,
-            unique_customers=unique_customers,
+            recent_customers=get_recent_customers(),
             dashboard_counts=get_project_dashboard_counts(current_user.id),
             orders_view_preference=get_orders_view_preference(current_user.id),
             assignable_users=(
@@ -438,7 +438,7 @@ def index():
             customer_filter="",
             scope="all",
             per_page=15,
-            unique_customers=[],
+            recent_customers=[],
             assignable_users=[],
             dashboard_counts={"total": 0, "mine": 0, "unassigned": 0},
             orders_view_preference="table",

@@ -70,7 +70,7 @@
                 <button class="filter-toggle" id="filter-toggle" type="button">فیلترهای بیشتر <span class="filter-count{% if customer_filter or date_from or date_to %} show{% endif %}">{% if customer_filter or date_from or date_to %}!{% endif %}</span></button>
             </div>
             <div class="advanced{% if customer_filter or date_from or date_to %} open{% endif %}" id="advanced-filters">
-                <div class="field"><label for="customer-filter">مشتری</label><select id="customer-filter" name="customer_filter"><option value="">همه مشتریان</option>{% for customer in unique_customers %}<option value="{{ customer }}"{% if customer_filter == customer %} selected{% endif %}>{{ customer }}</option>{% endfor %}</select></div>
+                <div class="field"><label for="customer-filter">مشتری</label><input id="customer-filter" name="customer_filter" value="{{ customer_filter }}" list="recent-customers" placeholder="نام دقیق مشتری"><datalist id="recent-customers">{% for customer in recent_customers %}<option value="{{ customer }}"></option>{% endfor %}</datalist></div>
                 <div class="field"><label for="date-from">از تاریخ</label><input id="date-from" name="date_from" value="{{ date_from }}" placeholder="۱۴۰۵/۰۴/۰۱" inputmode="numeric"></div>
                 <div class="field"><label for="date-to">تا تاریخ</label><input id="date-to" name="date_to" value="{{ date_to }}" placeholder="۱۴۰۵/۰۴/۳۱" inputmode="numeric"></div>
                 <div class="advanced-actions"><button class="apply-filters" type="submit">اعمال فیلتر</button><a class="clear-filters" href="{{ url_for('index', scope=scope, per_page=per_page) }}">پاک‌کردن</a></div>

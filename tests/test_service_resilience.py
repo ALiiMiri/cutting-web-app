@@ -1,3 +1,4 @@
+import json
 import pathlib
 import unittest
 
@@ -24,6 +25,15 @@ class ServiceResilienceTests(unittest.TestCase):
         self.assertIn("--timeout 120", service)
         self.assertIn("--max-requests 500", service)
         self.assertNotIn("--threads", service)
+
+    def test_railway_uses_the_production_gunicorn_server(self):
+        railway = json.loads((ROOT / "railway.json").read_text(encoding="utf-8"))
+        start = railway["start"]
+
+        self.assertTrue(start.startswith("gunicorn "))
+        self.assertIn("--workers 4", start)
+        self.assertIn("--timeout 120", start)
+        self.assertIn("cutting_web_app:app", start)
 
     def test_health_monitor_restarts_active_but_unresponsive_service(self):
         script = (ROOT / "deploy" / "check-cutting-web-health.sh").read_text(

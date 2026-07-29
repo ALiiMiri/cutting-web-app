@@ -28,6 +28,18 @@ class OrdersDashboardUiTests(unittest.TestCase):
         self.assertIn("scope=scope", self.app_source)
         self.assertIn("get_project_dashboard_counts", self.app_source)
 
+    def test_customer_filter_uses_bounded_recent_suggestions(self):
+        self.assertIn('list="recent-customers"', self.template)
+        self.assertIn("get_recent_customers()", self.app_source)
+        self.assertNotIn("get_unique_customers()", self.app_source)
+
+    def test_project_permissions_are_derived_from_loaded_assignments(self):
+        self.assertIn("user_can_edit_project_assignment(", self.app_source)
+        self.assertNotIn(
+            "project['can_edit'] = user_can_edit_project(",
+            self.app_source,
+        )
+
     def test_dangerous_actions_live_in_row_menu_and_use_custom_modal(self):
         self.assertIn('class="row-menu"', self.template)
         self.assertIn('id="delete-modal"', self.template)

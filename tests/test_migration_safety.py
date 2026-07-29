@@ -34,6 +34,23 @@ class MigrationSafetyTests(unittest.TestCase):
         self.assertEqual(second_count, first_count)
         self.assertEqual(conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
         self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+        indexes = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            ).fetchall()
+        }
+        self.assertTrue(
+            {
+                "idx_projects_active_id",
+                "idx_projects_active_assignee_id",
+                "idx_projects_active_customer_id",
+                "idx_projects_active_order_ref_id",
+                "idx_projects_active_date_id",
+                "idx_projects_project_code",
+                "idx_doors_project_id",
+            }.issubset(indexes)
+        )
         conn.close()
 
 

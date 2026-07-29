@@ -294,24 +294,37 @@ def get_project_dashboard_counts(user_id):
         if conn:
             conn.close()
 
-def get_unique_customers():
-    """Get list of unique customer names for filter dropdown."""
+def get_recent_customers(limit=100, scan_limit=500):
+    """Return bounded recent customer suggestions for the dashboard filter."""
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        has_archived = "archived_at" in {
-            row[1] for row in cursor.execute("PRAGMA table_info(projects)")
-        }
         cursor.execute(
-            "SELECT DISTINCT customer_name FROM projects WHERE "
-            + ("archived_at IS NULL AND " if has_archived else "")
-            + "customer_name IS NOT NULL AND customer_name != '' ORDER BY customer_name"
+            """
+            SELECT customer_name
+            FROM (
+                SELECT id, customer_name
+                FROM projects
+                WHERE archived_at IS NULL
+                  AND customer_name IS NOT NULL
+                  AND customer_name != ''
+                ORDER BY id DESC
+                LIMIT ?
+            )
+            GROUP BY customer_name
+            ORDER BY MAX(id) DESC
+            LIMIT ?
+            """,
+            (
+                max(1, min(int(scan_limit), 2000)),
+                max(1, min(int(limit), 200)),
+            ),
         )
         customers = [row[0] for row in cursor.fetchall()]
         return customers
     except sqlite3.Error as e:
-        print(f"!!!!!! Error in get_unique_customers: {e}")
+        print(f"!!!!!! Error in get_recent_customers: {e}")
         traceback.print_exc()
         return []
     finally:
@@ -406,6 +419,18 @@ def get_project_details_db(project_id):
     return project_details
 
 
+def user_can_edit_project_assignment(user_id, role, assigned_to_user_id):
+    """Check edit access from project data already loaded by the caller."""
+    if role in ("admin", "manager"):
+        return True
+    return bool(
+        role == "staff"
+        and user_id
+        and assigned_to_user_id is not None
+        and int(assigned_to_user_id) == int(user_id)
+    )
+
+
 def user_can_edit_project(user_id, role, project_id):
     """Managers edit every project; staff edit only their assigned projects."""
     if role in ("admin", "manager"):
@@ -416,10 +441,12 @@ def user_can_edit_project(user_id, role, project_id):
     try:
         conn = get_db_connection()
         row = conn.execute(
-            "SELECT 1 FROM projects WHERE id=? AND assigned_to_user_id=?",
-            (project_id, user_id),
+            "SELECT assigned_to_user_id FROM projects WHERE id=?",
+            (project_id,),
         ).fetchone()
-        return row is not None
+        return row is not None and user_can_edit_project_assignment(
+            user_id, role, row[0]
+        )
     except sqlite3.Error as exc:
         print(f"Error checking project ownership: {exc}")
         return False
