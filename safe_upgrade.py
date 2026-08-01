@@ -14,6 +14,7 @@ PROTECTED_TABLES = (
     "projects", "doors", "profile_types", "inventory_items", "inventory_pieces",
     "inventory_logs", "inventory_operations", "inventory_waste_items", "users",
     "door_hardware",
+    "hardware_catalog_options",
 )
 
 

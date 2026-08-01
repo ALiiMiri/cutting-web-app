@@ -542,6 +542,15 @@ def apply_migrations(conn, allow_changes=False):
             ).fetchone(),
             "execution_type": "python_module",
             "module_name": "027_door_hardware",
+        },
+        {
+            "name": "028_hardware_catalog_options",
+            "description": "Create user-managed dropdown lists for hardware brands, models and colors",
+            "check_logic": lambda c: not c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hardware_catalog_options'"
+            ).fetchone(),
+            "execution_type": "python_module",
+            "module_name": "028_hardware_catalog_options",
         }
     ]
 

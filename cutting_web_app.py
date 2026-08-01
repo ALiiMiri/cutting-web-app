@@ -95,8 +95,13 @@ from database import (
     assign_project_user,
     get_project_assignment_logs,
     get_project_dashboard_counts,
+    get_hardware_catalog_options,
+    add_hardware_catalog_option,
+    archive_hardware_catalog_option,
+    move_hardware_catalog_option,
 )
 from door_hardware import (
+    HARDWARE_CATALOG_CATEGORIES,
     HardwareValidationError,
     hardware_summary,
     normalize_door_hardware,
@@ -974,6 +979,7 @@ def view_project(project_id):
             doors=door_list,
             total_door_quantity=total_door_quantity,
             measurement_unit_label=unit_labels["fa"],
+            hardware_options=get_hardware_catalog_options(),
         )
     except Exception as e:
         print(f"!!!!!! خطای جدی در روت view_project برای ID {project_id}: {e}")
@@ -1384,6 +1390,51 @@ def delete_door(project_id, door_id):
     finally:
         if conn:
             conn.close()
+
+
+@app.route("/hardware/settings", methods=["GET"])
+@staff_or_admin_required
+def hardware_catalog_settings():
+    """Manage the global dropdown choices used by structured hardware forms."""
+    return render_template(
+        "hardware_catalog_settings.html",
+        categories=HARDWARE_CATALOG_CATEGORIES,
+        hardware_options=get_hardware_catalog_options(),
+    )
+
+
+@app.route("/hardware/settings/options/add", methods=["POST"])
+@csrf_protected
+@staff_or_admin_required
+def hardware_catalog_add():
+    category = str(request.form.get("category", "")).strip()
+    value = request.form.get("value", "")
+    success, message = add_hardware_catalog_option(category, value)
+    flash(message, "success" if success else "error")
+    return redirect(url_for("hardware_catalog_settings", category=category))
+
+
+@app.route("/hardware/settings/options/<int:option_id>/archive", methods=["POST"])
+@csrf_protected
+@staff_or_admin_required
+def hardware_catalog_archive(option_id):
+    category = str(request.form.get("category", "")).strip()
+    if archive_hardware_catalog_option(option_id):
+        flash("گزینه از فهرست‌های جدید برداشته شد؛ سفارش‌های قبلی محفوظ‌اند.", "success")
+    else:
+        flash("برداشتن گزینه انجام نشد.", "error")
+    return redirect(url_for("hardware_catalog_settings", category=category))
+
+
+@app.route("/hardware/settings/options/<int:option_id>/move", methods=["POST"])
+@csrf_protected
+@staff_or_admin_required
+def hardware_catalog_move(option_id):
+    category = str(request.form.get("category", "")).strip()
+    direction = str(request.form.get("direction", ""))
+    if not move_hardware_catalog_option(option_id, direction):
+        flash("جابه‌جایی گزینه انجام نشد.", "warning")
+    return redirect(url_for("hardware_catalog_settings", category=category))
 
 
 @app.route("/project/<int:project_id>/hardware", methods=["GET"])
@@ -2235,6 +2286,7 @@ def batch_edit_form(project_id):
         hardware_mixed=hardware_mixed,
         hardware_distribution=hardware_distribution,
         hardware_current_summary=hardware_current_summary,
+        hardware_options=get_hardware_catalog_options(),
         measurement_unit_label=unit_labels["fa"],
     )
 

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>تنظیمات فهرست‌های یراق</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <style>
+        :root{--navy:#17243b;--ink:#273449;--muted:#6f7b8d;--line:#e1e6ec;--surface:#fff;--canvas:#f4f6f8;--green:#16835f;--green-soft:#eaf8f2;--red:#c23d4b;--red-soft:#fff0f1;--shadow:0 8px 30px rgba(23,36,59,.08)}
+        *{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--canvas);font-family:var(--font-family-base);line-height:1.7}button,input{font:inherit}.page{width:min(100%,1180px);margin:auto;padding:24px 24px 60px}.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:17px}.page-head h1{margin:0 0 3px;color:var(--navy);font-size:27px}.page-head p{margin:0;color:var(--muted);font-size:13px}.back{min-height:40px;padding:0 14px;border:1px solid var(--line);border-radius:9px;color:var(--ink);background:#fff;text-decoration:none;display:inline-flex;align-items:center}.flash{margin-bottom:14px;padding:11px 14px;border-radius:9px;font-size:13px}.flash.success{color:#155724;background:#d4edda;border:1px solid #c3e6cb}.flash.error{color:#721c24;background:#f8d7da;border:1px solid #f5c6cb}.flash.warning{color:#785700;background:#fff3cd;border:1px solid #f0d99c}.note{margin-bottom:17px;padding:12px 14px;border:1px solid #cfe9dd;border-radius:10px;color:#316651;background:var(--green-soft);font-size:13px}.catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.catalog-card{overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}.catalog-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.catalog-head h2{margin:0;color:var(--navy);font-size:17px}.count{padding:2px 8px;border-radius:999px;color:#2458af;background:#edf4ff;font-size:12px;font-weight:700}.add-form{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px 14px;background:#fafbfc;border-bottom:1px solid var(--line)}.control{width:100%;height:41px;padding:0 11px;border:1px solid #cbd4df;border-radius:8px;color:var(--ink);background:#fff;outline:0}.control:focus{border-color:#8eb4ff;box-shadow:0 0 0 3px #edf4ff}.btn{min-height:41px;padding:0 13px;border:0;border-radius:9px;font-weight:700;cursor:pointer}.add{color:#fff;background:var(--green)}.option-list{margin:0;padding:0;list-style:none}.option-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line)}.option-row:last-child{border-bottom:0}.option-value{min-width:0;overflow-wrap:anywhere}.option-actions{display:flex;align-items:center;gap:5px;flex:0 0 auto}.move,.remove{min-width:38px;min-height:36px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer}.move{color:#4f5f73}.remove{color:var(--red);border-color:#efc6ca}.move:disabled{cursor:not-allowed;opacity:.35}.empty{padding:22px 14px;color:var(--muted);text-align:center;font-size:13px}
+        @media(max-width:760px){.page{padding:16px 12px 40px}.page-head{flex-direction:column}.back{width:100%;justify-content:center}.catalog-grid{grid-template-columns:1fr}.add-form{grid-template-columns:1fr}.add{width:100%}}
+    </style>
+</head>
+<body class="with-app-header">
+    {% include '_app_header.html' %}
+    <main class="page">
+        <div class="page-head"><div><h1>تنظیمات فهرست‌های یراق</h1><p>گزینه‌های قابل انتخاب در فرم افزودن درب و ویرایش گروهی را مدیریت کنید.</p></div><a class="back" href="{{ url_for('index') }}">بازگشت به سفارش‌ها</a></div>
+        {% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
+        <div class="note">برداشتن یک گزینه فقط آن را از انتخاب‌های جدید حذف می‌کند و اطلاعات یراق سفارش‌های قبلی را تغییر نمی‌دهد. نوع دستگیره «دوتکه/تک‌رزت» ثابت است چون قوانین قفل و سیلندر به آن وابسته است.</div>
+        <div class="catalog-grid">
+            {% for category,label in categories.items() %}
+            {% set options=hardware_options[category] %}
+            <section class="catalog-card" id="category-{{ category }}">
+                <div class="catalog-head"><h2>{{ label }}</h2><span class="count">{{ options|length }} گزینه</span></div>
+                <form class="add-form" method="post" action="{{ url_for('hardware_catalog_add') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="category" value="{{ category }}">
+                    <input class="control" name="value" maxlength="120" required placeholder="گزینه جدید را وارد کنید">
+                    <button class="btn add" type="submit">افزودن</button>
+                </form>
+                {% if options %}<ul class="option-list">
+                    {% for option in options %}<li class="option-row"><span class="option-value">{{ option.value }}</span><div class="option-actions">
+                        <form method="post" action="{{ url_for('hardware_catalog_move',option_id=option.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="category" value="{{ category }}"><input type="hidden" name="direction" value="up"><button class="move" type="submit" {% if loop.first %}disabled{% endif %} aria-label="انتقال {{ option.value }} به بالا">↑</button></form>
+                        <form method="post" action="{{ url_for('hardware_catalog_move',option_id=option.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="category" value="{{ category }}"><input type="hidden" name="direction" value="down"><button class="move" type="submit" {% if loop.last %}disabled{% endif %} aria-label="انتقال {{ option.value }} به پایین">↓</button></form>
+                        <form method="post" action="{{ url_for('hardware_catalog_archive',option_id=option.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="category" value="{{ category }}"><button class="remove" type="submit" aria-label="برداشتن {{ option.value }}">حذف</button></form>
+                    </div></li>{% endfor %}
+                </ul>{% else %}<div class="empty">هنوز گزینه‌ای تعریف نشده است.</div>{% endif %}
+            </section>
+            {% endfor %}
+        </div>
+    </main>
+    <script>
+    (()=>{const category=new URLSearchParams(location.search).get('category');if(!category)return;document.getElementById(`category-${category}`)?.scrollIntoView({block:'center'})})();
+    </script>
+</body>
+</html>

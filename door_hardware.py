@@ -9,6 +9,18 @@ HANDLE_TYPES = {"two_piece", "single_rosette"}
 LOCK_SOURCES = {"separate", "own_brand"}
 MAX_TEXT_LENGTH = 120
 
+HARDWARE_CATALOG_CATEGORIES = {
+    "hinge_brand": "برند لولا",
+    "hinge_color": "رنگ لولا",
+    "handle_brand": "برند دستگیره",
+    "handle_model": "مدل دستگیره",
+    "handle_color": "رنگ دستگیره",
+    "lock_brand": "برند قفل",
+    "lock_model": "مدل قفل",
+    "cylinder_brand": "برند سیلندر",
+    "cylinder_model": "مدل سیلندر",
+}
+
 
 def _clean_text(value, label, *, required=False):
     cleaned = " ".join(str(value or "").split())

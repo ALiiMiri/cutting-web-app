@@ -18,6 +18,7 @@
         .hardware-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 10px;padding-top:15px;border-top:1px solid var(--line)}
         .hardware-heading:first-child{margin-top:0;padding-top:0;border-top:0}
         .hardware-heading h4{margin:0;color:var(--navy);font-size:15px}
+        .hardware-settings-link{color:#2563eb;text-decoration:none;font-size:12px;font-weight:700}
         .hardware-badge{padding:2px 8px;border-radius:999px;color:#17674f;background:var(--green-soft);font-size:12px;font-weight:700}
         .radio-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-top:7px}
         .radio-row label,.switch-row{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:700}
@@ -115,10 +116,10 @@
                         </div>
                     </div>
                     <div id="hardware-details-step" hidden>
-                        <div class="hardware-heading"><h4>مشخصات لولا</h4><span class="hardware-badge">الزامی</span></div>
+                        <div class="hardware-heading"><h4>مشخصات لولا</h4><div><a class="hardware-settings-link" href="{{ url_for('hardware_catalog_settings') }}" target="_blank" rel="noopener">مدیریت فهرست‌ها</a> <span class="hardware-badge">الزامی</span></div></div>
                         <div class="form-grid">
-                            <div class="group"><label for="hinge-brand">برند لولا</label><input class="control hardware-input" id="hinge-brand" maxlength="120" required></div>
-                            <div class="group"><label for="hinge-color">رنگ لولا</label><input class="control hardware-input" id="hinge-color" maxlength="120" required></div>
+                            <div class="group"><label for="hinge-brand">برند لولا</label><select class="control hardware-input" id="hinge-brand" required><option value="">انتخاب کنید</option>{% for option in hardware_options.hinge_brand %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
+                            <div class="group"><label for="hinge-color">رنگ لولا</label><select class="control hardware-input" id="hinge-color" required><option value="">انتخاب کنید</option>{% for option in hardware_options.hinge_color %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
                             <div class="group"><label for="hinge-count">تعداد لولا برای هر درب</label><input class="control hardware-input" id="hinge-count" type="number" min="1" max="20" value="3" required></div>
                         </div>
 
@@ -126,19 +127,19 @@
                         <label class="switch-row"><input id="has-handle" type="checkbox" checked><span>این درب دستگیره دارد</span></label>
                         <div id="handle-fields" class="hardware-conditional">
                             <div class="form-grid" style="margin-top:12px">
-                                <div class="group"><label for="handle-brand">برند دستگیره</label><input class="control handle-required" id="handle-brand" maxlength="120" required></div>
-                                <div class="group"><label for="handle-model">مدل دستگیره</label><input class="control handle-required" id="handle-model" maxlength="120" required></div>
-                                <div class="group"><label for="handle-color">رنگ دستگیره</label><input class="control handle-required" id="handle-color" maxlength="120" required></div>
+                                <div class="group"><label for="handle-brand">برند دستگیره</label><select class="control handle-required" id="handle-brand" required><option value="">انتخاب کنید</option>{% for option in hardware_options.handle_brand %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
+                                <div class="group"><label for="handle-model">مدل دستگیره</label><select class="control handle-required" id="handle-model" required><option value="">انتخاب کنید</option>{% for option in hardware_options.handle_model %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
+                                <div class="group"><label for="handle-color">رنگ دستگیره</label><select class="control handle-required" id="handle-color" required><option value="">انتخاب کنید</option>{% for option in hardware_options.handle_color %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
                                 <div class="group"><span class="label">نوع دستگیره</span><div class="radio-row"><label><input type="radio" name="handle-type" value="two_piece" checked> دوتکه</label><label><input type="radio" name="handle-type" value="single_rosette"> تک‌رزت</label></div></div>
                             </div>
 
                             <div id="two-piece-fields" class="hardware-conditional">
                                 <div class="hardware-heading"><h4>قفل و سیلندر دستگیره دوتکه</h4><span class="hardware-badge">هر دو الزامی</span></div>
                                 <div class="form-grid">
-                                    <div class="group"><label for="two-lock-brand">برند قفل</label><input class="control two-required" id="two-lock-brand" maxlength="120" required></div>
-                                    <div class="group"><label for="two-lock-model">مدل قفل</label><input class="control two-required" id="two-lock-model" maxlength="120" required></div>
-                                    <div class="group"><label for="cylinder-brand">برند سیلندر</label><input class="control two-required" id="cylinder-brand" maxlength="120" required></div>
-                                    <div class="group"><label for="cylinder-model">مدل سیلندر</label><input class="control two-required" id="cylinder-model" maxlength="120" required></div>
+                                    <div class="group"><label for="two-lock-brand">برند قفل</label><select class="control two-required" id="two-lock-brand" required><option value="">انتخاب کنید</option>{% for option in hardware_options.lock_brand %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
+                                    <div class="group"><label for="two-lock-model">مدل قفل</label><select class="control two-required" id="two-lock-model" required><option value="">انتخاب کنید</option>{% for option in hardware_options.lock_model %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
+                                    <div class="group"><label for="cylinder-brand">برند سیلندر</label><select class="control two-required" id="cylinder-brand" required><option value="">انتخاب کنید</option>{% for option in hardware_options.cylinder_brand %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
+                                    <div class="group"><label for="cylinder-model">مدل سیلندر</label><select class="control two-required" id="cylinder-model" required><option value="">انتخاب کنید</option>{% for option in hardware_options.cylinder_model %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
                                 </div>
                             </div>
 
@@ -146,8 +147,8 @@
                                 <div class="hardware-heading"><h4>قفل دستگیره تک‌رزت</h4><span class="hardware-badge">بدون سیلندر</span></div>
                                 <div class="radio-row"><label><input type="radio" name="lock-source" value="own_brand" checked> قفل مخصوص همان برند</label><label><input type="radio" name="lock-source" value="separate"> نصب روی قفل جداگانه</label></div>
                                 <div id="rosette-lock-fields" class="form-grid hardware-conditional" style="margin-top:12px" hidden>
-                                    <div class="group"><label for="rosette-lock-brand">برند قفل جداگانه</label><input class="control rosette-lock-required" id="rosette-lock-brand" maxlength="120"></div>
-                                    <div class="group"><label for="rosette-lock-model">مدل قفل جداگانه</label><input class="control rosette-lock-required" id="rosette-lock-model" maxlength="120"></div>
+                                    <div class="group"><label for="rosette-lock-brand">برند قفل جداگانه</label><select class="control rosette-lock-required" id="rosette-lock-brand"><option value="">انتخاب کنید</option>{% for option in hardware_options.lock_brand %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
+                                    <div class="group"><label for="rosette-lock-model">مدل قفل جداگانه</label><select class="control rosette-lock-required" id="rosette-lock-model"><option value="">انتخاب کنید</option>{% for option in hardware_options.lock_model %}<option value="{{ option.value }}">{{ option.value }}</option>{% endfor %}</select></div>
                                 </div>
                                 <div class="hardware-note">دستگیره تک‌رزت در این سیستم هیچ‌وقت سیلندر ندارد.</div>
                             </div>
@@ -205,7 +206,7 @@
         const byId=id=>document.getElementById(id);
         function selectedValue(name){return document.querySelector(`input[name="${name}"]:checked`)?.value||''}
         function getRepeatState(){try{return JSON.parse(sessionStorage.getItem(repeatKey)||'null')}catch(error){sessionStorage.removeItem(repeatKey);return null}}
-        function setField(id,value){byId(id).value=value??''}
+        function setField(id,value){const input=byId(id),clean=value??'';if(input.tagName==='SELECT'&&clean&&![...input.options].some(option=>option.value===String(clean))){const option=document.createElement('option');option.value=clean;option.textContent=`${clean} (ثبت قبلی)`;option.dataset.historical='true';input.append(option)}input.value=clean}
         function hardwareFromForm(){
             const hasHandle=byId('has-handle').checked,handleType=selectedValue('handle-type'),lockSource=handleType==='two_piece'?'separate':selectedValue('lock-source');
             return {hinge_brand:byId('hinge-brand').value,hinge_color:byId('hinge-color').value,hinge_count:byId('hinge-count').value,has_handle:hasHandle,handle_type:hasHandle?handleType:null,handle_brand:hasHandle?byId('handle-brand').value:null,handle_model:hasHandle?byId('handle-model').value:null,handle_color:hasHandle?byId('handle-color').value:null,lock_source:hasHandle?lockSource:null,lock_brand:hasHandle&&lockSource==='separate'?(handleType==='two_piece'?byId('two-lock-brand').value:byId('rosette-lock-brand').value):null,lock_model:hasHandle&&lockSource==='separate'?(handleType==='two_piece'?byId('two-lock-model').value:byId('rosette-lock-model').value):null,cylinder_brand:hasHandle&&handleType==='two_piece'?byId('cylinder-brand').value:null,cylinder_model:hasHandle&&handleType==='two_piece'?byId('cylinder-model').value:null};
@@ -227,7 +228,7 @@
         function showDoorStep(step){const hardware=step==='hardware';byId('door-details-step').hidden=hardware;byId('hardware-details-step').hidden=!hardware;byId('door-step-actions').hidden=hardware;byId('hardware-step-actions').hidden=!hardware;byId('door-step-marker').classList.toggle('active',!hardware);byId('hardware-step-marker').classList.toggle('active',hardware);if(hardware)setTimeout(()=>byId('hinge-brand').focus(),30)}
         function renderRepeatStatus(){const active=!editingDoorId&&Boolean(getRepeatState()?.active);byId('repeat-active').classList.toggle('show',active);byId('repeat-hardware').checked=active}
         function openDoorModal(doorId=null){
-            editingDoorId=doorId;form.reset();byId('door-quantity').value=1;byId('hinge-count').value=3;formError.classList.remove('show');saveButton.disabled=false;showDoorStep('door');
+            editingDoorId=doorId;form.querySelectorAll('option[data-historical]').forEach(option=>option.remove());form.reset();byId('door-quantity').value=1;byId('hinge-count').value=3;formError.classList.remove('show');saveButton.disabled=false;showDoorStep('door');
             if(doorId){const door=doorsById.get(String(doorId));byId('modal-title').textContent='ویرایش درب و یراق';setField('door-location',door.location);setField('door-width',door.display_width);setField('door-height',door.display_height);setField('door-quantity',door.quantity||1);setField('door-direction',door.direction||'راست');fillHardware(door.hardware_configured?door:{has_handle:true});if(!door.hardware_configured){formError.textContent='برای این درب قدیمی هنوز یراق ساختاریافته ثبت نشده است؛ لطفاً مرحله انتخاب یراق را کامل کنید.';formError.classList.add('show')}byId('repeat-box').hidden=true}
             else{byId('modal-title').textContent='افزودن درب جدید';const repeat=getRepeatState();if(repeat?.active)fillHardware(repeat.hardware);else fillHardware({has_handle:true});byId('repeat-box').hidden=false}
             renderRepeatStatus();modal.classList.add('open');setTimeout(()=>byId('door-location').focus(),40)

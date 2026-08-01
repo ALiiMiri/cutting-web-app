@@ -22,6 +22,7 @@
             <nav class="app-menu-panel" id="app-menu-panel" data-app-menu-panel aria-label="منوی اصلی نرم‌افزار">
                 {% if current_user.role in ['admin','manager'] %}<a href="{{ url_for('admin.users_list') }}">مدیریت کاربران</a><a href="{{ url_for('inventory_route') }}">مدیریت انبار</a>{% endif %}
                 <a href="{{ url_for('cutting_orders_list') }}">سفارش‌های برش</a><a href="{{ url_for('price_calculator') }}">محاسبه قیمت</a><a href="{{ url_for('saved_quotes') }}">قیمت‌دهی‌های ذخیره‌شده</a>
+                {% if current_user.role in ['admin','manager','staff'] %}<a href="{{ url_for('hardware_catalog_settings') }}">تنظیمات یراق</a>{% endif %}
                 {% if current_user.role == 'admin' %}<a href="{{ url_for('backup_management') }}">نسخه‌های پشتیبان</a>{% endif %}
                 <a href="{{ url_for('auth.change_password') }}">تغییر رمز عبور</a><a class="app-logout" href="{{ url_for('auth.logout') }}">خروج</a>
             </nav>

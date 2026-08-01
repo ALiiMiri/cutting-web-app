@@ -39,6 +39,11 @@ class MigrationSafetyTests(unittest.TestCase):
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='door_hardware'"
             ).fetchone()
         )
+        self.assertIsNotNone(
+            conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hardware_catalog_options'"
+            ).fetchone()
+        )
         indexes = {
             row[0]
             for row in conn.execute(

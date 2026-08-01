@@ -10,6 +10,7 @@ from db_migrations import apply_migrations
 from datetime import datetime
 from date_utils import get_shamsi_datetime_str, get_shamsi_datetime_iso
 from profile_names import normalize_profile_name
+from door_hardware import HARDWARE_CATALOG_CATEGORIES
 
 DB_NAME = Config.DB_NAME
 
@@ -773,6 +774,159 @@ def update_door_with_hardware_db(
         conn.rollback()
         traceback.print_exc()
         return None
+    finally:
+        conn.close()
+
+
+def get_hardware_catalog_options(include_inactive=False):
+    """Return hardware dropdown options grouped by their stable category key."""
+    grouped = {category: [] for category in HARDWARE_CATALOG_CATEGORIES}
+    conn = get_db_connection()
+    try:
+        table_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hardware_catalog_options'"
+        ).fetchone()
+        if not table_exists:
+            return grouped
+        where = "" if include_inactive else "WHERE is_active=1"
+        rows = conn.execute(
+            f"""
+            SELECT id,category,value,sort_order,is_active
+            FROM hardware_catalog_options
+            {where}
+            ORDER BY category,sort_order,id
+            """
+        ).fetchall()
+        for row in rows:
+            grouped[row["category"]].append(
+                {
+                    "id": row["id"],
+                    "value": row["value"],
+                    "sort_order": row["sort_order"],
+                    "is_active": bool(row["is_active"]),
+                }
+            )
+        return grouped
+    except sqlite3.Error:
+        traceback.print_exc()
+        return grouped
+    finally:
+        conn.close()
+
+
+def add_hardware_catalog_option(category, value):
+    """Add or reactivate one normalized dropdown option."""
+    category = str(category or "").strip()
+    value = " ".join(str(value or "").split())
+    if category not in HARDWARE_CATALOG_CATEGORIES or not value or len(value) > 120:
+        return False, "گزینه ارسالی معتبر نیست."
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        existing = cursor.execute(
+            "SELECT id,value,is_active FROM hardware_catalog_options WHERE category=?",
+            (category,),
+        ).fetchall()
+        duplicate = next(
+            (row for row in existing if row["value"].casefold() == value.casefold()),
+            None,
+        )
+        if duplicate and duplicate["is_active"]:
+            conn.rollback()
+            return False, "این گزینه از قبل در فهرست وجود دارد."
+        next_order = cursor.execute(
+            "SELECT COALESCE(MAX(sort_order),0)+1 FROM hardware_catalog_options WHERE category=? AND is_active=1",
+            (category,),
+        ).fetchone()[0]
+        if duplicate:
+            cursor.execute(
+                """
+                UPDATE hardware_catalog_options
+                SET value=?,is_active=1,sort_order=?,updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+                """,
+                (value, next_order, duplicate["id"]),
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO hardware_catalog_options(category,value,sort_order) VALUES(?,?,?)",
+                (category, value, next_order),
+            )
+        conn.commit()
+        return True, "گزینه به فهرست اضافه شد."
+    except sqlite3.Error as exc:
+        conn.rollback()
+        traceback.print_exc()
+        return False, str(exc)
+    finally:
+        conn.close()
+
+
+def archive_hardware_catalog_option(option_id):
+    """Remove one option from future dropdowns while preserving saved orders."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE hardware_catalog_options
+            SET is_active=0,updated_at=CURRENT_TIMESTAMP
+            WHERE id=? AND is_active=1
+            """,
+            (option_id,),
+        )
+        conn.commit()
+        return cursor.rowcount == 1
+    except sqlite3.Error:
+        conn.rollback()
+        traceback.print_exc()
+        return False
+    finally:
+        conn.close()
+
+
+def move_hardware_catalog_option(option_id, direction):
+    """Move an active option one position up or down within its category."""
+    if direction not in {"up", "down"}:
+        return False
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        selected = cursor.execute(
+            "SELECT category FROM hardware_catalog_options WHERE id=? AND is_active=1",
+            (option_id,),
+        ).fetchone()
+        if not selected:
+            conn.rollback()
+            return False
+        rows = cursor.execute(
+            """
+            SELECT id FROM hardware_catalog_options
+            WHERE category=? AND is_active=1
+            ORDER BY sort_order,id
+            """,
+            (selected["category"],),
+        ).fetchall()
+        ids = [row["id"] for row in rows]
+        index = ids.index(option_id)
+        target_index = index - 1 if direction == "up" else index + 1
+        if target_index < 0 or target_index >= len(ids):
+            conn.rollback()
+            return False
+        ids[index], ids[target_index] = ids[target_index], ids[index]
+        for order, current_id in enumerate(ids, start=1):
+            cursor.execute(
+                "UPDATE hardware_catalog_options SET sort_order=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (order, current_id),
+            )
+        conn.commit()
+        return True
+    except (sqlite3.Error, ValueError):
+        conn.rollback()
+        traceback.print_exc()
+        return False
     finally:
         conn.close()
 
