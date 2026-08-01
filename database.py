@@ -569,31 +569,72 @@ def get_doors_for_project_db(project_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        query = """
+        hardware_table_exists = cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='door_hardware'"
+        ).fetchone()
+        if hardware_table_exists:
+            hardware_select = """
+                dh.door_id AS hardware_door_id,
+                dh.hinge_brand, dh.hinge_color, dh.hinge_count, dh.has_handle,
+                dh.handle_type, dh.handle_brand, dh.handle_model, dh.handle_color,
+                dh.lock_source, dh.lock_brand, dh.lock_model,
+                dh.cylinder_brand, dh.cylinder_model
+            """
+            hardware_join = "LEFT JOIN door_hardware dh ON d.id = dh.door_id"
+        else:
+            hardware_select = """
+                NULL AS hardware_door_id,
+                NULL AS hinge_brand, NULL AS hinge_color, NULL AS hinge_count,
+                NULL AS has_handle, NULL AS handle_type, NULL AS handle_brand,
+                NULL AS handle_model, NULL AS handle_color, NULL AS lock_source,
+                NULL AS lock_brand, NULL AS lock_model, NULL AS cylinder_brand,
+                NULL AS cylinder_model
+            """
+            hardware_join = ""
+
+        query = f"""
             SELECT
                 d.id, d.location, d.width, d.height, d.quantity, d.direction, d.row_color_tag,
                 cc.column_name,
-                dcv.value
+                dcv.value,
+                {hardware_select}
             FROM doors d
             LEFT JOIN door_custom_values dcv ON d.id = dcv.door_id
             LEFT JOIN custom_columns cc ON dcv.column_id = cc.id
+            {hardware_join}
             WHERE d.project_id = ?
             ORDER BY d.id
         """
         cursor.execute(query, (project_id,))
 
         for row in cursor.fetchall():
-            door_id, location, width, height, quantity, direction, row_color_tag, col_key, col_value = row
+            door_id = row["id"]
+            col_key = row["column_name"]
+            col_value = row["value"]
 
             if door_id not in doors_dict:
                 doors_dict[door_id] = {
                     "id": door_id,
-                    "location": location,
-                    "width": width,
-                    "height": height,
-                    "quantity": quantity,
-                    "direction": direction,
-                    "row_color_tag": row_color_tag if row_color_tag else "white",
+                    "location": row["location"],
+                    "width": row["width"],
+                    "height": row["height"],
+                    "quantity": row["quantity"],
+                    "direction": row["direction"],
+                    "row_color_tag": row["row_color_tag"] or "white",
+                    "hardware_configured": row["hardware_door_id"] is not None,
+                    "hinge_brand": row["hinge_brand"],
+                    "hinge_color": row["hinge_color"],
+                    "hinge_count": row["hinge_count"],
+                    "has_handle": bool(row["has_handle"]),
+                    "handle_type": row["handle_type"],
+                    "handle_brand": row["handle_brand"],
+                    "handle_model": row["handle_model"],
+                    "handle_color": row["handle_color"],
+                    "lock_source": row["lock_source"],
+                    "lock_brand": row["lock_brand"],
+                    "lock_model": row["lock_model"],
+                    "cylinder_brand": row["cylinder_brand"],
+                    "cylinder_model": row["cylinder_model"],
                 }
 
             if col_key and col_value is not None:
@@ -635,6 +676,105 @@ def add_door_db(project_id, location, width, height, quantity, direction, row_co
         if conn:
             conn.close()
     return door_id
+
+
+DOOR_HARDWARE_COLUMNS = (
+    "hinge_brand",
+    "hinge_color",
+    "hinge_count",
+    "has_handle",
+    "handle_type",
+    "handle_brand",
+    "handle_model",
+    "handle_color",
+    "lock_source",
+    "lock_brand",
+    "lock_model",
+    "cylinder_brand",
+    "cylinder_model",
+)
+
+
+def _upsert_door_hardware(cursor, door_id, hardware):
+    """Write one already-validated hardware configuration using an open transaction."""
+    columns = ", ".join(DOOR_HARDWARE_COLUMNS)
+    placeholders = ", ".join("?" for _ in DOOR_HARDWARE_COLUMNS)
+    updates = ", ".join(f"{column}=excluded.{column}" for column in DOOR_HARDWARE_COLUMNS)
+    cursor.execute(
+        f"""
+        INSERT INTO door_hardware(door_id, {columns})
+        VALUES (?, {placeholders})
+        ON CONFLICT(door_id) DO UPDATE SET
+            {updates},
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        [door_id, *(hardware[column] for column in DOOR_HARDWARE_COLUMNS)],
+    )
+
+
+def add_door_with_hardware_db(
+    project_id, location, width, height, quantity, direction, hardware,
+    row_color="white", frame_type="سه طرفه"
+):
+    """Atomically create a door, its structured hardware and default frame type."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute(
+            """
+            INSERT INTO doors(project_id,location,width,height,quantity,direction,row_color_tag)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (project_id, location, width, height, quantity, direction, row_color),
+        )
+        door_id = cursor.lastrowid
+        _upsert_door_hardware(cursor, door_id, hardware)
+        frame_column = cursor.execute(
+            "SELECT id FROM custom_columns WHERE column_name='kolaft'"
+        ).fetchone()
+        if frame_column:
+            update_door_custom_value(
+                cursor, door_id, frame_column[0], frame_type or "سه طرفه"
+            )
+        conn.commit()
+        return door_id
+    except sqlite3.Error:
+        conn.rollback()
+        traceback.print_exc()
+        return None
+    finally:
+        conn.close()
+
+
+def update_door_with_hardware_db(
+    project_id, door_id, location, width, height, quantity, direction, hardware
+):
+    """Atomically update one project-owned door and its hardware."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute(
+            """
+            UPDATE doors
+            SET location=?, width=?, height=?, quantity=?, direction=?
+            WHERE id=? AND project_id=?
+            """,
+            (location, width, height, quantity, direction, door_id, project_id),
+        )
+        if cursor.rowcount != 1:
+            conn.rollback()
+            return False
+        _upsert_door_hardware(cursor, door_id, hardware)
+        conn.commit()
+        return True
+    except sqlite3.Error:
+        conn.rollback()
+        traceback.print_exc()
+        return None
+    finally:
+        conn.close()
 
 def get_all_custom_columns():
     """Get all custom columns."""
@@ -1575,7 +1715,8 @@ def get_column_id_from_option_db(option_id):
     return result['column_id'] if result else None
 
 def batch_update_doors_db(
-    door_ids, base_fields_to_update, columns_to_update, project_id=None
+    door_ids, base_fields_to_update, columns_to_update, project_id=None,
+    hardware_to_update=None
 ):
     """
     Update multiple doors in batch.
@@ -1691,6 +1832,13 @@ def batch_update_doors_db(
                     except Exception as e:
                         error_msg = f"Error updating column '{column_key}' for door {door_location}: {str(e)}"
                         error_messages.append(error_msg)
+
+                if hardware_to_update is not None:
+                    _upsert_door_hardware(cursor, door_id, hardware_to_update)
+                    door_updated = True
+                    success_messages.append(
+                        f"Door {door_location}: structured hardware updated"
+                    )
 
                 if door_updated:
                     successful_updates += 1

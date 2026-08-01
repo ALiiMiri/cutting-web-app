@@ -744,7 +744,7 @@
         <div class="action-bar">
             <div class="button-bar">
                 {% if current_user_can_edit_project(project.id) %}
-                <a href="{{ url_for('add_door_form', project_id=project.id) }}" class="action-button add-button">
+                <a href="{{ url_for('view_project', project_id=project.id, add_door=1) }}" class="action-button add-button">
                     <i class="fas fa-plus"></i>
                     افزودن درب
                 </a>

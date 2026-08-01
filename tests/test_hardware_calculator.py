@@ -85,6 +85,36 @@ class HardwareCalculatorTests(unittest.TestCase):
         self.assertEqual(report["excluded_row_count"], 1)
         self.assertEqual(report["summary"], [])
 
+    def test_structured_hardware_uses_exact_brands_and_rosette_has_no_cylinder(self):
+        report = calculate_project_hardware(
+            [
+                door(
+                    quantity=2,
+                    hardware_configured=True,
+                    hinge_brand="کاله",
+                    hinge_color="مشکی",
+                    hinge_count=3,
+                    has_handle=True,
+                    handle_type="single_rosette",
+                    handle_brand="ایران",
+                    handle_model="R210",
+                    handle_color="طلایی",
+                    lock_source="own_brand",
+                    lock_brand=None,
+                    lock_model=None,
+                    cylinder_brand=None,
+                    cylinder_model=None,
+                )
+            ]
+        )
+        totals = {
+            (item["group"], item["model"]): item["quantity"]
+            for item in report["summary"]
+        }
+        self.assertEqual(totals[("لولا", "کاله — مشکی")], 6)
+        self.assertEqual(totals[("قفل", "قفل مخصوص ایران")], 2)
+        self.assertFalse(any(group == "سیلندر" for group, _ in totals))
+
 
 if __name__ == "__main__":
     unittest.main()

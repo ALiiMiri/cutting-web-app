@@ -38,7 +38,8 @@ from database import (
     get_project_details_db,
     generate_unique_project_code,
     get_doors_for_project_db,
-    add_door_db,
+    add_door_with_hardware_db,
+    update_door_with_hardware_db,
     get_all_custom_columns,
     get_active_custom_columns,
     get_active_custom_columns_values,
@@ -94,6 +95,11 @@ from database import (
     assign_project_user,
     get_project_assignment_logs,
     get_project_dashboard_counts,
+)
+from door_hardware import (
+    HardwareValidationError,
+    hardware_summary,
+    normalize_door_hardware,
 )
 
 # Import blueprints
@@ -955,6 +961,7 @@ def view_project(project_id):
                 if door.get("height") is not None
                 else ""
             )
+            door["hardware_summary"] = hardware_summary(door)
         total_door_quantity = sum(
             int(door.get("quantity") or 0) for door in door_list
         )
@@ -995,6 +1002,9 @@ def quick_add_door(project_id):
         height = dimension_to_centimeters(data.get("height"), measurement_unit)
         quantity = int(data.get("quantity"))
         direction = str(data.get("direction", "راست"))
+        hardware = normalize_door_hardware(data.get("hardware"))
+    except HardwareValidationError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     except (TypeError, ValueError):
         return jsonify(
             {"success": False, "error": "عرض، ارتفاع و تعداد باید عدد معتبر باشند."}
@@ -1009,26 +1019,18 @@ def quick_add_door(project_id):
     if direction not in {"راست", "چپ"}:
         return jsonify({"success": False, "error": "جهت انتخاب‌شده معتبر نیست."}), 400
 
-    door_id = add_door_db(
-        project_id, location, width, height, quantity, direction
+    door_id = add_door_with_hardware_db(
+        project_id, location, width, height, quantity, direction, hardware
     )
     if not door_id:
         return jsonify({"success": False, "error": "ذخیره درب انجام نشد."}), 500
 
-    # Match the existing door workflow: new doors use a three-sided frame
-    # unless someone explicitly changes it later.
-    kolaft_column_id = get_column_id_by_key("kolaft")
-    if kolaft_column_id:
-        conn = get_db_connection()
-        try:
-            update_door_custom_value(
-                conn.cursor(), door_id, kolaft_column_id, "سه طرفه"
-            )
-            conn.commit()
-        finally:
-            conn.close()
-
-    return jsonify({"success": True, "message": "درب جدید به سفارش اضافه شد."})
+    return jsonify(
+        {
+            "success": True,
+            "message": "درب و تنظیمات یراق آن به سفارش اضافه شد.",
+        }
+    )
 
 
 @app.route(
@@ -1052,6 +1054,9 @@ def update_door(project_id, door_id):
         height = dimension_to_centimeters(data.get("height"), measurement_unit)
         quantity = int(data.get("quantity"))
         direction = str(data.get("direction", "راست"))
+        hardware = normalize_door_hardware(data.get("hardware"))
+    except HardwareValidationError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     except (TypeError, ValueError):
         return jsonify(
             {"success": False, "error": "عرض، ارتفاع و تعداد باید عدد معتبر باشند."}
@@ -1066,27 +1071,15 @@ def update_door(project_id, door_id):
     if direction not in {"راست", "چپ"}:
         return jsonify({"success": False, "error": "جهت انتخاب‌شده معتبر نیست."}), 400
 
-    conn = get_db_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            UPDATE doors
-            SET location = ?, width = ?, height = ?, quantity = ?, direction = ?
-            WHERE id = ? AND project_id = ?
-            """,
-            (location, width, height, quantity, direction, door_id, project_id),
-        )
-        if cursor.rowcount == 0:
-            return jsonify({"success": False, "error": "درب مورد نظر پیدا نشد."}), 404
-        conn.commit()
-    except sqlite3.Error as exc:
-        conn.rollback()
-        return jsonify({"success": False, "error": str(exc)}), 500
-    finally:
-        conn.close()
+    updated = update_door_with_hardware_db(
+        project_id, door_id, location, width, height, quantity, direction, hardware
+    )
+    if updated is False:
+        return jsonify({"success": False, "error": "درب مورد نظر پیدا نشد."}), 404
+    if updated is None:
+        return jsonify({"success": False, "error": "ذخیره تغییرات انجام نشد."}), 500
 
-    return jsonify({"success": True, "message": "اطلاعات درب ویرایش شد."})
+    return jsonify({"success": True, "message": "اطلاعات درب و یراق ویرایش شد."})
 
 
 @app.route("/project/<int:project_id>/add_door", methods=["GET"])
@@ -1321,6 +1314,7 @@ def project_treeview(project_id):
             if door.get("height") is not None
             else ""
         )
+        door["hardware_summary"] = hardware_summary(door)
 
     total_door_quantity = sum(int(door.get("quantity") or 0) for door in doors)
     
@@ -2177,6 +2171,23 @@ def batch_edit_form(project_id):
         door["display_height"] = format_measurement_value(
             centimeters_to_measurement_unit(door.get("height"), measurement_unit)
         ) if door.get("height") is not None else ""
+        door["hardware_summary"] = hardware_summary(door)
+
+    hardware_counts = {}
+    for door in selected_doors:
+        summary = door["hardware_summary"]
+        hardware_counts[summary] = hardware_counts.get(summary, 0) + 1
+    hardware_distribution = [
+        {"value": value, "count": count}
+        for value, count in hardware_counts.items()
+    ]
+    hardware_mixed = len(hardware_distribution) > 1
+    if hardware_mixed:
+        hardware_current_summary = "مقادیر متفاوت — " + "، ".join(
+            f"{item['count']} {item['value']}" for item in hardware_distribution
+        )
+    else:
+        hardware_current_summary = f"همه: {hardware_distribution[0]['value']}"
 
     column_options = []
     for column in get_project_visible_custom_columns(project_id):
@@ -2221,6 +2232,9 @@ def batch_edit_form(project_id):
         door_ids=door_ids,
         selected_doors=selected_doors,
         column_options=column_options,
+        hardware_mixed=hardware_mixed,
+        hardware_distribution=hardware_distribution,
+        hardware_current_summary=hardware_current_summary,
         measurement_unit_label=unit_labels["fa"],
     )
 
@@ -2270,7 +2284,40 @@ def apply_batch_edit(project_id):
         if len(current_values) > 1:
             mixed_fields.append(field_key)
 
-    if not columns_to_update:
+    hardware_to_update = None
+    if request.form.get("update_hardware") == "on":
+        try:
+            hardware_to_update = normalize_door_hardware(
+                {
+                    "hinge_brand": request.form.get("hardware_hinge_brand"),
+                    "hinge_color": request.form.get("hardware_hinge_color"),
+                    "hinge_count": request.form.get("hardware_hinge_count"),
+                    "has_handle": request.form.get("hardware_has_handle"),
+                    "handle_type": request.form.get("hardware_handle_type"),
+                    "handle_brand": request.form.get("hardware_handle_brand"),
+                    "handle_model": request.form.get("hardware_handle_model"),
+                    "handle_color": request.form.get("hardware_handle_color"),
+                    "lock_source": request.form.get("hardware_lock_source"),
+                    "lock_brand": request.form.get("hardware_lock_brand"),
+                    "lock_model": request.form.get("hardware_lock_model"),
+                    "cylinder_brand": request.form.get("hardware_cylinder_brand"),
+                    "cylinder_model": request.form.get("hardware_cylinder_model"),
+                }
+            )
+        except HardwareValidationError as exc:
+            flash(str(exc), "error")
+            return redirect(
+                url_for(
+                    "batch_edit_form",
+                    project_id=project_id,
+                    door_ids=",".join(str(door_id) for door_id in door_ids),
+                )
+            )
+        current_hardware = {hardware_summary(door) for door in selected_doors}
+        if len(current_hardware) > 1:
+            mixed_fields.append("__hardware__")
+
+    if not columns_to_update and hardware_to_update is None:
         flash("هیچ فیلدی برای به‌روزرسانی انتخاب نشده است.", "warning")
         return redirect(
             url_for(
@@ -2305,7 +2352,8 @@ def apply_batch_edit(project_id):
 
     # اعمال تغییرات روی درب‌های انتخاب شده
     successful_updates, failed_updates, success_messages, error_messages = batch_update_doors_db(
-        door_ids, {}, columns_to_update, project_id=project_id
+        door_ids, {}, columns_to_update, project_id=project_id,
+        hardware_to_update=hardware_to_update
     )
     
     # به‌روزرسانی ستون‌های قابل مشاهده بر اساس داده‌های جدید

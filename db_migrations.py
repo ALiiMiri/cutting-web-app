@@ -533,6 +533,15 @@ def apply_migrations(conn, allow_changes=False):
             ),
             "execution_type": "python_module",
             "module_name": "026_project_query_indexes",
+        },
+        {
+            "name": "027_door_hardware",
+            "description": "Store validated hinge, handle, lock and cylinder choices per door",
+            "check_logic": lambda c: not c.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='door_hardware'"
+            ).fetchone(),
+            "execution_type": "python_module",
+            "module_name": "027_door_hardware",
         }
     ]
 

@@ -34,6 +34,11 @@ class MigrationSafetyTests(unittest.TestCase):
         self.assertEqual(second_count, first_count)
         self.assertEqual(conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
         self.assertEqual(conn.execute("PRAGMA foreign_key_check").fetchall(), [])
+        self.assertIsNotNone(
+            conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='door_hardware'"
+            ).fetchone()
+        )
         indexes = {
             row[0]
             for row in conn.execute(

@@ -99,6 +99,112 @@ def calculate_project_hardware(doors):
             continue
 
         included_door_count += quantity
+
+        if door.get("hardware_configured"):
+            hinge_brand = _clean(door.get("hinge_brand"))
+            hinge_color = _clean(door.get("hinge_color"))
+            hinge_model = " — ".join(
+                item for item in (hinge_brand, hinge_color) if item
+            ) or "نامشخص"
+            try:
+                hinge_per_door = int(door.get("hinge_count"))
+                if hinge_per_door <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                hinge_per_door = 0
+                warnings.append(
+                    {
+                        "door_id": door_id,
+                        "location": location,
+                        "field": "لولا",
+                        "message": "تعداد لولای ثبت‌شده معتبر نیست.",
+                    }
+                )
+            hinge_count = hinge_per_door * quantity
+            if not hinge_brand or not hinge_color:
+                warnings.append(
+                    {
+                        "door_id": door_id,
+                        "location": location,
+                        "field": "لولا",
+                        "message": "برند یا رنگ لولا کامل نیست.",
+                    }
+                )
+            add_total("لولا", hinge_model, hinge_count)
+
+            handle_count = 0
+            lock_count = 0
+            cylinder_count = 0
+            lock_model = "بدون قفل"
+            handle_model = "بدون دستگیره"
+            has_handle = bool(door.get("has_handle"))
+            if has_handle:
+                handle_type = door.get("handle_type")
+                handle_type_label = (
+                    "دوتکه" if handle_type == "two_piece" else "تک‌رزت"
+                )
+                handle_parts = [
+                    handle_type_label,
+                    _clean(door.get("handle_brand")),
+                    _clean(door.get("handle_model")),
+                    _clean(door.get("handle_color")),
+                ]
+                handle_model = " — ".join(item for item in handle_parts if item)
+                handle_count = quantity
+                add_total("دستگیره", handle_model, handle_count)
+
+                if door.get("lock_source") == "own_brand":
+                    lock_model = (
+                        f"قفل مخصوص {_clean(door.get('handle_brand')) or 'تک‌رزت'}"
+                    )
+                else:
+                    lock_model = " — ".join(
+                        item
+                        for item in (
+                            _clean(door.get("lock_brand")),
+                            _clean(door.get("lock_model")),
+                        )
+                        if item
+                    ) or "نامشخص"
+                lock_count = quantity
+                add_total("قفل", lock_model, lock_count)
+
+                if handle_type == "two_piece":
+                    cylinder_model = " — ".join(
+                        item
+                        for item in (
+                            _clean(door.get("cylinder_brand")),
+                            _clean(door.get("cylinder_model")),
+                        )
+                        if item
+                    ) or "نامشخص"
+                    cylinder_count = quantity
+                    add_total("سیلندر", cylinder_model, cylinder_count)
+
+            bracket_count = bracket_count_for_height(height) * quantity
+            add_total("اقلام نصب", "براکت نصب", bracket_count)
+            details.append(
+                {
+                    "door_id": door_id,
+                    "location": location,
+                    "width": width,
+                    "height": height,
+                    "quantity": quantity,
+                    "hinge_model": hinge_model,
+                    "hinge_count": hinge_count,
+                    "lock_model": lock_model,
+                    "lock_count": lock_count,
+                    "handle_model": handle_model,
+                    "handle_count": handle_count,
+                    "cylinder_count": cylinder_count,
+                    "bracket_count": bracket_count,
+                    "has_warning": any(
+                        item["door_id"] == door_id for item in warnings
+                    ),
+                }
+            )
+            continue
+
         hinge_model = _clean(door.get("lola"))
         lock_model = _clean(door.get("ghofl"))
         handle_model = _clean(door.get("dastgire"))
