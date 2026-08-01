@@ -551,6 +551,18 @@ def apply_migrations(conn, allow_changes=False):
             ).fetchone(),
             "execution_type": "python_module",
             "module_name": "028_hardware_catalog_options",
+        },
+        {
+            "name": "029_factory_installation_requirements",
+            "description": "Store bracket overrides and factory labels for each profile",
+            "check_logic": lambda c: (
+                "installation_bracket_mode"
+                not in {row[1] for row in c.execute("PRAGMA table_info(doors)")}
+                or "installation_bracket_name"
+                not in {row[1] for row in c.execute("PRAGMA table_info(profile_types)")}
+            ),
+            "execution_type": "python_module",
+            "module_name": "029_factory_installation_requirements",
         }
     ]
 

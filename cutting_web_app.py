@@ -99,6 +99,8 @@ from database import (
     add_hardware_catalog_option,
     archive_hardware_catalog_option,
     move_hardware_catalog_option,
+    get_profile_bracket_settings,
+    update_profile_bracket_setting,
 )
 from door_hardware import (
     HARDWARE_CATALOG_CATEGORIES,
@@ -159,6 +161,11 @@ from cutting_orders import (
     send_cutting_order,
 )
 from hardware_calculator import calculate_project_hardware
+from factory_requirements import (
+    FactoryRequirementError,
+    calculate_factory_requirements,
+    normalize_bracket_mode,
+)
 from measurements import (
     centimeters_to_measurement_unit,
     dimension_to_centimeters,
@@ -1008,8 +1015,10 @@ def quick_add_door(project_id):
         height = dimension_to_centimeters(data.get("height"), measurement_unit)
         quantity = int(data.get("quantity"))
         direction = str(data.get("direction", "راست"))
-        hardware = normalize_door_hardware(data.get("hardware"))
-    except HardwareValidationError as exc:
+        hardware_payload = data.get("hardware") or {}
+        hardware = normalize_door_hardware(hardware_payload)
+        bracket_mode = normalize_bracket_mode(hardware_payload.get("bracket_mode"))
+    except (HardwareValidationError, FactoryRequirementError) as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
     except (TypeError, ValueError):
         return jsonify(
@@ -1026,7 +1035,8 @@ def quick_add_door(project_id):
         return jsonify({"success": False, "error": "جهت انتخاب‌شده معتبر نیست."}), 400
 
     door_id = add_door_with_hardware_db(
-        project_id, location, width, height, quantity, direction, hardware
+        project_id, location, width, height, quantity, direction, hardware,
+        bracket_mode=bracket_mode,
     )
     if not door_id:
         return jsonify({"success": False, "error": "ذخیره درب انجام نشد."}), 500
@@ -1060,8 +1070,10 @@ def update_door(project_id, door_id):
         height = dimension_to_centimeters(data.get("height"), measurement_unit)
         quantity = int(data.get("quantity"))
         direction = str(data.get("direction", "راست"))
-        hardware = normalize_door_hardware(data.get("hardware"))
-    except HardwareValidationError as exc:
+        hardware_payload = data.get("hardware") or {}
+        hardware = normalize_door_hardware(hardware_payload)
+        bracket_mode = normalize_bracket_mode(hardware_payload.get("bracket_mode"))
+    except (HardwareValidationError, FactoryRequirementError) as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
     except (TypeError, ValueError):
         return jsonify(
@@ -1078,7 +1090,8 @@ def update_door(project_id, door_id):
         return jsonify({"success": False, "error": "جهت انتخاب‌شده معتبر نیست."}), 400
 
     updated = update_door_with_hardware_db(
-        project_id, door_id, location, width, height, quantity, direction, hardware
+        project_id, door_id, location, width, height, quantity, direction, hardware,
+        bracket_mode=bracket_mode,
     )
     if updated is False:
         return jsonify({"success": False, "error": "درب مورد نظر پیدا نشد."}), 404
@@ -1400,7 +1413,20 @@ def hardware_catalog_settings():
         "hardware_catalog_settings.html",
         categories=HARDWARE_CATALOG_CATEGORIES,
         hardware_options=get_hardware_catalog_options(),
+        profile_brackets=get_profile_bracket_settings(),
     )
+
+
+@app.route("/hardware/settings/profile-brackets/<int:profile_id>", methods=["POST"])
+@csrf_protected
+@staff_or_admin_required
+def hardware_profile_bracket_update(profile_id):
+    bracket_name = request.form.get("bracket_name", "")
+    if update_profile_bracket_setting(profile_id, bracket_name):
+        flash("عنوان براکت این پروفیل ذخیره شد.", "success")
+    else:
+        flash("عنوان براکت معتبر نیست یا پروفیل پیدا نشد.", "error")
+    return redirect(url_for("hardware_catalog_settings", section="profile-brackets"))
 
 
 @app.route("/hardware/settings/options/add", methods=["POST"])
@@ -1437,9 +1463,161 @@ def hardware_catalog_move(option_id):
     return redirect(url_for("hardware_catalog_settings", category=category))
 
 
+def _build_factory_report(project_info, doors):
+    profile_labels = {
+        item["name"]: item["bracket_name"]
+        for item in get_profile_bracket_settings(include_inactive=True)
+    }
+    report = calculate_factory_requirements(doors, profile_labels)
+    measurement_unit = normalize_measurement_unit(
+        project_info.get("measurement_unit", "cm")
+    )
+    unit_labels = measurement_unit_labels(measurement_unit)
+    for row in report["details"]:
+        row["display_width"] = format_measurement_value(
+            centimeters_to_measurement_unit(row["width"], measurement_unit)
+        )
+        row["display_height"] = format_measurement_value(
+            centimeters_to_measurement_unit(row["height"], measurement_unit)
+        )
+    return report, unit_labels
+
+
+@app.route("/project/<int:project_id>/factory-requirements", methods=["GET"])
+def factory_requirements_report(project_id):
+    """Show the factory-only rubber and installation-bracket list."""
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
+        return redirect(url_for("index"))
+    doors = get_doors_for_project_db(project_id)
+    if not doors:
+        flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+        return redirect(url_for("project_treeview", project_id=project_id))
+    report, unit_labels = _build_factory_report(project_info, doors)
+    return render_template(
+        "factory_requirements.html",
+        project=project_info,
+        report=report,
+        measurement_unit_label=unit_labels["short"],
+    )
+
+
+@app.route("/project/<int:project_id>/factory-requirements/excel", methods=["GET"])
+def export_factory_requirements_excel(project_id):
+    """Download the factory rubber and separated bracket requirements."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
+        return redirect(url_for("index"))
+    doors = get_doors_for_project_db(project_id)
+    if not doors:
+        flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+        return redirect(url_for("project_treeview", project_id=project_id))
+    report, unit_labels = _build_factory_report(project_info, doors)
+
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "خلاصه کارخانه"
+    details = workbook.create_sheet("جزئیات درب‌ها")
+    warnings = workbook.create_sheet("موارد ناقص")
+    header_fill = PatternFill("solid", fgColor="168F79")
+    title_fill = PatternFill("solid", fgColor="DDF2ED")
+    warning_fill = PatternFill("solid", fgColor="FFF0C2")
+    white_font = Font(color="FFFFFF", bold=True)
+
+    def prepare(sheet, widths):
+        sheet.sheet_view.rightToLeft = True
+        sheet.freeze_panes = "A5"
+        for row in sheet.iter_rows():
+            for cell in row:
+                cell.alignment = Alignment(
+                    horizontal="center", vertical="center", wrap_text=True
+                )
+        for index, width in enumerate(widths, start=1):
+            sheet.column_dimensions[get_column_letter(index)].width = width
+
+    title = project_info.get("customer_name") or f"پروژه {project_id}"
+    summary.merge_cells("A1:C1")
+    summary["A1"] = f"لیست کارخانه — {title}"
+    summary["A1"].font = Font(bold=True, size=15)
+    summary["A1"].fill = title_fill
+    summary.append(["متراژ کل لاستیک", report["total_rubber_meters"], "متر"])
+    summary.append(["تعداد کل براکت", report["total_bracket_count"], "عدد"])
+    summary.append(["نوع براکت", "تعداد کل", "واحد"])
+    for cell in summary[4]:
+        cell.fill = header_fill
+        cell.font = white_font
+    for item in report["bracket_summary"]:
+        summary.append([item["label"], item["quantity"], "عدد"])
+    prepare(summary, [42, 18, 14])
+
+    detail_headers = [
+        "موقعیت", f"عرض ({unit_labels['short']})",
+        f"ارتفاع ({unit_labels['short']})", "تعداد درب", "نوع چارچوب",
+        "نوع پروفیل", "متراژ لاستیک (متر)", "نوع براکت", "تعداد براکت",
+    ]
+    details.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(detail_headers))
+    details["A1"] = f"جزئیات کارخانه — {title}"
+    details["A1"].font = Font(bold=True, size=15)
+    details["A1"].fill = title_fill
+    details.append([])
+    details.append([])
+    details.append(detail_headers)
+    for cell in details[4]:
+        cell.fill = header_fill
+        cell.font = white_font
+    for row in report["details"]:
+        details.append(
+            [
+                row["location"], row["display_width"], row["display_height"],
+                row["quantity"], row["frame_type"], row["profile_name"],
+                row["rubber_meters"], row["bracket_label"], row["bracket_count"],
+            ]
+        )
+        if row["has_warning"]:
+            for cell in details[details.max_row]:
+                cell.fill = warning_fill
+    prepare(details, [24, 13, 13, 12, 16, 24, 20, 38, 16])
+
+    warnings.merge_cells("A1:C1")
+    warnings["A1"] = f"موارد نیازمند بررسی — {title}"
+    warnings["A1"].font = Font(bold=True, size=15)
+    warnings["A1"].fill = warning_fill
+    warnings.append([])
+    warnings.append([])
+    warnings.append(["شناسه درب", "موقعیت", "پیام"])
+    for cell in warnings[4]:
+        cell.fill = header_fill
+        cell.font = white_font
+    for warning in report["warnings"]:
+        warnings.append(
+            [warning["door_id"], warning["location"], warning["message"]]
+        )
+    if not report["warnings"]:
+        warnings.append(["-", "-", "اطلاعات کارخانه تمام درب‌ها کامل است."])
+    prepare(warnings, [14, 24, 64])
+
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    filename = f"factory_project_{project_id}_{get_shamsi_timestamp()}.xlsx"
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 @app.route("/project/<int:project_id>/hardware", methods=["GET"])
 def hardware_report(project_id):
-    """Preview the calculated hardware and installation list for one project."""
+    """Preview the office/warehouse hardware list for one project."""
     project_info = get_project_details_db(project_id)
     if not project_info:
         flash("پروژه مورد نظر یافت نشد.", "error")
@@ -1533,7 +1711,7 @@ def export_hardware_report_excel(project_id):
         f"عرض ({unit_labels['short']})",
         f"ارتفاع ({unit_labels['short']})",
         "تعداد درب", "مدل لولا", "تعداد لولا",
-        "مدل قفل", "تعداد قفل", "مدل دستگیره", "تعداد دستگیره", "تعداد سیلندر", "تعداد براکت",
+        "مدل قفل", "تعداد قفل", "مدل دستگیره", "تعداد دستگیره", "تعداد سیلندر",
     ]
     detail_sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(detail_headers))
     detail_sheet["A1"] = f"جزئیات یراق درب‌ها — {project_title}"
@@ -1551,13 +1729,13 @@ def export_hardware_report_excel(project_id):
                 row["location"], export_length(row["width"]), export_length(row["height"]),
                 row["quantity"], row["hinge_model"],
                 row["hinge_count"], row["lock_model"], row["lock_count"], row["handle_model"],
-                row["handle_count"], row["cylinder_count"], row["bracket_count"],
+                row["handle_count"], row["cylinder_count"],
             ]
         )
         if row["has_warning"]:
             for cell in detail_sheet[detail_sheet.max_row]:
                 cell.fill = warning_fill
-    style_table(detail_sheet, [24, 12, 12, 12, 22, 13, 22, 13, 24, 15, 15, 15])
+    style_table(detail_sheet, [24, 12, 12, 12, 22, 13, 22, 13, 24, 15, 15])
 
     warning_sheet.merge_cells("A1:D1")
     warning_sheet["A1"] = f"موارد نیازمند بررسی — {project_title}"
@@ -2240,6 +2418,26 @@ def batch_edit_form(project_id):
     else:
         hardware_current_summary = f"همه: {hardware_distribution[0]['value']}"
 
+    bracket_counts = {}
+    for door in selected_doors:
+        value = (
+            "براکت گوشتی"
+            if door.get("installation_bracket_mode") == "meaty"
+            else "خودکار از نوع پروفیل"
+        )
+        bracket_counts[value] = bracket_counts.get(value, 0) + 1
+    bracket_distribution = [
+        {"value": value, "count": count}
+        for value, count in bracket_counts.items()
+    ]
+    bracket_mixed = len(bracket_distribution) > 1
+    if bracket_mixed:
+        bracket_current_summary = "مقادیر متفاوت — " + "، ".join(
+            f"{item['count']} {item['value']}" for item in bracket_distribution
+        )
+    else:
+        bracket_current_summary = f"همه: {bracket_distribution[0]['value']}"
+
     column_options = []
     for column in get_project_visible_custom_columns(project_id):
         options = []
@@ -2286,6 +2484,9 @@ def batch_edit_form(project_id):
         hardware_mixed=hardware_mixed,
         hardware_distribution=hardware_distribution,
         hardware_current_summary=hardware_current_summary,
+        bracket_mixed=bracket_mixed,
+        bracket_distribution=bracket_distribution,
+        bracket_current_summary=bracket_current_summary,
         hardware_options=get_hardware_catalog_options(),
         measurement_unit_label=unit_labels["fa"],
     )
@@ -2369,7 +2570,34 @@ def apply_batch_edit(project_id):
         if len(current_hardware) > 1:
             mixed_fields.append("__hardware__")
 
-    if not columns_to_update and hardware_to_update is None:
+    bracket_mode_to_update = None
+    if request.form.get("update_bracket_mode") == "on":
+        try:
+            bracket_mode_to_update = normalize_bracket_mode(
+                request.form.get("bracket_mode")
+            )
+        except FactoryRequirementError as exc:
+            flash(str(exc), "error")
+            return redirect(
+                url_for(
+                    "batch_edit_form",
+                    project_id=project_id,
+                    door_ids=",".join(str(door_id) for door_id in door_ids),
+                )
+            )
+        if len(
+            {
+                door.get("installation_bracket_mode") or "profile"
+                for door in selected_doors
+            }
+        ) > 1:
+            mixed_fields.append("__bracket_mode__")
+
+    if (
+        not columns_to_update
+        and hardware_to_update is None
+        and bracket_mode_to_update is None
+    ):
         flash("هیچ فیلدی برای به‌روزرسانی انتخاب نشده است.", "warning")
         return redirect(
             url_for(
@@ -2405,7 +2633,8 @@ def apply_batch_edit(project_id):
     # اعمال تغییرات روی درب‌های انتخاب شده
     successful_updates, failed_updates, success_messages, error_messages = batch_update_doors_db(
         door_ids, {}, columns_to_update, project_id=project_id,
-        hardware_to_update=hardware_to_update
+        hardware_to_update=hardware_to_update,
+        bracket_mode_to_update=bracket_mode_to_update,
     )
     
     # به‌روزرسانی ستون‌های قابل مشاهده بر اساس داده‌های جدید

@@ -39,6 +39,15 @@ class MigrationSafetyTests(unittest.TestCase):
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='door_hardware'"
             ).fetchone()
         )
+        door_columns = {
+            row[1] for row in conn.execute("PRAGMA table_info(doors)").fetchall()
+        }
+        profile_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(profile_types)").fetchall()
+        }
+        self.assertIn("installation_bracket_mode", door_columns)
+        self.assertIn("installation_bracket_name", profile_columns)
         self.assertIsNotNone(
             conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hardware_catalog_options'"

@@ -11,6 +11,49 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class BatchEditSafetyTests(unittest.TestCase):
+    def test_bracket_mode_batch_update_is_independent_and_project_scoped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = pathlib.Path(directory) / "brackets.db"
+            connection = sqlite3.connect(db_path)
+            connection.executescript(
+                """
+                CREATE TABLE doors(
+                    id INTEGER PRIMARY KEY,
+                    project_id INTEGER NOT NULL,
+                    location TEXT,
+                    installation_bracket_mode TEXT NOT NULL DEFAULT 'profile'
+                );
+                CREATE TABLE custom_columns(
+                    id INTEGER PRIMARY KEY,
+                    column_name TEXT UNIQUE,
+                    display_name TEXT
+                );
+                CREATE TABLE door_custom_values(
+                    door_id INTEGER,
+                    column_id INTEGER,
+                    value TEXT
+                );
+                INSERT INTO doors VALUES(1,10,'درب اول','profile');
+                INSERT INTO doors VALUES(2,20,'درب دیگر','profile');
+                """
+            )
+            connection.commit()
+            connection.close()
+
+            with mock.patch.object(database, "DB_NAME", str(db_path)):
+                success, failed, _, _ = database.batch_update_doors_db(
+                    [1, 2], {}, {}, project_id=10,
+                    bracket_mode_to_update="meaty",
+                )
+
+            connection = sqlite3.connect(db_path)
+            modes = connection.execute(
+                "SELECT id,installation_bracket_mode FROM doors ORDER BY id"
+            ).fetchall()
+            connection.close()
+            self.assertEqual((success, failed), (1, 1))
+            self.assertEqual(modes, [(1, "meaty"), (2, "profile")])
+
     def test_database_update_is_scoped_to_project(self):
         with tempfile.TemporaryDirectory() as directory:
             db_path = pathlib.Path(directory) / "batch.db"

@@ -24,6 +24,8 @@
         .radio-row label,.switch-row{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;font-weight:700}
         .radio-row input,.switch-row input{width:18px;height:18px;accent-color:var(--green)}
         .hardware-note{margin-top:12px;padding:10px 12px;border-radius:8px;color:#59677a;background:#f5f7f9;font-size:12px}
+        .bracket-choice{margin-top:18px;padding:12px;border:1px solid #d7e3f4;border-radius:10px;background:#f7faff}
+        .bracket-choice small{display:block;margin:5px 25px 0;color:#52657d}
         .repeat-box{margin-top:18px;padding:12px;border:1px solid #cfe9dd;border-radius:10px;background:var(--green-soft)}
         .repeat-box small{display:block;margin:5px 25px 0;color:#416c5e}
         .repeat-active{display:none;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;padding:11px 12px;border-radius:9px;color:#285f4d;background:var(--green-soft);font-size:12px;font-weight:700}
@@ -60,6 +62,8 @@
                         <button class="btn more" id="more-button" type="button">… عملیات بیشتر⌄</button>
                         <div class="menu" id="more-menu">
                             <a href="{{ url_for('export_to_excel', project_id=project.id) }}">دریافت خروجی Excel</a>
+                            <a href="{{ url_for('factory_requirements_report', project_id=project.id) }}">لیست کارخانه: لاستیک و براکت</a>
+                            <a href="{{ url_for('hardware_report', project_id=project.id) }}">لیست دفتر و انبار</a>
                             {% if current_user_can_edit_project(project.id) %}<a href="{{ url_for('settings_columns', project_id=project.id) }}">تنظیم فیلدهای سفارش</a>{% endif %}
                         </div>
                     </div>
@@ -104,7 +108,7 @@
             <form id="door-form">
                 <div class="modal-body">
                     <div class="form-error" id="form-error"></div>
-                    <div class="repeat-active" id="repeat-active"><span>تنظیمات یراق برای درب‌های بعدی در حال تکرار است.</span><button class="btn cancel" id="stop-repeat" type="button">توقف تکرار یراق</button></div>
+                    <div class="repeat-active" id="repeat-active"><span>تنظیمات یراق و براکت برای درب‌های بعدی در حال تکرار است.</span><button class="btn cancel" id="stop-repeat" type="button">توقف تکرار تنظیمات</button></div>
                     <div class="door-steps"><div class="door-step active" id="door-step-marker">۱. مشخصات درب</div><div class="door-step" id="hardware-step-marker">۲. انتخاب یراق</div></div>
                     <div id="door-details-step">
                         <div class="form-grid">
@@ -154,7 +158,12 @@
                             </div>
                         </div>
 
-                        <div class="repeat-box" id="repeat-box"><label class="switch-row"><input id="repeat-hardware" type="checkbox"><span>همین تنظیمات یراق برای درب‌های بعدی استفاده شود</span></label><small>تا زمانی که «توقف تکرار یراق» را بزنید، فرم درب بعدی با همین مقادیر باز می‌شود. درب‌های قبلی تغییر نمی‌کنند.</small></div>
+                        <div class="bracket-choice">
+                            <label class="switch-row"><input id="meaty-bracket" type="checkbox"><span>برای این درب از براکت گوشتی استفاده شود</span></label>
+                            <small id="bracket-auto-note">در حالت عادی، نوع براکت به‌صورت خودکار از نوع پروفیل دستور ساخت خوانده می‌شود. براکت گوشتی جایگزین آن خواهد شد.</small>
+                        </div>
+
+                        <div class="repeat-box" id="repeat-box"><label class="switch-row"><input id="repeat-hardware" type="checkbox"><span>همین تنظیمات یراق و براکت برای درب‌های بعدی استفاده شود</span></label><small>تا زمانی که «توقف تکرار تنظیمات» را بزنید، فرم درب بعدی با همین مقادیر باز می‌شود. درب‌های قبلی تغییر نمی‌کنند.</small></div>
                     </div>
                 </div>
                 <div class="modal-actions step-actions" id="door-step-actions"><button class="btn cancel" id="cancel-modal" type="button">انصراف</button><button class="btn save" id="continue-hardware" type="button">ادامه به انتخاب یراق ←</button></div>
@@ -203,13 +212,14 @@
         {% if current_user_can_edit_project(project.id) %}
         const modal=document.getElementById('door-modal'),form=document.getElementById('door-form'),formError=document.getElementById('form-error'),saveButton=document.getElementById('save-door-button');
         const repeatKey=`projectDoorHardwareRepeat:${projectId}`;
-        const byId=id=>document.getElementById(id);
+        const byId=id=>document.getElementById(id);let bracketProfile='';
         function selectedValue(name){return document.querySelector(`input[name="${name}"]:checked`)?.value||''}
         function getRepeatState(){try{return JSON.parse(sessionStorage.getItem(repeatKey)||'null')}catch(error){sessionStorage.removeItem(repeatKey);return null}}
         function setField(id,value){const input=byId(id),clean=value??'';if(input.tagName==='SELECT'&&clean&&![...input.options].some(option=>option.value===String(clean))){const option=document.createElement('option');option.value=clean;option.textContent=`${clean} (ثبت قبلی)`;option.dataset.historical='true';input.append(option)}input.value=clean}
+        function updateBracketNote(){byId('bracket-auto-note').textContent=byId('meaty-bracket').checked?'براکت گوشتی جایگزین براکت وابسته به پروفیل می‌شود.':bracketProfile?`نوع براکت از پروفیل «${bracketProfile}» تعیین می‌شود.`:'در حالت عادی، نوع براکت پس از ثبت نوع پروفیل دستور ساخت، خودکار تعیین می‌شود.'}
         function hardwareFromForm(){
             const hasHandle=byId('has-handle').checked,handleType=selectedValue('handle-type'),lockSource=handleType==='two_piece'?'separate':selectedValue('lock-source');
-            return {hinge_brand:byId('hinge-brand').value,hinge_color:byId('hinge-color').value,hinge_count:byId('hinge-count').value,has_handle:hasHandle,handle_type:hasHandle?handleType:null,handle_brand:hasHandle?byId('handle-brand').value:null,handle_model:hasHandle?byId('handle-model').value:null,handle_color:hasHandle?byId('handle-color').value:null,lock_source:hasHandle?lockSource:null,lock_brand:hasHandle&&lockSource==='separate'?(handleType==='two_piece'?byId('two-lock-brand').value:byId('rosette-lock-brand').value):null,lock_model:hasHandle&&lockSource==='separate'?(handleType==='two_piece'?byId('two-lock-model').value:byId('rosette-lock-model').value):null,cylinder_brand:hasHandle&&handleType==='two_piece'?byId('cylinder-brand').value:null,cylinder_model:hasHandle&&handleType==='two_piece'?byId('cylinder-model').value:null};
+            return {hinge_brand:byId('hinge-brand').value,hinge_color:byId('hinge-color').value,hinge_count:byId('hinge-count').value,has_handle:hasHandle,handle_type:hasHandle?handleType:null,handle_brand:hasHandle?byId('handle-brand').value:null,handle_model:hasHandle?byId('handle-model').value:null,handle_color:hasHandle?byId('handle-color').value:null,lock_source:hasHandle?lockSource:null,lock_brand:hasHandle&&lockSource==='separate'?(handleType==='two_piece'?byId('two-lock-brand').value:byId('rosette-lock-brand').value):null,lock_model:hasHandle&&lockSource==='separate'?(handleType==='two_piece'?byId('two-lock-model').value:byId('rosette-lock-model').value):null,cylinder_brand:hasHandle&&handleType==='two_piece'?byId('cylinder-brand').value:null,cylinder_model:hasHandle&&handleType==='two_piece'?byId('cylinder-model').value:null,bracket_mode:byId('meaty-bracket').checked?'meaty':'profile'};
         }
         function fillHardware(hardware={}){
             setField('hinge-brand',hardware.hinge_brand);setField('hinge-color',hardware.hinge_color);setField('hinge-count',hardware.hinge_count||3);
@@ -219,6 +229,8 @@
             const lockSource=hardware.lock_source||'own_brand';document.querySelector(`input[name="lock-source"][value="${lockSource}"]`).checked=true;
             if(handleType==='two_piece'){setField('two-lock-brand',hardware.lock_brand);setField('two-lock-model',hardware.lock_model)}else{setField('rosette-lock-brand',hardware.lock_brand);setField('rosette-lock-model',hardware.lock_model)}
             setField('cylinder-brand',hardware.cylinder_brand);setField('cylinder-model',hardware.cylinder_model);syncHardwareFields();
+            byId('meaty-bracket').checked=(hardware.installation_bracket_mode||hardware.bracket_mode)==='meaty';
+            bracketProfile=hardware.noe_profile||'';updateBracketNote();
         }
         function syncHardwareFields(){
             const hasHandle=byId('has-handle').checked,handleType=selectedValue('handle-type'),separateRosette=selectedValue('lock-source')==='separate';
@@ -237,8 +249,8 @@
         document.getElementById('add-door-button')?.addEventListener('click',()=>openDoorModal());document.getElementById('close-modal').addEventListener('click',closeDoorModal);document.getElementById('cancel-modal').addEventListener('click',closeDoorModal);modal.addEventListener('click',event=>{if(event.target===modal)closeDoorModal()});document.addEventListener('keydown',event=>{if(event.key==='Escape')closeDoorModal()});
         document.querySelectorAll('[data-edit-door]').forEach(button=>button.addEventListener('click',()=>openDoorModal(button.dataset.editDoor)));
         byId('continue-hardware').addEventListener('click',()=>{const inputs=[byId('door-location'),byId('door-width'),byId('door-height'),byId('door-quantity')];if(inputs.some(input=>!input.reportValidity()))return;showDoorStep('hardware')});
-        byId('back-door-details').addEventListener('click',()=>showDoorStep('door'));byId('has-handle').addEventListener('change',syncHardwareFields);document.querySelectorAll('input[name="handle-type"],input[name="lock-source"]').forEach(input=>input.addEventListener('change',syncHardwareFields));
-        byId('stop-repeat').addEventListener('click',()=>{sessionStorage.removeItem(repeatKey);byId('repeat-hardware').checked=false;renderRepeatStatus();showToast('تکرار یراق متوقف شد؛ درب‌های قبلی تغییری نکردند.')});
+        byId('back-door-details').addEventListener('click',()=>showDoorStep('door'));byId('has-handle').addEventListener('change',syncHardwareFields);byId('meaty-bracket').addEventListener('change',updateBracketNote);document.querySelectorAll('input[name="handle-type"],input[name="lock-source"]').forEach(input=>input.addEventListener('change',syncHardwareFields));
+        byId('stop-repeat').addEventListener('click',()=>{sessionStorage.removeItem(repeatKey);byId('repeat-hardware').checked=false;renderRepeatStatus();showToast('تکرار تنظیمات متوقف شد؛ درب‌های قبلی تغییری نکردند.')});
         form.addEventListener('submit',async event=>{event.preventDefault();syncHardwareFields();if(!form.reportValidity())return;saveButton.disabled=true;formError.classList.remove('show');const hardware=hardwareFromForm();const payload={location:byId('door-location').value,width:byId('door-width').value,height:byId('door-height').value,quantity:byId('door-quantity').value,direction:byId('door-direction').value,hardware};const isEditing=Boolean(editingDoorId),url=isEditing?`/project/${projectId}/update_door/${editingDoorId}`:`/project/${projectId}/quick_add_door`;try{const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok||!data.success)throw new Error(data.error||'ذخیره انجام نشد.');if(!isEditing){if(byId('repeat-hardware').checked)sessionStorage.setItem(repeatKey,JSON.stringify({active:true,hardware}));else sessionStorage.removeItem(repeatKey)}sessionStorage.setItem('projectDoorMessage',data.message);location.href=!isEditing&&byId('repeat-hardware').checked?`/project/${projectId}?add_door=1`:`/project/${projectId}`}catch(error){formError.textContent=error.message;formError.classList.add('show');saveButton.disabled=false;formError.scrollIntoView({behavior:'smooth',block:'nearest'})}});
         if(new URLSearchParams(location.search).get('add_door')==='1')openDoorModal();
         const deleteModal=document.getElementById('delete-modal'),deleteDetail=document.getElementById('delete-door-detail'),confirmDeleteButton=document.getElementById('confirm-delete');let pendingDeleteDoorId=null;

@@ -17,6 +17,7 @@ class AppHeaderTests(unittest.TestCase):
         "batch_edit.html",
         "cutting_result.html",
         "hardware_report.html",
+        "factory_requirements.html",
         "project_assignment_history.html",
         "column_settings.html",
         "settings_combos.html",

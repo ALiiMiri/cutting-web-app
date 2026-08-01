@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>لیست کارخانه سفارش {{ project.order_ref or project.id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+    <style>
+        :root{--navy:#17243b;--ink:#273449;--muted:#6f7b8d;--line:#dfe5ec;--canvas:#f4f6f8;--green:#16835f;--green-soft:#eaf8f2;--amber:#8a5700;--amber-soft:#fff7dc;--shadow:0 9px 30px rgba(23,36,59,.08)}
+        *{box-sizing:border-box}body{margin:0;color:var(--ink);background:var(--canvas);font-family:var(--font-family-base);line-height:1.7}.page{width:min(100%,1200px);margin:auto;padding:24px 24px 60px}.head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:17px}.head h1{margin:0;color:var(--navy);font-size:27px}.head p{margin:3px 0 0;color:var(--muted);font-size:13px}.back{min-height:40px;padding:0 14px;display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:9px;color:var(--ink);background:#fff;text-decoration:none}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:17px}.card,.section{border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:var(--shadow)}.card{padding:16px}.card span{display:block;color:var(--muted);font-size:12px}.card strong{display:block;margin-top:4px;color:var(--navy);font-size:24px}.section{overflow:hidden;margin-bottom:17px}.section h2{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);color:var(--navy);font-size:17px}.warning{margin-bottom:17px;padding:12px 15px;border:1px solid #eed291;border-radius:10px;color:var(--amber);background:var(--amber-soft)}.warning h3{margin:0 0 5px;font-size:14px}.warning ul{margin:0;padding-right:20px;font-size:13px}.table-wrap{overflow:auto}table{width:100%;min-width:760px;border-collapse:collapse}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:center;font-size:13px}th{color:#fff;background:#168f79;white-space:nowrap}tbody tr:nth-child(even){background:#fafbfc}.row-warning{background:var(--amber-soft)!important}.empty{padding:26px;color:var(--muted);text-align:center}.actions{display:flex;gap:8px;flex-wrap:wrap}.button{min-height:42px;padding:0 15px;display:inline-flex;align-items:center;border-radius:9px;color:#fff;text-decoration:none;font-weight:700}.excel{background:#16835f}.secondary{color:var(--ink);background:#fff;border:1px solid var(--line)}
+        @media(max-width:760px){.page{padding:16px 12px 40px}.head{flex-direction:column}.back{width:100%;justify-content:center}.cards{grid-template-columns:1fr}.actions{display:grid}.button{justify-content:center}}
+    </style>
+</head>
+<body class="with-app-header">
+{% include '_app_header.html' %}
+<main class="page">
+    <div class="head"><div><h1>لیست کارخانه</h1><p>{{ project.customer_name }} — سفارش {{ project.order_ref or project.id }}؛ فقط لاستیک و براکت نصب</p></div><a class="back" href="{{ url_for('project_treeview',project_id=project.id) }}">بازگشت به سفارش</a></div>
+    <div class="cards">
+        <div class="card"><span>متراژ کل لاستیک</span><strong>{{ report.total_rubber_meters }} متر</strong></div>
+        <div class="card"><span>تعداد کل براکت</span><strong>{{ report.total_bracket_count }} عدد</strong></div>
+        <div class="card"><span>تعداد درب محاسبه‌شده</span><strong>{{ report.included_door_count }}</strong></div>
+    </div>
+    {% if report.warnings %}<section class="warning"><h3>موارد نیازمند بررسی</h3><ul>{% for warning in report.warnings %}<li><strong>{{ warning.location }}</strong> — {{ warning.message }}</li>{% endfor %}</ul></section>{% endif %}
+    <section class="section"><h2>تفکیک براکت‌های نصب</h2><div class="table-wrap"><table><thead><tr><th>نوع براکت</th><th>تعداد کل</th><th>واحد</th></tr></thead><tbody>{% for item in report.bracket_summary %}<tr><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>عدد</td></tr>{% else %}<tr><td colspan="3" class="empty">براکت قابل محاسبه‌ای وجود ندارد.</td></tr>{% endfor %}</tbody></table></div></section>
+    <section class="section"><h2>جزئیات کارخانه به تفکیک درب</h2><div class="table-wrap"><table><thead><tr><th>موقعیت</th><th>ابعاد</th><th>تعداد درب</th><th>نوع چارچوب</th><th>نوع پروفیل</th><th>متراژ لاستیک</th><th>نوع براکت</th><th>تعداد براکت</th></tr></thead><tbody>{% for row in report.details %}<tr class="{% if row.has_warning %}row-warning{% endif %}"><td>{{ row.location }}</td><td>{{ row.display_width }} × {{ row.display_height }} {{ measurement_unit_label }}</td><td>{{ row.quantity }}</td><td>{{ row.frame_type }}</td><td>{{ row.profile_name }}</td><td>{{ row.rubber_meters }} متر</td><td>{{ row.bracket_label }}</td><td>{{ row.bracket_count }}</td></tr>{% else %}<tr><td colspan="8" class="empty">درب قابل محاسبه‌ای وجود ندارد.</td></tr>{% endfor %}</tbody></table></div></section>
+    <div class="actions"><a class="button excel" href="{{ url_for('export_factory_requirements_excel',project_id=project.id) }}">دانلود Excel لیست کارخانه</a><a class="button secondary" href="{{ url_for('hardware_report',project_id=project.id) }}">مشاهده لیست دفتر و انبار</a></div>
+</main>
+</body>
+</html>

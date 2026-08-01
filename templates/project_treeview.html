@@ -773,7 +773,11 @@
                         {% endif %}
                         <a href="{{ url_for('hardware_report', project_id=project.id) }}">
                             <i class="fas fa-toolbox"></i>
-                            مشاهده لیست یراق
+                            لیست یراق دفتر و انبار
+                        </a>
+                        <a href="{{ url_for('factory_requirements_report', project_id=project.id) }}">
+                            <i class="fas fa-industry"></i>
+                            لیست کارخانه: لاستیک و براکت
                         </a>
                         {% if current_user_can_edit_project(project.id) %}
                         <hr>

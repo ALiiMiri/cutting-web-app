@@ -56,7 +56,7 @@ class HardwareCalculatorTests(unittest.TestCase):
         self.assertEqual(totals[("قفل", "STV")], 2)
         self.assertEqual(totals[("دستگیره", "ایزدو")], 2)
         self.assertEqual(totals[("سیلندر", "سیلندر استاندارد")], 2)
-        self.assertEqual(totals[("اقلام نصب", "براکت نصب")], 20)
+        self.assertFalse(any(group == "اقلام نصب" for group, _ in totals))
 
     def test_special_handle_families_do_not_add_cylinders(self):
         for model in ("مونتیس", "مورتایس مشکی", "دستگیره تک روزه", "تک‌رزت"):
@@ -74,10 +74,7 @@ class HardwareCalculatorTests(unittest.TestCase):
             [door(lola="بدون لولا", ghofl="بدون قفل", dastgire="بدون دستگیره")]
         )
         self.assertEqual(explicit["warnings"], [])
-        self.assertEqual(
-            {(item["group"], item["model"]) for item in explicit["summary"]},
-            {("اقلام نصب", "براکت نصب")},
-        )
+        self.assertEqual(explicit["summary"], [])
 
     def test_rows_marked_without_door_are_excluded(self):
         report = calculate_project_hardware([door(vaziat="بدون درب", quantity=5)])

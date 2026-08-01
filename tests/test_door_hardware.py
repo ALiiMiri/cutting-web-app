@@ -100,11 +100,13 @@ class DoorHardwareDatabaseTests(unittest.TestCase):
                 PRIMARY KEY(door_id,column_id)
             );
             INSERT INTO projects(id) VALUES(10),(20);
+            CREATE TABLE profile_types(id INTEGER PRIMARY KEY,name TEXT);
             INSERT INTO custom_columns(id,column_name,display_name)
             VALUES(1,'kolaft','نوع چارچوب');
             """
         )
         importlib.import_module("migrations.027_door_hardware").apply(connection)
+        importlib.import_module("migrations.029_factory_installation_requirements").apply(connection)
         connection.commit()
         connection.close()
 
@@ -115,7 +117,8 @@ class DoorHardwareDatabaseTests(unittest.TestCase):
         hardware = normalize_door_hardware(payload())
         with mock.patch.object(database, "DB_NAME", str(self.db_path)):
             door_id = database.add_door_with_hardware_db(
-                10, "اتاق مدیریت", 90, 210, 1, "راست", hardware
+                10, "اتاق مدیریت", 90, 210, 1, "راست", hardware,
+                bracket_mode="meaty"
             )
             updated = database.update_door_with_hardware_db(
                 10,
@@ -128,6 +131,7 @@ class DoorHardwareDatabaseTests(unittest.TestCase):
                 normalize_door_hardware(
                     payload(handle_type="single_rosette", lock_source="own_brand")
                 ),
+                bracket_mode="profile",
             )
             loaded = database.get_doors_for_project_db(10)
 
@@ -150,6 +154,7 @@ class DoorHardwareDatabaseTests(unittest.TestCase):
         self.assertEqual(frame, ("سه طرفه",))
         self.assertTrue(loaded[0]["hardware_configured"])
         self.assertEqual(loaded[0]["handle_type"], "single_rosette")
+        self.assertEqual(loaded[0]["installation_bracket_mode"], "profile")
 
     def test_batch_hardware_update_stays_inside_project(self):
         connection = sqlite3.connect(self.db_path)

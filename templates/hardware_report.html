@@ -38,7 +38,7 @@
 <body class="with-app-header">
 {% include '_app_header.html' %}
 <main class="container">
-    <h1><i class="fas fa-toolbox"></i> لیست یراق پروژه</h1>
+    <h1><i class="fas fa-toolbox"></i> لیست یراق دفتر و انبار</h1>
     <div class="subtitle">{{ project.customer_name }}{% if project.project_code %} — کد پروژه {{ project.project_code }}{% endif %}</div>
 
     <section class="cards">
@@ -68,21 +68,22 @@
     <h2>جزئیات به تفکیک درب</h2>
     <div class="table-wrap">
         <table>
-            <thead><tr><th>موقعیت</th><th>ابعاد</th><th>تعداد درب</th><th>لولا</th><th>قفل</th><th>دستگیره</th><th>سیلندر</th><th>براکت</th></tr></thead>
+            <thead><tr><th>موقعیت</th><th>ابعاد</th><th>تعداد درب</th><th>لولا</th><th>قفل</th><th>دستگیره</th><th>سیلندر</th></tr></thead>
             <tbody>
             {% for row in report.details %}
             <tr class="{% if row.has_warning %}row-warning{% endif %}">
                 <td>{{ row.location }}</td><td>{{ row.width|round(1) }} × {{ row.height|round(1) }}</td><td>{{ row.quantity }}</td>
                 <td>{{ row.hinge_model }} / {{ row.hinge_count }}</td><td>{{ row.lock_model }} / {{ row.lock_count }}</td>
-                <td>{{ row.handle_model }} / {{ row.handle_count }}</td><td>{{ row.cylinder_count }}</td><td>{{ row.bracket_count }}</td>
+                <td>{{ row.handle_model }} / {{ row.handle_count }}</td><td>{{ row.cylinder_count }}</td>
             </tr>
-            {% else %}<tr><td colspan="8" class="empty">درب قابل محاسبه‌ای وجود ندارد.</td></tr>{% endfor %}
+            {% else %}<tr><td colspan="7" class="empty">درب قابل محاسبه‌ای وجود ندارد.</td></tr>{% endfor %}
             </tbody>
         </table>
     </div>
 
     <div class="actions">
         <a class="button excel" href="{{ url_for('export_hardware_report_excel', project_id=project.id) }}"><i class="fas fa-file-excel"></i> دانلود Excel لیست یراق</a>
+        <a class="button back" href="{{ url_for('factory_requirements_report', project_id=project.id) }}"><i class="fas fa-industry"></i> مشاهده لیست کارخانه</a>
         <a class="button back" href="{{ url_for('project_treeview', project_id=project.id) }}"><i class="fas fa-arrow-right"></i> بازگشت به پروژه</a>
     </div>
 </main>

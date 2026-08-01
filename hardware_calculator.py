@@ -4,7 +4,7 @@ from collections import defaultdict
 from math import ceil
 
 
-GROUP_ORDER = {"لولا": 1, "قفل": 2, "دستگیره": 3, "سیلندر": 4, "اقلام نصب": 5}
+GROUP_ORDER = {"لولا": 1, "قفل": 2, "دستگیره": 3, "سیلندر": 4}
 
 
 def _clean(value):
@@ -181,8 +181,6 @@ def calculate_project_hardware(doors):
                     cylinder_count = quantity
                     add_total("سیلندر", cylinder_model, cylinder_count)
 
-            bracket_count = bracket_count_for_height(height) * quantity
-            add_total("اقلام نصب", "براکت نصب", bracket_count)
             details.append(
                 {
                     "door_id": door_id,
@@ -197,7 +195,6 @@ def calculate_project_hardware(doors):
                     "handle_model": handle_model,
                     "handle_count": handle_count,
                     "cylinder_count": cylinder_count,
-                    "bracket_count": bracket_count,
                     "has_warning": any(
                         item["door_id"] == door_id for item in warnings
                     ),
@@ -253,9 +250,6 @@ def calculate_project_hardware(doors):
                 cylinder_count = quantity
                 add_total("سیلندر", "سیلندر استاندارد", cylinder_count)
 
-        bracket_count = bracket_count_for_height(height) * quantity
-        add_total("اقلام نصب", "براکت نصب", bracket_count)
-
         details.append(
             {
                 "door_id": door_id,
@@ -270,7 +264,6 @@ def calculate_project_hardware(doors):
                 "handle_model": handle_model or "نامشخص",
                 "handle_count": handle_count,
                 "cylinder_count": cylinder_count,
-                "bracket_count": bracket_count,
                 "has_warning": any(item["door_id"] == door_id for item in warnings),
             }
         )

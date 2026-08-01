@@ -11,6 +11,7 @@ from datetime import datetime
 from date_utils import get_shamsi_datetime_str, get_shamsi_datetime_iso
 from profile_names import normalize_profile_name
 from door_hardware import HARDWARE_CATALOG_CATEGORIES
+from factory_requirements import default_profile_bracket_label
 
 DB_NAME = Config.DB_NAME
 
@@ -593,9 +594,19 @@ def get_doors_for_project_db(project_id):
             """
             hardware_join = ""
 
+        door_columns = {
+            row[1] for row in cursor.execute("PRAGMA table_info(doors)").fetchall()
+        }
+        bracket_mode_select = (
+            "COALESCE(d.installation_bracket_mode,'profile') AS installation_bracket_mode"
+            if "installation_bracket_mode" in door_columns
+            else "'profile' AS installation_bracket_mode"
+        )
+
         query = f"""
             SELECT
                 d.id, d.location, d.width, d.height, d.quantity, d.direction, d.row_color_tag,
+                {bracket_mode_select},
                 cc.column_name,
                 dcv.value,
                 {hardware_select}
@@ -622,6 +633,7 @@ def get_doors_for_project_db(project_id):
                     "quantity": row["quantity"],
                     "direction": row["direction"],
                     "row_color_tag": row["row_color_tag"] or "white",
+                    "installation_bracket_mode": row["installation_bracket_mode"],
                     "hardware_configured": row["hardware_door_id"] is not None,
                     "hinge_brand": row["hinge_brand"],
                     "hinge_color": row["hinge_color"],
@@ -715,7 +727,7 @@ def _upsert_door_hardware(cursor, door_id, hardware):
 
 def add_door_with_hardware_db(
     project_id, location, width, height, quantity, direction, hardware,
-    row_color="white", frame_type="سه طرفه"
+    row_color="white", frame_type="سه طرفه", bracket_mode="profile"
 ):
     """Atomically create a door, its structured hardware and default frame type."""
     conn = get_db_connection()
@@ -724,10 +736,15 @@ def add_door_with_hardware_db(
         cursor.execute("BEGIN IMMEDIATE")
         cursor.execute(
             """
-            INSERT INTO doors(project_id,location,width,height,quantity,direction,row_color_tag)
-            VALUES (?,?,?,?,?,?,?)
+            INSERT INTO doors(
+                project_id,location,width,height,quantity,direction,row_color_tag,
+                installation_bracket_mode
+            ) VALUES (?,?,?,?,?,?,?,?)
             """,
-            (project_id, location, width, height, quantity, direction, row_color),
+            (
+                project_id, location, width, height, quantity, direction, row_color,
+                bracket_mode,
+            ),
         )
         door_id = cursor.lastrowid
         _upsert_door_hardware(cursor, door_id, hardware)
@@ -749,7 +766,8 @@ def add_door_with_hardware_db(
 
 
 def update_door_with_hardware_db(
-    project_id, door_id, location, width, height, quantity, direction, hardware
+    project_id, door_id, location, width, height, quantity, direction, hardware,
+    bracket_mode="profile"
 ):
     """Atomically update one project-owned door and its hardware."""
     conn = get_db_connection()
@@ -759,10 +777,14 @@ def update_door_with_hardware_db(
         cursor.execute(
             """
             UPDATE doors
-            SET location=?, width=?, height=?, quantity=?, direction=?
+            SET location=?, width=?, height=?, quantity=?, direction=?,
+                installation_bracket_mode=?
             WHERE id=? AND project_id=?
             """,
-            (location, width, height, quantity, direction, door_id, project_id),
+            (
+                location, width, height, quantity, direction, bracket_mode,
+                door_id, project_id,
+            ),
         )
         if cursor.rowcount != 1:
             conn.rollback()
@@ -810,6 +832,71 @@ def get_hardware_catalog_options(include_inactive=False):
     except sqlite3.Error:
         traceback.print_exc()
         return grouped
+    finally:
+        conn.close()
+
+
+def get_profile_bracket_settings(include_inactive=False):
+    """Return profile names with their editable factory bracket labels."""
+    conn = get_db_connection()
+    try:
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(profile_types)").fetchall()
+        }
+        label_expression = (
+            "installation_bracket_name"
+            if "installation_bracket_name" in columns
+            else "NULL"
+        )
+        active_filter = "" if include_inactive else "WHERE COALESCE(is_active,1)=1"
+        rows = conn.execute(
+            f"""
+            SELECT id,name,{label_expression} AS installation_bracket_name
+            FROM profile_types
+            {active_filter}
+            ORDER BY COALESCE(is_active,1) DESC,name,id
+            """
+        ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "bracket_name": (
+                    str(row["installation_bracket_name"] or "").strip()
+                    or default_profile_bracket_label(row["name"])
+                ),
+            }
+            for row in rows
+        ]
+    except sqlite3.Error:
+        traceback.print_exc()
+        return []
+    finally:
+        conn.close()
+
+
+def update_profile_bracket_setting(profile_id, bracket_name):
+    """Save the factory-facing bracket label for one existing profile."""
+    bracket_name = " ".join(str(bracket_name or "").split())
+    if not bracket_name or len(bracket_name) > 160:
+        return False
+    conn = get_db_connection()
+    try:
+        cursor = conn.execute(
+            """
+            UPDATE profile_types
+            SET installation_bracket_name=?
+            WHERE id=?
+            """,
+            (bracket_name, profile_id),
+        )
+        conn.commit()
+        return cursor.rowcount == 1
+    except sqlite3.Error:
+        conn.rollback()
+        traceback.print_exc()
+        return False
     finally:
         conn.close()
 
@@ -1870,7 +1957,7 @@ def get_column_id_from_option_db(option_id):
 
 def batch_update_doors_db(
     door_ids, base_fields_to_update, columns_to_update, project_id=None,
-    hardware_to_update=None
+    hardware_to_update=None, bracket_mode_to_update=None
 ):
     """
     Update multiple doors in batch.
@@ -1993,6 +2080,23 @@ def batch_update_doors_db(
                     success_messages.append(
                         f"Door {door_location}: structured hardware updated"
                     )
+
+                if bracket_mode_to_update is not None:
+                    cursor.execute(
+                        """
+                        UPDATE doors SET installation_bracket_mode=?
+                        WHERE id=? AND (? IS NULL OR project_id=?)
+                        """,
+                        (
+                            bracket_mode_to_update, door_id,
+                            project_id, project_id,
+                        ),
+                    )
+                    if cursor.rowcount:
+                        door_updated = True
+                        success_messages.append(
+                            f"Door {door_location}: installation bracket updated"
+                        )
 
                 if door_updated:
                     successful_updates += 1
