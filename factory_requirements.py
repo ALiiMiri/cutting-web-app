@@ -37,6 +37,8 @@ def default_profile_bracket_label(profile_name):
         return "براکت نصب پروفیل جدید فریم‌لس"
     if "فریملس" in compact:
         return "براکت نصب پروفیل فریم‌لس"
+    if compact.startswith("پروفیل"):
+        return f"براکت نصب {profile}"
     return f"براکت نصب پروفیل {profile}" if profile else ""
 
 

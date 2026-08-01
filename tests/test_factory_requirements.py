@@ -99,6 +99,10 @@ class FactoryRequirementCalculationTests(unittest.TestCase):
             default_profile_bracket_label("فریم_لس_قالب_جدید"),
             "براکت نصب پروفیل جدید فریم‌لس",
         )
+        self.assertEqual(
+            default_profile_bracket_label("پروفیل قدیمی"),
+            "براکت نصب پروفیل قدیمی",
+        )
         self.assertEqual(normalize_bracket_mode(None), "profile")
         with self.assertRaises(FactoryRequirementError):
             normalize_bracket_mode("both")
