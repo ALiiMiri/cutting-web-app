@@ -109,8 +109,34 @@ class HardwareCalculatorTests(unittest.TestCase):
             for item in report["summary"]
         }
         self.assertEqual(totals[("لولا", "کاله — مشکی")], 6)
+        self.assertEqual(totals[("دستگیره", "تک‌رزت — ایران — R210 — طلایی")], 2)
         self.assertEqual(totals[("قفل", "قفل مخصوص ایران")], 2)
         self.assertFalse(any(group == "سیلندر" for group, _ in totals))
+
+    def test_structured_handle_output_omits_blank_optional_model(self):
+        report = calculate_project_hardware(
+            [
+                door(
+                    quantity=1,
+                    hardware_configured=True,
+                    hinge_brand="کاله",
+                    hinge_color="مشکی",
+                    hinge_count=3,
+                    has_handle=True,
+                    handle_type="single_rosette",
+                    handle_brand="ایران",
+                    handle_model=None,
+                    handle_color="طلایی",
+                    lock_source="own_brand",
+                )
+            ]
+        )
+
+        handle = next(
+            item for item in report["summary"] if item["group"] == "دستگیره"
+        )
+        self.assertEqual(handle["model"], "تک‌رزت — ایران — طلایی")
+        self.assertNotIn("نامشخص", handle["model"])
 
 
 if __name__ == "__main__":

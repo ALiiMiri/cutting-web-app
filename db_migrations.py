@@ -563,6 +563,18 @@ def apply_migrations(conn, allow_changes=False):
             ),
             "execution_type": "python_module",
             "module_name": "029_factory_installation_requirements",
+        },
+        {
+            "name": "030_optional_handle_model",
+            "description": "Allow handle model to be omitted while preserving structured hardware",
+            "check_logic": lambda c: "COALESCE(handle_model" in (
+                c.execute(
+                    "SELECT COALESCE(sql, '') FROM sqlite_master "
+                    "WHERE type='table' AND name='door_hardware'"
+                ).fetchone() or ("",)
+            )[0],
+            "execution_type": "python_module",
+            "module_name": "030_optional_handle_model",
         }
     ]
 

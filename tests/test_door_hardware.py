@@ -6,7 +6,11 @@ import unittest
 from unittest import mock
 
 import database
-from door_hardware import HardwareValidationError, normalize_door_hardware
+from door_hardware import (
+    HardwareValidationError,
+    hardware_summary,
+    normalize_door_hardware,
+)
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -33,6 +37,14 @@ def payload(**overrides):
 
 
 class DoorHardwareValidationTests(unittest.TestCase):
+    def test_handle_model_is_optional_and_omitted_from_summary_when_blank(self):
+        result = normalize_door_hardware(payload(handle_model="  "))
+
+        self.assertIsNone(result["handle_model"])
+        summary = hardware_summary(result)
+        self.assertNotIn("مدل —", summary)
+        self.assertNotIn("مدل دستگیره", summary)
+
     def test_two_piece_requires_separate_lock_and_cylinder(self):
         with self.assertRaises(HardwareValidationError):
             normalize_door_hardware(payload(cylinder_model=""))
@@ -107,6 +119,7 @@ class DoorHardwareDatabaseTests(unittest.TestCase):
         )
         importlib.import_module("migrations.027_door_hardware").apply(connection)
         importlib.import_module("migrations.029_factory_installation_requirements").apply(connection)
+        importlib.import_module("migrations.030_optional_handle_model").apply(connection)
         connection.commit()
         connection.close()
 
@@ -197,6 +210,55 @@ class DoorHardwareDatabaseTests(unittest.TestCase):
             )
         connection.close()
 
+    def test_database_accepts_two_piece_hardware_without_handle_model(self):
+        connection = sqlite3.connect(self.db_path)
+        connection.execute(
+            "INSERT INTO doors(id,project_id,location,width,height,quantity,direction) VALUES(1,10,'الف',90,210,1,'راست')"
+        )
+        connection.execute(
+            """
+            INSERT INTO door_hardware(
+                door_id,hinge_brand,hinge_color,hinge_count,has_handle,
+                handle_type,handle_brand,handle_model,handle_color,
+                lock_source,lock_brand,lock_model,cylinder_brand,cylinder_model
+            ) VALUES(1,'کاله','مشکی',3,1,'two_piece','ایران',NULL,
+                     'مشکی','separate','داف','B45','یال','70')
+            """
+        )
+        saved = connection.execute(
+            "SELECT handle_brand,handle_model FROM door_hardware WHERE door_id=1"
+        ).fetchone()
+        connection.close()
+        self.assertEqual(saved, ("ایران", None))
+
+    def test_optional_model_migration_preserves_existing_hardware(self):
+        connection = sqlite3.connect(":memory:")
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("CREATE TABLE doors(id INTEGER PRIMARY KEY)")
+        connection.execute("INSERT INTO doors(id) VALUES(1)")
+        importlib.import_module("migrations.027_door_hardware").apply(connection)
+        connection.execute(
+            """
+            INSERT INTO door_hardware(
+                door_id,hinge_brand,hinge_color,hinge_count,has_handle,
+                handle_type,handle_brand,handle_model,handle_color,
+                lock_source,lock_brand,lock_model,cylinder_brand,cylinder_model
+            ) VALUES(1,'کاله','مشکی',3,1,'two_piece','ایران','R210',
+                     'مشکی','separate','داف','B45','یال','70')
+            """
+        )
+
+        importlib.import_module("migrations.030_optional_handle_model").apply(
+            connection
+        )
+
+        saved = connection.execute(
+            "SELECT handle_brand,handle_model,lock_model FROM door_hardware WHERE door_id=1"
+        ).fetchone()
+        self.assertEqual(saved, ("ایران", "R210", "B45"))
+        self.assertEqual(connection.execute("PRAGMA foreign_key_check").fetchall(), [])
+        connection.close()
+
 
 class DoorHardwareUiContractTests(unittest.TestCase):
     def test_single_and_repeating_flow_is_present(self):
@@ -207,6 +269,8 @@ class DoorHardwareUiContractTests(unittest.TestCase):
         self.assertIn('id="repeat-hardware"', template)
         self.assertIn('id="stop-repeat"', template)
         self.assertIn("projectDoorHardwareRepeat", template)
+        self.assertIn('مدل دستگیره (اختیاری)', template)
+        self.assertNotIn('class="control handle-required" id="handle-model"', template)
 
     def test_batch_flow_requires_explicit_hardware_activation(self):
         template = (ROOT / "templates" / "batch_edit.html").read_text(
@@ -215,6 +279,8 @@ class DoorHardwareUiContractTests(unittest.TestCase):
         self.assertIn('name="update_hardware"', template)
         self.assertIn("تنظیمات کامل یراق", template)
         self.assertIn("همه درب‌های انتخاب‌شده جایگزین می‌شود", template)
+        self.assertIn('hardware-handle hardware-optional', template)
+        self.assertIn("input.required=!input.classList.contains('hardware-optional')", template)
 
 
 if __name__ == "__main__":

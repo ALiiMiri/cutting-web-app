@@ -84,7 +84,7 @@ def normalize_door_hardware(payload):
                 data.get("handle_brand"), "برند دستگیره", required=True
             ),
             "handle_model": _clean_text(
-                data.get("handle_model"), "مدل دستگیره", required=True
+                data.get("handle_model"), "مدل دستگیره"
             ),
             "handle_color": _clean_text(
                 data.get("handle_color"), "رنگ دستگیره", required=True
@@ -140,11 +140,10 @@ def hardware_summary(hardware):
     if not hardware.get("has_handle"):
         return f"{hinge}؛ بدون دستگیره"
     handle_type = "دوتکه" if hardware.get("handle_type") == "two_piece" else "تک‌رزت"
-    handle = (
-        f"دستگیره {handle_type} {hardware.get('handle_brand') or '—'}"
-        f"، مدل {hardware.get('handle_model') or '—'}"
-        f"، {hardware.get('handle_color') or '—'}"
-    )
+    handle = f"دستگیره {handle_type} {hardware.get('handle_brand') or '—'}"
+    if hardware.get("handle_model"):
+        handle += f"، مدل {hardware['handle_model']}"
+    handle += f"، {hardware.get('handle_color') or '—'}"
     if hardware.get("lock_source") == "own_brand":
         lock = f"قفل مخصوص {hardware.get('handle_brand') or 'همان برند'}"
     else:

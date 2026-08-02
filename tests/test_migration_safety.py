@@ -39,6 +39,10 @@ class MigrationSafetyTests(unittest.TestCase):
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='door_hardware'"
             ).fetchone()
         )
+        door_hardware_sql = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='door_hardware'"
+        ).fetchone()[0]
+        self.assertNotIn("COALESCE(handle_model", door_hardware_sql)
         door_columns = {
             row[1] for row in conn.execute("PRAGMA table_info(doors)").fetchall()
         }
