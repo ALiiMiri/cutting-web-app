@@ -482,12 +482,19 @@ body.with-app-header button.remove {
 body.ui-auth {
     min-height: 100vh;
     display: grid !important;
-    place-items: center;
+    grid-template-columns: minmax(360px, 44%) 1fr;
+    align-items: center;
+    direction: ltr;
     margin: 0;
-    padding: 20px !important;
+    padding: clamp(20px, 4vw, 64px) !important;
     color: var(--color-ink) !important;
     background: var(--color-navy) !important;
-    background-image: radial-gradient(circle at top right, #263957 0, var(--color-navy) 48%) !important;
+    background-image:
+        linear-gradient(90deg, rgba(10, 18, 31, .12) 0%, rgba(10, 18, 31, .18) 42%, rgba(10, 18, 31, .02) 100%),
+        url("../images/login-background-doornab.png") !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
+    background-size: cover !important;
 }
 
 body.ui-auth *,
@@ -497,9 +504,13 @@ body.ui-auth *::after {
 }
 
 body.ui-auth .login-container {
+    grid-column: 1;
+    justify-self: center;
+    direction: rtl;
     width: min(420px, 100%) !important;
     padding: 34px 30px !important;
-    background: var(--color-surface) !important;
+    background: rgba(255, 255, 255, .97) !important;
+    backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, .22) !important;
     border-radius: var(--radius-card) !important;
     box-shadow: 0 22px 60px rgba(7, 13, 24, .28) !important;
@@ -539,4 +550,18 @@ body.ui-auth .btn-login {
 
 body.ui-auth .btn-login:hover {
     background: #106b4d !important;
+}
+
+@media (max-width: 760px) {
+    body.ui-auth {
+        grid-template-columns: 1fr;
+        padding: 18px !important;
+        background-position: 66% center !important;
+    }
+
+    body.ui-auth .login-container {
+        grid-column: 1;
+        width: min(400px, 100%) !important;
+        padding: 28px 22px !important;
+    }
 }

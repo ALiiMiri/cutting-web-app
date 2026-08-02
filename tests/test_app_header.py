@@ -64,6 +64,10 @@ class AppHeaderTests(unittest.TestCase):
         self.assertIn("unified-ui.css", template)
         self.assertIn('class="ui-auth"', template)
         self.assertNotIn("{% include '_app_header.html' %}", template)
+        stylesheet = (ROOT / "static" / "css" / "unified-ui.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("login-background-doornab.png", stylesheet)
 
     def test_unified_stylesheet_uses_the_approved_navy_palette(self):
         stylesheet = (ROOT / "static" / "css" / "unified-ui.css").read_text(
@@ -72,6 +76,13 @@ class AppHeaderTests(unittest.TestCase):
         self.assertIn("body.with-app-header", stylesheet)
         self.assertIn("var(--color-navy)", stylesheet)
         self.assertIn("var(--color-canvas)", stylesheet)
+
+    def test_shared_header_has_a_personal_one_time_welcome(self):
+        header = (TEMPLATES / "_app_header.html").read_text(encoding="utf-8")
+        auth_route = (ROOT / "routes" / "auth.py").read_text(encoding="utf-8")
+        self.assertIn("welcome_user_name", header)
+        self.assertIn("عزیز، به درناب خوش آمدید", header)
+        self.assertIn("session['welcome_user_name'] = user.username", auth_route)
 
     def test_brand_and_user_identity_return_to_orders_dashboard(self):
         header = (TEMPLATES / "_app_header.html").read_text(encoding="utf-8")

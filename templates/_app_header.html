@@ -10,6 +10,7 @@
     .app-user-avatar{width:26px;height:26px;display:grid;place-items:center;flex:0 0 26px;border-radius:8px;color:#17243b;background:#fff;font-size:13px;font-weight:700}.app-menu-wrap{position:relative}
     .app-menu-panel{position:absolute;z-index:1010;top:45px;left:0;width:225px;display:none;padding:7px;border:1px solid #dfe5ec;border-radius:11px;background:#fff;box-shadow:0 18px 45px rgba(10,18,30,.22)}.app-menu-panel.is-open{display:block}
     .app-menu-panel a{width:100%;min-height:40px!important;display:flex;align-items:center;padding:9px 10px!important;color:#273449!important;background:transparent!important;border:0!important;border-radius:8px!important;text-align:right;font-size:13px!important}.app-menu-panel a+a{margin-top:2px}.app-menu-panel a:hover,.app-menu-panel a:focus-visible{color:#2563eb!important;background:#edf4ff!important;outline:none}.app-menu-panel .app-logout{color:#c23d4b!important;border-top:1px solid #dfe5ec!important;border-radius:0 0 8px 8px!important}
+    .app-welcome-toast{box-sizing:border-box;position:fixed;z-index:1200;top:76px;right:50%;width:max-content;max-width:calc(100% - 24px);display:flex;align-items:center;gap:12px;padding:11px 14px;color:#155f45;background:#f7fffb;border:1px solid #9fd9c3;border-radius:11px;box-shadow:0 14px 36px rgba(23,36,59,.16);font-family:var(--font-family-base);font-size:14px;font-weight:600;transform:translateX(50%);animation:app-welcome-in .25s ease-out}.app-welcome-toast.is-leaving{opacity:0;transform:translate(50%,-8px);transition:opacity .22s ease,transform .22s ease}.app-welcome-close{width:28px!important;height:28px!important;min-height:28px!important;display:grid!important;place-items:center!important;padding:0!important;color:#155f45!important;background:#e8f7f1!important;border:0!important;border-radius:8px!important;font:inherit!important;font-size:18px!important;cursor:pointer}@keyframes app-welcome-in{from{opacity:0;transform:translate(50%,-8px)}to{opacity:1;transform:translate(50%,0)}}
     @media(max-width:640px){.app-header{padding:0 12px}.app-header-brand-text,.app-user-copy,.app-menu-label{display:none}.app-user-home,.app-menu-button{width:40px;justify-content:center;padding:0}}
     @media print{.app-header{display:none!important}}
 </style>
@@ -31,6 +32,14 @@
         </div>
     </div>
 </header>
+{% set app_welcome_name = session.pop('welcome_user_name', none) %}
+{% if app_welcome_name %}
+<div class="app-welcome-toast" data-app-welcome role="status" aria-live="polite">
+    <span>{{ app_welcome_name }} عزیز، به درناب خوش آمدید</span>
+    <button class="app-welcome-close" data-app-welcome-close type="button" aria-label="بستن پیام خوش‌آمد">×</button>
+</div>
+{% endif %}
 <script>
 (()=>{const button=document.querySelector('[data-app-menu-button]'),panel=document.querySelector('[data-app-menu-panel]');if(!button||!panel||button.dataset.bound==='true')return;button.dataset.bound='true';const close=()=>{panel.classList.remove('is-open');button.setAttribute('aria-expanded','false')};button.addEventListener('click',event=>{event.stopPropagation();const open=panel.classList.toggle('is-open');button.setAttribute('aria-expanded',String(open))});document.addEventListener('click',event=>{if(!panel.contains(event.target)&&!button.contains(event.target))close()});document.addEventListener('keydown',event=>{if(event.key==='Escape')close()})})();
+(()=>{const toast=document.querySelector('[data-app-welcome]');if(!toast)return;let timer;const close=()=>{clearTimeout(timer);toast.classList.add('is-leaving');setTimeout(()=>toast.remove(),230)};toast.querySelector('[data-app-welcome-close]')?.addEventListener('click',close);timer=setTimeout(close,5000)})();
 </script>

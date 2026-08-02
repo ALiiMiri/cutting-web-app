@@ -85,6 +85,8 @@ def login():
             login_user(user, remember=False)
             session['auth_version'] = user.session_version
             record_successful_login(user.id)
+            # The shared header shows this once on whichever page opens next.
+            session['welcome_user_name'] = user.username
             
             # اگر باید رمز تغییر دهد
             if user.must_change_password:
@@ -97,7 +99,6 @@ def login():
             if parsed_next and not parsed_next.scheme and not parsed_next.netloc and next_page.startswith('/'):
                 return redirect(next_page)
             
-            flash(f'خوش آمدید، {user.username}!', 'success')
             return redirect(url_for('index'))
             
         except Exception as e:
