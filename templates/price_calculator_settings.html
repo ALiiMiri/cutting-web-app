@@ -170,7 +170,8 @@
     </style>
 </head>
 
-<body>
+<body class="with-app-header ui-legacy ui-single-card">
+    {% include '_app_header.html' %}
     <div class="container">
         <h1>تنظیمات قیمت پایه</h1>
 
@@ -407,7 +408,6 @@
 
         <div class="nav-buttons">
             <a href="{{ url_for('price_calculator') }}" class="nav-link">بازگشت به محاسبه قیمت</a>
-            <a href="{{ url_for('index') }}" class="nav-link home">بازگشت به صفحه اصلی</a>
         </div>
     </div>
 </body>

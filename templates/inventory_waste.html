@@ -58,7 +58,8 @@
         @media (max-width: 520px) { .stats, .filters { grid-template-columns: 1fr; } }
     </style>
 </head>
-<body>
+<body class="with-app-header ui-legacy">
+{% include '_app_header.html' %}
 {% set status_labels = {
     'available': 'موجود', 'sold': 'فروخته‌شده', 'recycled': 'بازیافت‌شده',
     'discarded': 'دورریخته‌شده', 'consumed': 'مصرف مجدد', 'reversed': 'بازگردانی‌شده'

@@ -15,7 +15,7 @@
         .summary { background:#eef3ff; padding:14px; border-radius:7px; line-height:1.9; }
     </style>
 </head>
-<body class="with-app-header">
+<body class="with-app-header ui-legacy ui-single-card">
     {% include '_app_header.html' %}
     <div class="container">
         <h1>تاریخچه مسئول پروژه {{ project.id }}</h1>
@@ -24,6 +24,7 @@
             <strong>سازنده:</strong> {{ project.created_by_username or 'ثبت نشده' }}<br>
             <strong>مسئول فعلی:</strong> {{ project.assigned_to_username or 'بدون مسئول' }}
         </div>
+        <div class="table-responsive">
         <table>
             <thead><tr><th>زمان</th><th>تغییردهنده</th><th>مسئول قبلی</th><th>مسئول جدید</th></tr></thead>
             <tbody>
@@ -39,6 +40,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
     </div>
 </body>
 </html>

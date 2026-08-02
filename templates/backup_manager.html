@@ -222,7 +222,8 @@
         }
     </style>
 </head>
-<body>
+<body class="with-app-header ui-legacy">
+    {% include '_app_header.html' %}
     <div class="container">
         <div class="header">
             <h1>🛡️ مدیریت بکاپ سیستم</h1>
@@ -251,7 +252,6 @@
         </div>
 
         <div class="actions">
-            <a href="/" class="back-link">← بازگشت به صفحه اصلی</a>
             <form method="post" action="{{ url_for('backup_create') }}" style="display:inline" onsubmit="return confirm('یک بکاپ سالم از وضعیت فعلی ساخته شود؟')">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button class="btn btn-primary" type="submit">🔄 ایجاد بکاپ جدید</button>

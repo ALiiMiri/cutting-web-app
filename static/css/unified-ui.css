@@ -1,0 +1,542 @@
+/* Shared visual language for authenticated pages that still use legacy markup. */
+
+body.with-app-header {
+    min-height: 100vh;
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+}
+
+body.with-app-header.ui-legacy {
+    display: block !important;
+    padding: 0 !important;
+    background: var(--color-canvas) !important;
+    color: var(--color-ink) !important;
+}
+
+body.ui-legacy *,
+body.ui-legacy *::before,
+body.ui-legacy *::after {
+    box-sizing: border-box;
+}
+
+body.ui-legacy > .container,
+body.ui-legacy > main.container {
+    width: min(1200px, calc(100% - 32px)) !important;
+    max-width: 1200px !important;
+    margin: 24px auto 36px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+}
+
+body.ui-legacy.ui-single-card > .container,
+body.ui-legacy.ui-single-card > main.container,
+body.ui-legacy .change-password-container {
+    max-width: 820px !important;
+    padding: clamp(18px, 3vw, 30px) !important;
+    background: var(--color-surface) !important;
+    border: 1px solid var(--color-line) !important;
+    border-radius: var(--radius-card) !important;
+    box-shadow: var(--shadow-card) !important;
+}
+
+body.ui-legacy .change-password-container {
+    width: min(460px, calc(100% - 24px)) !important;
+    margin: 32px auto !important;
+}
+
+body.ui-legacy .page-header,
+body.ui-legacy > .header,
+body.ui-legacy > .container > .header,
+body.ui-legacy > .container > .page-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    flex-wrap: wrap !important;
+    gap: 14px !important;
+    margin: 0 0 20px !important;
+    padding: 0 0 16px !important;
+    color: var(--color-ink) !important;
+    background: transparent !important;
+    background-image: none !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--color-line) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    text-align: right !important;
+}
+
+body.ui-legacy > .header {
+    width: min(1200px, calc(100% - 32px));
+    margin: 24px auto 0 !important;
+}
+
+body.ui-legacy > .header .nav {
+    display: none !important;
+}
+
+body.ui-legacy h1,
+body.ui-legacy .page-title,
+body.ui-legacy .header h1 {
+    margin: 0 !important;
+    padding: 0 !important;
+    color: var(--color-navy) !important;
+    font-size: var(--text-page-title) !important;
+    line-height: var(--line-height-heading) !important;
+    border: 0 !important;
+}
+
+body.ui-legacy h2,
+body.ui-legacy .card-title,
+body.ui-legacy .modal-title {
+    color: var(--color-navy) !important;
+    line-height: var(--line-height-heading) !important;
+}
+
+body.ui-legacy h2 {
+    font-size: var(--text-section-title) !important;
+}
+
+body.ui-legacy .subtitle,
+body.ui-legacy .header p,
+body.ui-legacy .page-header p,
+body.ui-legacy .help-text,
+body.ui-legacy .hint,
+body.ui-legacy .muted,
+body.ui-legacy .setting-description {
+    color: var(--color-muted) !important;
+}
+
+body.ui-legacy .card,
+body.ui-legacy .form-section,
+body.ui-legacy .customer-group,
+body.ui-legacy .backup-item,
+body.ui-legacy .info-card,
+body.ui-legacy .modal-content,
+body.ui-legacy .summary-box,
+body.ui-legacy .profile-summary,
+body.ui-legacy .bin-box {
+    background: var(--color-surface) !important;
+    background-image: none !important;
+    border: 1px solid var(--color-line) !important;
+    border-radius: var(--radius-card) !important;
+    box-shadow: var(--shadow-card) !important;
+}
+
+body.ui-legacy .card {
+    margin-bottom: 18px !important;
+}
+
+body.ui-legacy .card-header,
+body.ui-legacy .modal-header,
+body.ui-legacy .customer-group-header {
+    color: var(--color-navy) !important;
+    background: #f8fafc !important;
+    background-image: none !important;
+    border-color: var(--color-line) !important;
+}
+
+body.ui-legacy .btn,
+body.ui-legacy button,
+body.ui-legacy input[type="submit"],
+body.ui-legacy input[type="button"],
+body.ui-legacy .button,
+body.ui-legacy .nav-link,
+body.ui-legacy .back-link,
+body.ui-legacy .back-button,
+body.ui-legacy .finish-link,
+body.ui-legacy .save-button,
+body.ui-legacy .add-button,
+body.ui-legacy .cancel-button {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 15px !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--radius-control) !important;
+    font: inherit;
+    font-size: var(--text-sm) !important;
+    font-weight: var(--font-weight-semibold) !important;
+    line-height: 1.5 !important;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+}
+
+body.ui-legacy .btn-primary,
+body.ui-legacy .btn-success,
+body.ui-legacy .primary,
+body.ui-legacy .save-button,
+body.ui-legacy .add-button,
+body.ui-legacy input[type="submit"] {
+    color: #fff !important;
+    background: var(--color-green) !important;
+    background-image: none !important;
+}
+
+body.ui-legacy .btn-primary:hover,
+body.ui-legacy .btn-success:hover,
+body.ui-legacy .primary:hover,
+body.ui-legacy .save-button:hover,
+body.ui-legacy .add-button:hover,
+body.ui-legacy input[type="submit"]:hover {
+    color: #fff !important;
+    background: #106b4d !important;
+}
+
+body.ui-legacy .btn-info,
+body.ui-legacy .info-button,
+body.ui-legacy .inventory-button,
+body.ui-legacy .print-button {
+    color: #fff !important;
+    background: var(--color-blue) !important;
+    background-image: none !important;
+}
+
+body.ui-legacy .btn-danger,
+body.ui-legacy .danger,
+body.ui-legacy .delete-button,
+body.ui-legacy .finish-link {
+    color: var(--color-red) !important;
+    background: var(--color-red-soft) !important;
+    background-image: none !important;
+    border-color: #efb6be !important;
+}
+
+body.ui-legacy .btn-warning,
+body.ui-legacy .warning {
+    color: var(--color-amber) !important;
+    background: var(--color-amber-soft) !important;
+    background-image: none !important;
+    border-color: #ecd092 !important;
+}
+
+body.ui-legacy .btn-secondary,
+body.ui-legacy .btn-dark,
+body.ui-legacy .btn-light,
+body.ui-legacy .back-link,
+body.ui-legacy .back-button,
+body.ui-legacy .cancel-button,
+body.ui-legacy .nav-link {
+    color: var(--color-ink) !important;
+    background: var(--color-surface) !important;
+    background-image: none !important;
+    border-color: var(--color-line) !important;
+}
+
+body.ui-legacy .btn-secondary:hover,
+body.ui-legacy .btn-dark:hover,
+body.ui-legacy .btn-light:hover,
+body.ui-legacy .back-link:hover,
+body.ui-legacy .back-button:hover,
+body.ui-legacy .cancel-button:hover,
+body.ui-legacy .nav-link:hover {
+    color: var(--color-blue) !important;
+    background: var(--color-blue-soft) !important;
+    border-color: #b7cdf8 !important;
+}
+
+body.ui-legacy input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+body.ui-legacy select,
+body.ui-legacy textarea,
+body.ui-legacy .form-control,
+body.ui-legacy .form-select {
+    min-height: 44px !important;
+    max-width: 100%;
+    padding: 9px 11px !important;
+    color: var(--color-ink) !important;
+    background: var(--color-surface) !important;
+    border: 1px solid #cfd7e2 !important;
+    border-radius: var(--radius-control) !important;
+    box-shadow: none !important;
+    font: inherit !important;
+    font-size: var(--text-base) !important;
+}
+
+body.ui-legacy textarea {
+    min-height: 96px !important;
+}
+
+body.ui-legacy input:focus,
+body.ui-legacy select:focus,
+body.ui-legacy textarea:focus,
+body.ui-legacy .form-control:focus,
+body.ui-legacy .form-select:focus {
+    border-color: var(--color-blue) !important;
+    outline: none !important;
+    box-shadow: var(--focus-ring) !important;
+}
+
+body.ui-legacy label,
+body.ui-legacy .form-label,
+body.ui-legacy .filter-label {
+    color: var(--color-ink) !important;
+    font-size: var(--text-sm) !important;
+    font-weight: var(--font-weight-semibold) !important;
+}
+
+body.ui-legacy table {
+    width: 100%;
+    color: var(--color-ink) !important;
+    background: var(--color-surface) !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+}
+
+body.ui-legacy th,
+body.ui-legacy td {
+    padding: 11px 12px !important;
+    text-align: right !important;
+    vertical-align: middle !important;
+    border-color: var(--color-line) !important;
+    border-bottom: 1px solid var(--color-line) !important;
+}
+
+body.ui-legacy th,
+body.ui-legacy thead th,
+body.ui-legacy .thead-light th {
+    color: #44536a !important;
+    background: #f5f7f9 !important;
+    background-image: none !important;
+    font-weight: var(--font-weight-semibold) !important;
+    white-space: nowrap;
+}
+
+body.ui-legacy tbody tr:hover {
+    background: #f8fbff !important;
+}
+
+body.ui-legacy .table-responsive,
+body.ui-legacy .table-wrap,
+body.ui-legacy .card-body {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+body.ui-legacy .alert,
+body.ui-legacy .flash,
+body.ui-legacy .info-box,
+body.ui-legacy .notice,
+body.ui-legacy .required-notice,
+body.ui-legacy .credential-box {
+    border-radius: var(--radius-control) !important;
+    box-shadow: none !important;
+}
+
+body.ui-legacy .stats-grid,
+body.ui-legacy .stats,
+body.ui-legacy .stats-row,
+body.ui-legacy .profile-stats {
+    gap: 12px !important;
+}
+
+body.ui-legacy .stat-card,
+body.ui-legacy .stat,
+body.ui-legacy .stat-box,
+body.ui-legacy .summary-item,
+body.ui-legacy .profile-stat {
+    color: var(--color-ink) !important;
+    background: #f8fafc !important;
+    background-image: none !important;
+    border: 1px solid var(--color-line) !important;
+    border-radius: 11px !important;
+    box-shadow: none !important;
+}
+
+body.ui-legacy .stat-value,
+body.ui-legacy .stat-box-value,
+body.ui-legacy .summary-item-value,
+body.ui-legacy .profile-stat-value {
+    color: var(--color-navy) !important;
+}
+
+body.ui-legacy .badge,
+body.ui-legacy .status,
+body.ui-legacy .log-action {
+    border-radius: 999px !important;
+}
+
+body.ui-legacy .modal {
+    background: rgba(23, 36, 59, .48) !important;
+}
+
+body.ui-legacy .modal:not(.show):not(.active),
+body.ui-legacy .delete-confirmation-modal:not(.show):not(.active) {
+    display: none !important;
+}
+
+body.ui-legacy .modal-content {
+    max-width: min(720px, calc(100vw - 28px));
+}
+
+body.ui-legacy .action-buttons,
+body.ui-legacy .header-buttons,
+body.ui-legacy .form-actions,
+body.ui-legacy .nav-buttons,
+body.ui-legacy .actions,
+body.ui-legacy .action-links,
+body.ui-legacy .action-bar,
+body.ui-legacy .filter-buttons {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px !important;
+}
+
+body.ui-legacy .nav-buttons .btn,
+body.ui-legacy .nav-buttons .nav-link {
+    margin: 0 !important;
+}
+
+@media (max-width: 768px) {
+    body.ui-legacy > .container,
+    body.ui-legacy > main.container,
+    body.ui-legacy > .header {
+        width: calc(100% - 16px) !important;
+        margin-top: 14px !important;
+    }
+
+    body.ui-legacy.ui-single-card > .container,
+    body.ui-legacy.ui-single-card > main.container,
+    body.ui-legacy .change-password-container {
+        padding: 18px 14px !important;
+    }
+
+    body.ui-legacy .page-header,
+    body.ui-legacy > .header,
+    body.ui-legacy > .container > .header,
+    body.ui-legacy > .container > .page-header {
+        align-items: stretch !important;
+        flex-direction: column !important;
+    }
+
+    body.ui-legacy .header-buttons,
+    body.ui-legacy .form-actions,
+    body.ui-legacy .nav-buttons,
+    body.ui-legacy .actions,
+    body.ui-legacy .action-links,
+    body.ui-legacy .action-bar,
+    body.ui-legacy .filter-buttons {
+        width: 100%;
+    }
+
+    body.ui-legacy .header-buttons > *,
+    body.ui-legacy .form-actions > *,
+    body.ui-legacy .nav-buttons > *,
+    body.ui-legacy .action-bar > * {
+        flex: 1 1 150px;
+    }
+
+    body.ui-legacy .grid,
+    body.ui-legacy .row,
+    body.ui-legacy .filters,
+    body.ui-legacy .stats,
+    body.ui-legacy .stats-grid,
+    body.ui-legacy .form-row,
+    body.ui-legacy .main-content-row,
+    body.ui-legacy .profile-list {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    body.ui-legacy table {
+        font-size: var(--text-xs) !important;
+    }
+
+    body.ui-legacy th,
+    body.ui-legacy thead th {
+        white-space: normal;
+    }
+
+    body.ui-legacy .btn,
+    body.ui-legacy button,
+    body.ui-legacy .button,
+    body.ui-legacy .nav-link {
+        min-height: 42px;
+    }
+}
+
+body.with-app-header .icon-button,
+body.with-app-header .text-button,
+body.with-app-header button.move,
+body.with-app-header button.remove {
+    min-height: 42px;
+}
+
+@media print {
+    body.ui-legacy > .container,
+    body.ui-legacy > main.container {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+    }
+}
+
+/* The login page has no application header, but follows the same palette. */
+body.ui-auth {
+    min-height: 100vh;
+    display: grid !important;
+    place-items: center;
+    margin: 0;
+    padding: 20px !important;
+    color: var(--color-ink) !important;
+    background: var(--color-navy) !important;
+    background-image: radial-gradient(circle at top right, #263957 0, var(--color-navy) 48%) !important;
+}
+
+body.ui-auth *,
+body.ui-auth *::before,
+body.ui-auth *::after {
+    box-sizing: border-box;
+}
+
+body.ui-auth .login-container {
+    width: min(420px, 100%) !important;
+    padding: 34px 30px !important;
+    background: var(--color-surface) !important;
+    border: 1px solid rgba(255, 255, 255, .22) !important;
+    border-radius: var(--radius-card) !important;
+    box-shadow: 0 22px 60px rgba(7, 13, 24, .28) !important;
+}
+
+body.ui-auth .login-header h1 {
+    color: var(--color-navy) !important;
+    font-size: 28px !important;
+}
+
+body.ui-auth .login-header p {
+    color: var(--color-muted) !important;
+}
+
+body.ui-auth input:not([type="hidden"]) {
+    min-height: 46px !important;
+    padding: 10px 12px !important;
+    border: 1px solid #cfd7e2 !important;
+    border-radius: var(--radius-control) !important;
+    box-shadow: none !important;
+}
+
+body.ui-auth input:focus {
+    border-color: var(--color-blue) !important;
+    outline: none !important;
+    box-shadow: var(--focus-ring) !important;
+}
+
+body.ui-auth .btn-login {
+    min-height: 46px !important;
+    color: #fff !important;
+    background: var(--color-green) !important;
+    background-image: none !important;
+    border: 0 !important;
+    border-radius: var(--radius-control) !important;
+}
+
+body.ui-auth .btn-login:hover {
+    background: #106b4d !important;
+}

@@ -348,13 +348,10 @@
         }
     </style>
 </head>
-<body>
+<body class="with-app-header ui-legacy">
+    {% include '_app_header.html' %}
     <div class="header">
         <h1>پنل مدیریت کاربران</h1>
-        <div class="nav">
-            <a href="{{ url_for('index') }}">صفحه اصلی</a>
-            <a href="{{ url_for('auth.logout') }}">خروج</a>
-        </div>
     </div>
 
     <div class="container">

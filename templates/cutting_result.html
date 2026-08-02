@@ -358,7 +358,7 @@
     </style>
 </head>
 
-<body class="with-app-header">
+<body class="with-app-header ui-legacy ui-single-card">
     {% include '_app_header.html' %}
     <div class="container">
         <h1>نتایج محاسبه بهینه برش پروفیل - پروژه {{ project.customer_name }}</h1>
@@ -411,6 +411,7 @@
         </div>
 
         <h2>خلاصه وزن به تفکیک پروفیل:</h2>
+        <div class="table-responsive">
         <table class="profile-summary">
             <thead>
                 <tr>
@@ -437,6 +438,7 @@
                 {% endfor %}
             </tbody>
         </table>
+        </div>
 
         <h2>جزئیات برش هر شاخه:</h2>
         <div class="bins-container">

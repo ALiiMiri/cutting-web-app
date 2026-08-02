@@ -23,6 +23,24 @@ class AppHeaderTests(unittest.TestCase):
         "settings_combos.html",
     )
 
+    LEGACY_APP_TEMPLATES = (
+        "add_profile_type.html",
+        "edit_profile_type.html",
+        "admin/users.html",
+        "backup_manager.html",
+        "change_password.html",
+        "inventory_corrections.html",
+        "inventory_dashboard.html",
+        "inventory_logs.html",
+        "inventory_settings.html",
+        "inventory_waste.html",
+        "price_calculator.html",
+        "price_calculator_settings.html",
+        "profile_inventory_details.html",
+        "profile_types.html",
+        "saved_quotes.html",
+    )
+
     def test_all_order_pages_use_the_shared_header(self):
         include = "{% include '_app_header.html' %}"
         for template_name in self.ORDER_TEMPLATES:
@@ -31,6 +49,29 @@ class AppHeaderTests(unittest.TestCase):
                 self.assertIn(include, template)
                 self.assertIn("with-app-header", template)
                 self.assertNotIn("_order_home_shortcut.html", template)
+
+    def test_all_remaining_authenticated_pages_use_the_shared_shell(self):
+        include = "{% include '_app_header.html' %}"
+        for template_name in self.LEGACY_APP_TEMPLATES:
+            with self.subTest(template=template_name):
+                template = (TEMPLATES / template_name).read_text(encoding="utf-8")
+                self.assertIn(include, template)
+                self.assertIn("with-app-header", template)
+                self.assertIn("ui-legacy", template)
+
+    def test_login_uses_the_shared_palette_without_the_private_header(self):
+        template = (TEMPLATES / "login.html").read_text(encoding="utf-8")
+        self.assertIn("unified-ui.css", template)
+        self.assertIn('class="ui-auth"', template)
+        self.assertNotIn("{% include '_app_header.html' %}", template)
+
+    def test_unified_stylesheet_uses_the_approved_navy_palette(self):
+        stylesheet = (ROOT / "static" / "css" / "unified-ui.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("body.with-app-header", stylesheet)
+        self.assertIn("var(--color-navy)", stylesheet)
+        self.assertIn("var(--color-canvas)", stylesheet)
 
     def test_brand_and_user_identity_return_to_orders_dashboard(self):
         header = (TEMPLATES / "_app_header.html").read_text(encoding="utf-8")

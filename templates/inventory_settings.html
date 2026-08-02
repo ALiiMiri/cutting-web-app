@@ -245,7 +245,8 @@
     </style>
 </head>
 
-<body>
+<body class="with-app-header ui-legacy">
+    {% include '_app_header.html' %}
     <div class="container">
         <div class="page-header">
             <h1 class="page-title">
@@ -256,10 +257,6 @@
                 <a href="{{ url_for('inventory_route') }}" class="btn btn-primary">
                     <i class="fas fa-warehouse"></i>
                     بازگشت به انبار
-                </a>
-                <a href="{{ url_for('home') }}" class="btn btn-warning">
-                    <i class="fas fa-home"></i>
-                    بازگشت به خانه
                 </a>
             </div>
         </div>

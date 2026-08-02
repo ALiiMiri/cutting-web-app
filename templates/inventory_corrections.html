@@ -20,7 +20,9 @@
         .empty{color:#78909c;text-align:center;padding:15px}.full{grid-column:1/-1}@media(max-width:800px){.grid{grid-template-columns:1fr}.header{align-items:flex-start;flex-direction:column}.full{grid-column:auto}}
     </style>
 </head>
-<body><div class="container">
+<body class="with-app-header ui-legacy">
+{% include '_app_header.html' %}
+<div class="container">
     <div class="header"><div><h1><i class="fas fa-screwdriver-wrench"></i> مرکز اصلاحات انبار</h1><div class="subtitle">همه اصلاحات با نام ادمین، دلیل و مقدار قبل و بعد ثبت می‌شوند.</div></div><a class="btn dark" href="{{ url_for('inventory.dashboard') }}"><i class="fas fa-arrow-right"></i> بازگشت به انبار</a></div>
     {% with messages=get_flashed_messages(with_categories=true) %}{% for category,message in messages %}<div class="flash {{ category }}">{{ message }}</div>{% endfor %}{% endwith %}
 
