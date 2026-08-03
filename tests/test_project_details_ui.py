@@ -38,6 +38,20 @@ class ProjectDetailsUiTests(unittest.TestCase):
         self.assertIn('id="confirm-delete"', self.template)
         self.assertNotIn("if(!confirm(", self.template)
 
+    def test_repeated_hardware_can_save_without_reopening_hardware_step(self):
+        self.assertIn('id="quick-save-button"', self.template)
+        self.assertIn("ثبت درب با همین یراق", self.template)
+        self.assertIn("usingRepeatPreset", self.template)
+        self.assertIn("quickRepeatSave", self.template)
+        self.assertIn("۲. یراق آماده ✓", self.template)
+
+    def test_hardware_change_scope_is_explicit(self):
+        self.assertIn("تغییر یراق این درب", self.template)
+        self.assertIn('name="repeat-choice" value="current_only"', self.template)
+        self.assertIn('name="repeat-choice" value="continue"', self.template)
+        self.assertIn("یراق قبلی برای درب بعدی باقی بماند", self.template)
+        self.assertIn("پایان استفاده برای درب‌های بعدی", self.template)
+
 
 if __name__ == "__main__":
     unittest.main()

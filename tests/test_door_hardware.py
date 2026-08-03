@@ -266,9 +266,13 @@ class DoorHardwareUiContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('id="hardware-details-step"', template)
-        self.assertIn('id="repeat-hardware"', template)
         self.assertIn('id="stop-repeat"', template)
         self.assertIn("projectDoorHardwareRepeat", template)
+        self.assertIn('name="repeat-choice" value="current_only"', template)
+        self.assertIn('name="repeat-choice" value="continue"', template)
+        self.assertIn('id="quick-save-button"', template)
+        self.assertIn('id="change-current-hardware"', template)
+        self.assertIn("ثبت درب با همین یراق", template)
         self.assertIn('مدل دستگیره (اختیاری)', template)
         self.assertNotIn('class="control handle-required" id="handle-model"', template)
 
