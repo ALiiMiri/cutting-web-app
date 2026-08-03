@@ -779,6 +779,10 @@
                             <i class="fas fa-industry"></i>
                             لیست کارخانه: لاستیک و براکت
                         </a>
+                        <a href="{{ url_for('installer_report', project_id=project.id) }}">
+                            <i class="fas fa-map-marker-alt"></i>
+                            لیست محل‌های نصب برای نصاب
+                        </a>
                         {% if current_user_can_edit_project(project.id) %}
                         <hr>
                         <div class="menu-section-title">تنظیمات سفارش</div>

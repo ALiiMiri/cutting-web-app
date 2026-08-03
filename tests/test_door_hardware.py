@@ -261,18 +261,16 @@ class DoorHardwareDatabaseTests(unittest.TestCase):
 
 
 class DoorHardwareUiContractTests(unittest.TestCase):
-    def test_single_and_repeating_flow_is_present(self):
+    def test_three_step_code_and_location_flow_is_present(self):
         template = (ROOT / "templates" / "project_details.html").read_text(
             encoding="utf-8"
         )
-        self.assertIn('id="hardware-details-step"', template)
-        self.assertIn('id="stop-repeat"', template)
-        self.assertIn("projectDoorHardwareRepeat", template)
-        self.assertIn('name="repeat-choice" value="current_only"', template)
-        self.assertIn('name="repeat-choice" value="continue"', template)
-        self.assertIn('id="quick-save-button"', template)
-        self.assertIn('id="change-current-hardware"', template)
-        self.assertIn("ثبت درب با همین یراق", template)
+        self.assertIn('data-step-panel="details"', template)
+        self.assertIn('data-step-panel="hardware"', template)
+        self.assertIn('data-step-panel="locations"', template)
+        self.assertIn('id="door-code"', template)
+        self.assertIn('id="add-location"', template)
+        self.assertIn('id="total-location-quantity"', template)
         self.assertIn('مدل دستگیره (اختیاری)', template)
         self.assertNotIn('class="control handle-required" id="handle-model"', template)
 

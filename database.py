@@ -602,10 +602,15 @@ def get_doors_for_project_db(project_id):
             if "installation_bracket_mode" in door_columns
             else "'profile' AS installation_bracket_mode"
         )
+        door_code_select = (
+            "d.door_code AS door_code"
+            if "door_code" in door_columns
+            else "NULL AS door_code"
+        )
 
         query = f"""
             SELECT
-                d.id, d.location, d.width, d.height, d.quantity, d.direction, d.row_color_tag,
+                d.id, {door_code_select}, d.location, d.width, d.height, d.quantity, d.direction, d.row_color_tag,
                 {bracket_mode_select},
                 cc.column_name,
                 dcv.value,
@@ -627,6 +632,7 @@ def get_doors_for_project_db(project_id):
             if door_id not in doors_dict:
                 doors_dict[door_id] = {
                     "id": door_id,
+                    "door_code": row["door_code"],
                     "location": row["location"],
                     "width": row["width"],
                     "height": row["height"],
@@ -654,6 +660,52 @@ def get_doors_for_project_db(project_id):
                 doors_dict[door_id][col_key] = col_value
 
         doors = list(doors_dict.values())
+        location_table_exists = cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='door_installation_locations'"
+        ).fetchone()
+        if location_table_exists and doors:
+            placeholders = ",".join("?" for _ in doors)
+            location_rows = cursor.execute(
+                f"""
+                SELECT door_id,id,location,quantity,sort_order
+                FROM door_installation_locations
+                WHERE door_id IN ({placeholders})
+                ORDER BY door_id,sort_order,id
+                """,
+                [door["id"] for door in doors],
+            ).fetchall()
+            locations_by_door = {}
+            for row in location_rows:
+                locations_by_door.setdefault(row["door_id"], []).append(
+                    {
+                        "id": row["id"],
+                        "location": row["location"],
+                        "quantity": row["quantity"],
+                        "sort_order": row["sort_order"],
+                    }
+                )
+            for door in doors:
+                door["installation_locations"] = locations_by_door.get(
+                    door["id"]
+                ) or [
+                    {
+                        "id": None,
+                        "location": door.get("location") or "مکان ثبت‌نشده",
+                        "quantity": int(door.get("quantity") or 1),
+                        "sort_order": 0,
+                    }
+                ]
+        else:
+            for door in doors:
+                door["installation_locations"] = [
+                    {
+                        "id": None,
+                        "location": door.get("location") or "مکان ثبت‌نشده",
+                        "quantity": int(door.get("quantity") or 1),
+                        "sort_order": 0,
+                    }
+                ]
         print(f"DEBUG: get_doors_for_project_db found {len(doors)} doors.")
     except sqlite3.Error as e:
         print(f"!!!!!! Error in get_doors_for_project_db: {e}")
@@ -792,6 +844,163 @@ def update_door_with_hardware_db(
         _upsert_door_hardware(cursor, door_id, hardware)
         conn.commit()
         return True
+    except sqlite3.Error:
+        conn.rollback()
+        traceback.print_exc()
+        return None
+    finally:
+        conn.close()
+
+
+def get_next_door_code_db(project_id):
+    """Return the next friendly D-01 style code for a project."""
+    conn = get_db_connection()
+    try:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(doors)")}
+        if "door_code" not in columns:
+            return "D-01"
+        existing = {
+            str(row[0]).strip().casefold()
+            for row in conn.execute(
+                "SELECT door_code FROM doors WHERE project_id=? AND door_code IS NOT NULL",
+                (project_id,),
+            )
+            if row[0] and str(row[0]).strip()
+        }
+        number = 1
+        while f"d-{number:02d}" in existing:
+            number += 1
+        return f"D-{number:02d}"
+    finally:
+        conn.close()
+
+
+def _location_summary(locations):
+    return "، ".join(item["location"] for item in locations)
+
+
+def add_door_code_with_hardware_db(
+    project_id, door_code, width, height, direction, locations, hardware,
+    row_color="white", frame_type="سه طرفه", bracket_mode="profile",
+    profile_name=None, profile_color=None
+):
+    """Create one technical door code and all of its installation locations."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        quantity = sum(item["quantity"] for item in locations)
+        cursor.execute(
+            """
+            INSERT INTO doors(
+                project_id,door_code,location,width,height,quantity,direction,
+                row_color_tag,installation_bracket_mode
+            ) VALUES(?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                project_id, door_code, _location_summary(locations), width, height,
+                quantity, direction, row_color, bracket_mode,
+            ),
+        )
+        door_id = cursor.lastrowid
+        cursor.executemany(
+            """
+            INSERT INTO door_installation_locations(door_id,location,quantity,sort_order)
+            VALUES(?,?,?,?)
+            """,
+            [
+                (door_id, item["location"], item["quantity"], index)
+                for index, item in enumerate(locations)
+            ],
+        )
+        _upsert_door_hardware(cursor, door_id, hardware)
+        frame_column = cursor.execute(
+            "SELECT id FROM custom_columns WHERE column_name='kolaft'"
+        ).fetchone()
+        if frame_column:
+            update_door_custom_value(
+                cursor, door_id, frame_column[0], frame_type or "سه طرفه"
+            )
+        for column_name, value in (
+            ("noe_profile", profile_name), ("rang", profile_color)
+        ):
+            column = cursor.execute(
+                "SELECT id FROM custom_columns WHERE column_name=?", (column_name,)
+            ).fetchone()
+            if column and value is not None:
+                update_door_custom_value(cursor, door_id, column[0], value)
+        conn.commit()
+        return door_id
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+        if "idx_doors_project_door_code" in str(exc) or "doors.project_id, doors.door_code" in str(exc):
+            return "duplicate_code"
+        traceback.print_exc()
+        return None
+    except sqlite3.Error:
+        conn.rollback()
+        traceback.print_exc()
+        return None
+    finally:
+        conn.close()
+
+
+def update_door_code_with_hardware_db(
+    project_id, door_id, door_code, width, height, direction, locations, hardware,
+    bracket_mode="profile", frame_type=None, profile_name=None, profile_color=None
+):
+    """Update one project-owned technical code and replace its locations atomically."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        quantity = sum(item["quantity"] for item in locations)
+        cursor.execute(
+            """
+            UPDATE doors
+            SET door_code=?,location=?,width=?,height=?,quantity=?,direction=?,
+                installation_bracket_mode=?
+            WHERE id=? AND project_id=?
+            """,
+            (
+                door_code, _location_summary(locations), width, height, quantity,
+                direction, bracket_mode, door_id, project_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            conn.rollback()
+            return False
+        cursor.execute(
+            "DELETE FROM door_installation_locations WHERE door_id=?", (door_id,)
+        )
+        cursor.executemany(
+            """
+            INSERT INTO door_installation_locations(door_id,location,quantity,sort_order)
+            VALUES(?,?,?,?)
+            """,
+            [
+                (door_id, item["location"], item["quantity"], index)
+                for index, item in enumerate(locations)
+            ],
+        )
+        _upsert_door_hardware(cursor, door_id, hardware)
+        for column_name, value in (
+            ("kolaft", frame_type), ("noe_profile", profile_name),
+            ("rang", profile_color),
+        ):
+            column = cursor.execute(
+                "SELECT id FROM custom_columns WHERE column_name=?", (column_name,)
+            ).fetchone()
+            if column and value is not None:
+                update_door_custom_value(cursor, door_id, column[0], value)
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+        if "idx_doors_project_door_code" in str(exc) or "doors.project_id, doors.door_code" in str(exc):
+            return "duplicate_code"
+        traceback.print_exc()
+        return None
     except sqlite3.Error:
         conn.rollback()
         traceback.print_exc()

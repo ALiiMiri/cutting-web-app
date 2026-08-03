@@ -51,10 +51,17 @@ class MigrationSafetyTests(unittest.TestCase):
             for row in conn.execute("PRAGMA table_info(profile_types)").fetchall()
         }
         self.assertIn("installation_bracket_mode", door_columns)
+        self.assertIn("door_code", door_columns)
         self.assertIn("installation_bracket_name", profile_columns)
         self.assertIsNotNone(
             conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='hardware_catalog_options'"
+            ).fetchone()
+        )
+        self.assertIsNotNone(
+            conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='door_installation_locations'"
             ).fetchone()
         )
         indexes = {

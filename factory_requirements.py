@@ -78,6 +78,7 @@ def calculate_factory_requirements(doors, profile_bracket_labels=None):
             continue
         door_id = door.get("id")
         location = " ".join(str(door.get("location") or "").split()) or f"ردیف {row_number}"
+        door_code = " ".join(str(door.get("door_code") or "").split()) or f"D-{row_number:02d}"
         try:
             width = float(door.get("width"))
             height = float(door.get("height"))
@@ -88,6 +89,7 @@ def calculate_factory_requirements(doors, profile_bracket_labels=None):
             warnings.append(
                 {
                     "door_id": door_id,
+                    "door_code": door_code,
                     "location": location,
                     "message": "عرض، ارتفاع یا تعداد معتبر نیست؛ اقلام کارخانه محاسبه نشد.",
                 }
@@ -105,6 +107,7 @@ def calculate_factory_requirements(doors, profile_bracket_labels=None):
             warnings.append(
                 {
                     "door_id": door_id,
+                    "door_code": door_code,
                     "location": location,
                     "message": "نوع پروفیل مشخص نشده و نوع براکت خودکار قابل تعیین نیست.",
                 }
@@ -122,6 +125,7 @@ def calculate_factory_requirements(doors, profile_bracket_labels=None):
         details.append(
             {
                 "door_id": door_id,
+                "door_code": door_code,
                 "location": location,
                 "width": width,
                 "height": height,

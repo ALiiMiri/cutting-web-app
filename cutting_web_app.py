@@ -40,6 +40,9 @@ from database import (
     get_doors_for_project_db,
     add_door_with_hardware_db,
     update_door_with_hardware_db,
+    add_door_code_with_hardware_db,
+    update_door_code_with_hardware_db,
+    get_next_door_code_db,
     get_all_custom_columns,
     get_active_custom_columns,
     get_active_custom_columns_values,
@@ -987,6 +990,13 @@ def view_project(project_id):
             total_door_quantity=total_door_quantity,
             measurement_unit_label=unit_labels["fa"],
             hardware_options=get_hardware_catalog_options(),
+            next_door_code=get_next_door_code_db(project_id),
+            profile_options=[
+                item["name"] for item in get_all_profile_types()
+            ],
+            profile_color_options=get_custom_column_options(
+                get_column_id_by_key("rang")
+            ),
         )
     except Exception as e:
         print(f"!!!!!! خطای جدی در روت view_project برای ID {project_id}: {e}")
@@ -994,6 +1004,40 @@ def view_project(project_id):
         flash("خطایی در نمایش جزئیات پروژه رخ داد. لطفاً دوباره تلاش کنید.", "error")
         print(f"DEBUG: خطا در view_project، ریدایرکت به index.")
         return redirect(url_for("index"))
+
+
+def _normalize_door_code_locations(data):
+    door_code = " ".join(str(data.get("door_code", "")).split())
+    if not door_code:
+        raise ValueError("کد درب را وارد کنید.")
+    if len(door_code) > 40:
+        raise ValueError("کد درب نباید بیشتر از ۴۰ نویسه باشد.")
+    raw_locations = data.get("locations")
+    if not isinstance(raw_locations, list):
+        raw_locations = [
+            {"location": data.get("location", ""), "quantity": data.get("quantity", 1)}
+        ]
+    locations = []
+    for raw in raw_locations:
+        if not isinstance(raw, dict):
+            raise ValueError("اطلاعات محل نصب معتبر نیست.")
+        location = " ".join(str(raw.get("location", "")).split())
+        if not location:
+            raise ValueError("نام همه محل‌های نصب را وارد کنید.")
+        if len(location) > 160:
+            raise ValueError("نام محل نصب نباید بیشتر از ۱۶۰ نویسه باشد.")
+        try:
+            quantity = int(raw.get("quantity"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("تعداد هر محل نصب باید عدد صحیح باشد.") from exc
+        if quantity <= 0:
+            raise ValueError("تعداد هر محل نصب باید بزرگ‌تر از صفر باشد.")
+        locations.append({"location": location, "quantity": quantity})
+    if not locations:
+        raise ValueError("حداقل یک محل نصب اضافه کنید.")
+    if len(locations) > 100:
+        raise ValueError("برای هر کد حداکثر ۱۰۰ محل نصب قابل ثبت است.")
+    return door_code, locations
 
 
 @app.route("/project/<int:project_id>/quick_add_door", methods=["POST"])
@@ -1007,44 +1051,51 @@ def quick_add_door(project_id):
 
     data = request.get_json(silent=True) or request.form
     try:
-        location = " ".join(str(data.get("location", "")).split())
+        door_code, locations = _normalize_door_code_locations(data)
         measurement_unit = normalize_measurement_unit(
             project_info.get("measurement_unit", "cm")
         )
         width = dimension_to_centimeters(data.get("width"), measurement_unit)
         height = dimension_to_centimeters(data.get("height"), measurement_unit)
-        quantity = int(data.get("quantity"))
         direction = str(data.get("direction", "راست"))
+        frame_type = str(data.get("frame_type", "سه طرفه"))
+        profile_name = " ".join(str(data.get("profile_name", "")).split())
+        profile_color = " ".join(str(data.get("profile_color", "")).split())
         hardware_payload = data.get("hardware") or {}
         hardware = normalize_door_hardware(hardware_payload)
         bracket_mode = normalize_bracket_mode(hardware_payload.get("bracket_mode"))
     except (HardwareValidationError, FactoryRequirementError) as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
-    except (TypeError, ValueError):
-        return jsonify(
-            {"success": False, "error": "عرض، ارتفاع و تعداد باید عدد معتبر باشند."}
-        ), 400
+    except (TypeError, ValueError) as exc:
+        return jsonify({"success": False, "error": str(exc) or "ابعاد معتبر نیست."}), 400
 
-    if not location:
-        return jsonify({"success": False, "error": "مکان نصب را وارد کنید."}), 400
-    if width <= 0 or height <= 0 or quantity <= 0:
+    if width <= 0 or height <= 0:
         return jsonify(
-            {"success": False, "error": "عرض، ارتفاع و تعداد باید بزرگ‌تر از صفر باشند."}
+            {"success": False, "error": "عرض و ارتفاع باید بزرگ‌تر از صفر باشند."}
         ), 400
     if direction not in {"راست", "چپ"}:
         return jsonify({"success": False, "error": "جهت انتخاب‌شده معتبر نیست."}), 400
+    if frame_type not in {"دو طرفه", "سه طرفه"}:
+        return jsonify({"success": False, "error": "نوع چارچوب معتبر نیست."}), 400
+    if not profile_name or not profile_color:
+        return jsonify({"success": False, "error": "نوع و رنگ پروفیل را انتخاب کنید."}), 400
 
-    door_id = add_door_with_hardware_db(
-        project_id, location, width, height, quantity, direction, hardware,
+    door_id = add_door_code_with_hardware_db(
+        project_id, door_code, width, height, direction, locations, hardware,
         bracket_mode=bracket_mode,
+        frame_type=frame_type,
+        profile_name=profile_name,
+        profile_color=profile_color,
     )
+    if door_id == "duplicate_code":
+        return jsonify({"success": False, "error": "این کد درب قبلاً در سفارش استفاده شده است."}), 409
     if not door_id:
         return jsonify({"success": False, "error": "ذخیره درب انجام نشد."}), 500
 
     return jsonify(
         {
             "success": True,
-            "message": "درب و تنظیمات یراق آن به سفارش اضافه شد.",
+            "message": "کد درب، یراق و محل‌های نصب به سفارش اضافه شد.",
         }
     )
 
@@ -1062,43 +1113,50 @@ def update_door(project_id, door_id):
 
     data = request.get_json(silent=True) or request.form
     try:
-        location = " ".join(str(data.get("location", "")).split())
+        door_code, locations = _normalize_door_code_locations(data)
         measurement_unit = normalize_measurement_unit(
             project_info.get("measurement_unit", "cm")
         )
         width = dimension_to_centimeters(data.get("width"), measurement_unit)
         height = dimension_to_centimeters(data.get("height"), measurement_unit)
-        quantity = int(data.get("quantity"))
         direction = str(data.get("direction", "راست"))
+        frame_type = str(data.get("frame_type", "سه طرفه"))
+        profile_name = " ".join(str(data.get("profile_name", "")).split())
+        profile_color = " ".join(str(data.get("profile_color", "")).split())
         hardware_payload = data.get("hardware") or {}
         hardware = normalize_door_hardware(hardware_payload)
         bracket_mode = normalize_bracket_mode(hardware_payload.get("bracket_mode"))
     except (HardwareValidationError, FactoryRequirementError) as exc:
         return jsonify({"success": False, "error": str(exc)}), 400
-    except (TypeError, ValueError):
-        return jsonify(
-            {"success": False, "error": "عرض، ارتفاع و تعداد باید عدد معتبر باشند."}
-        ), 400
+    except (TypeError, ValueError) as exc:
+        return jsonify({"success": False, "error": str(exc) or "ابعاد معتبر نیست."}), 400
 
-    if not location:
-        return jsonify({"success": False, "error": "مکان نصب را وارد کنید."}), 400
-    if width <= 0 or height <= 0 or quantity <= 0:
+    if width <= 0 or height <= 0:
         return jsonify(
-            {"success": False, "error": "عرض، ارتفاع و تعداد باید بزرگ‌تر از صفر باشند."}
+            {"success": False, "error": "عرض و ارتفاع باید بزرگ‌تر از صفر باشند."}
         ), 400
     if direction not in {"راست", "چپ"}:
         return jsonify({"success": False, "error": "جهت انتخاب‌شده معتبر نیست."}), 400
+    if frame_type not in {"دو طرفه", "سه طرفه"}:
+        return jsonify({"success": False, "error": "نوع چارچوب معتبر نیست."}), 400
+    if not profile_name or not profile_color:
+        return jsonify({"success": False, "error": "نوع و رنگ پروفیل را انتخاب کنید."}), 400
 
-    updated = update_door_with_hardware_db(
-        project_id, door_id, location, width, height, quantity, direction, hardware,
+    updated = update_door_code_with_hardware_db(
+        project_id, door_id, door_code, width, height, direction, locations, hardware,
         bracket_mode=bracket_mode,
+        frame_type=frame_type,
+        profile_name=profile_name,
+        profile_color=profile_color,
     )
+    if updated == "duplicate_code":
+        return jsonify({"success": False, "error": "این کد درب قبلاً در سفارش استفاده شده است."}), 409
     if updated is False:
         return jsonify({"success": False, "error": "درب مورد نظر پیدا نشد."}), 404
     if updated is None:
         return jsonify({"success": False, "error": "ذخیره تغییرات انجام نشد."}), 500
 
-    return jsonify({"success": True, "message": "اطلاعات درب و یراق ویرایش شد."})
+    return jsonify({"success": True, "message": "کد درب، یراق و محل‌های نصب ویرایش شد."})
 
 
 @app.route("/project/<int:project_id>/add_door", methods=["GET"])
@@ -1558,7 +1616,7 @@ def export_factory_requirements_excel(project_id):
     prepare(summary, [42, 18, 14])
 
     detail_headers = [
-        "موقعیت", f"عرض ({unit_labels['short']})",
+        "کد درب", f"عرض ({unit_labels['short']})",
         f"ارتفاع ({unit_labels['short']})", "تعداد درب", "نوع چارچوب",
         "نوع پروفیل", "متراژ لاستیک (متر)", "نوع براکت", "تعداد براکت",
     ]
@@ -1575,7 +1633,7 @@ def export_factory_requirements_excel(project_id):
     for row in report["details"]:
         details.append(
             [
-                row["location"], row["display_width"], row["display_height"],
+                row["door_code"], row["display_width"], row["display_height"],
                 row["quantity"], row["frame_type"], row["profile_name"],
                 row["rubber_meters"], row["bracket_label"], row["bracket_count"],
             ]
@@ -1591,13 +1649,13 @@ def export_factory_requirements_excel(project_id):
     warnings["A1"].fill = warning_fill
     warnings.append([])
     warnings.append([])
-    warnings.append(["شناسه درب", "موقعیت", "پیام"])
+    warnings.append(["شناسه درب", "کد درب", "پیام"])
     for cell in warnings[4]:
         cell.fill = header_fill
         cell.font = white_font
     for warning in report["warnings"]:
         warnings.append(
-            [warning["door_id"], warning["location"], warning["message"]]
+            [warning["door_id"], warning["door_code"], warning["message"]]
         )
     if not report["warnings"]:
         warnings.append(["-", "-", "اطلاعات کارخانه تمام درب‌ها کامل است."])
@@ -1611,6 +1669,111 @@ def export_factory_requirements_excel(project_id):
         output,
         as_attachment=True,
         download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+def _build_installer_rows(project_info, doors):
+    measurement_unit = normalize_measurement_unit(
+        project_info.get("measurement_unit", "cm")
+    )
+    unit_labels = measurement_unit_labels(measurement_unit)
+    rows = []
+    for index, door in enumerate(doors, start=1):
+        code = door.get("door_code") or f"D-{index:02d}"
+        width = format_measurement_value(
+            centimeters_to_measurement_unit(door.get("width"), measurement_unit)
+        )
+        height = format_measurement_value(
+            centimeters_to_measurement_unit(door.get("height"), measurement_unit)
+        )
+        locations = door.get("installation_locations") or [
+            {"location": door.get("location") or "مکان ثبت‌نشده", "quantity": door.get("quantity") or 1}
+        ]
+        for location in locations:
+            rows.append(
+                {
+                    "door_code": code,
+                    "location": location["location"],
+                    "quantity": int(location["quantity"]),
+                    "display_width": width,
+                    "display_height": height,
+                    "direction": door.get("direction") or "—",
+                }
+            )
+    return rows, unit_labels
+
+
+@app.route("/project/<int:project_id>/installer", methods=["GET"])
+def installer_report(project_id):
+    """Show code-to-location instructions for the installer."""
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
+        return redirect(url_for("index"))
+    doors = get_doors_for_project_db(project_id)
+    if not doors:
+        flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+        return redirect(url_for("view_project", project_id=project_id))
+    rows, unit_labels = _build_installer_rows(project_info, doors)
+    return render_template(
+        "installer_report.html",
+        project=project_info,
+        doors=doors,
+        rows=rows,
+        total_quantity=sum(row["quantity"] for row in rows),
+        measurement_unit_label=unit_labels["fa"],
+    )
+
+
+@app.route("/project/<int:project_id>/installer/excel", methods=["GET"])
+def export_installer_report_excel(project_id):
+    """Download the installer code and location map."""
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    project_info = get_project_details_db(project_id)
+    if not project_info:
+        flash("پروژه مورد نظر یافت نشد.", "error")
+        return redirect(url_for("index"))
+    doors = get_doors_for_project_db(project_id)
+    if not doors:
+        flash("هیچ دربی برای این پروژه ثبت نشده است.", "warning")
+        return redirect(url_for("view_project", project_id=project_id))
+    rows, unit_labels = _build_installer_rows(project_info, doors)
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "لیست نصاب"
+    sheet.sheet_view.rightToLeft = True
+    headers = [
+        "کد درب", "محل نصب", "تعداد", f"عرض ({unit_labels['short']})",
+        f"ارتفاع ({unit_labels['short']})", "جهت",
+    ]
+    sheet.append(headers)
+    for cell in sheet[1]:
+        cell.fill = PatternFill("solid", fgColor="168F79")
+        cell.font = Font(color="FFFFFF", bold=True)
+    for row in rows:
+        sheet.append(
+            [
+                row["door_code"], row["location"], row["quantity"],
+                row["display_width"], row["display_height"], row["direction"],
+            ]
+        )
+    for row in sheet.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+    for index, width in enumerate([16, 34, 12, 16, 16, 12], start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f"installer_project_{project_id}_{get_shamsi_timestamp()}.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
@@ -1707,7 +1870,7 @@ def export_hardware_report_excel(project_id):
     style_table(summary_sheet, [18, 32, 15, 12])
 
     detail_headers = [
-        "موقعیت",
+        "کد درب",
         f"عرض ({unit_labels['short']})",
         f"ارتفاع ({unit_labels['short']})",
         "تعداد درب", "مدل لولا", "تعداد لولا",
@@ -1726,7 +1889,7 @@ def export_hardware_report_excel(project_id):
     for row in report["details"]:
         detail_sheet.append(
             [
-                row["location"], export_length(row["width"]), export_length(row["height"]),
+                row["door_code"], export_length(row["width"]), export_length(row["height"]),
                 row["quantity"], row["hinge_model"],
                 row["hinge_count"], row["lock_model"], row["lock_count"], row["handle_model"],
                 row["handle_count"], row["cylinder_count"],
@@ -1743,14 +1906,14 @@ def export_hardware_report_excel(project_id):
     warning_sheet["A1"].fill = warning_fill
     warning_sheet.append([])
     warning_sheet.append([])
-    warning_sheet.append(["شناسه درب", "موقعیت", "فیلد", "پیام"])
+    warning_sheet.append(["شناسه درب", "کد درب", "فیلد", "پیام"])
     for cell in warning_sheet[4]:
         cell.fill = header_fill
         cell.font = white_font
     if report["warnings"]:
         for warning in report["warnings"]:
             warning_sheet.append(
-                [warning["door_id"], warning["location"], warning["field"], warning["message"]]
+                [warning["door_id"], warning["door_code"], warning["field"], warning["message"]]
             )
     else:
         warning_sheet.append(["-", "-", "-", "اطلاعات یراق تمام درب‌ها کامل است."])

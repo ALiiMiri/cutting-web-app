@@ -50,7 +50,7 @@
     {% if report.warnings %}
     <section class="warning-box">
         <h3><i class="fas fa-triangle-exclamation"></i> اطلاعات ناقص</h3>
-        <ul>{% for warning in report.warnings %}<li><strong>{{ warning.location }}</strong> — {{ warning.message }}</li>{% endfor %}</ul>
+        <ul>{% for warning in report.warnings %}<li><strong>{{ warning.door_code }}</strong> — {{ warning.message }}</li>{% endfor %}</ul>
     </section>
     {% endif %}
 
@@ -65,14 +65,14 @@
         </table>
     </div>
 
-    <h2>جزئیات به تفکیک درب</h2>
+    <h2>جزئیات به تفکیک کد درب</h2>
     <div class="table-wrap">
         <table>
-            <thead><tr><th>موقعیت</th><th>ابعاد</th><th>تعداد درب</th><th>لولا</th><th>قفل</th><th>دستگیره</th><th>سیلندر</th></tr></thead>
+            <thead><tr><th>کد درب</th><th>ابعاد</th><th>تعداد درب</th><th>لولا</th><th>قفل</th><th>دستگیره</th><th>سیلندر</th></tr></thead>
             <tbody>
             {% for row in report.details %}
             <tr class="{% if row.has_warning %}row-warning{% endif %}">
-                <td>{{ row.location }}</td><td>{{ row.width|round(1) }} × {{ row.height|round(1) }}</td><td>{{ row.quantity }}</td>
+                <td><strong>{{ row.door_code }}</strong></td><td>{{ row.width|round(1) }} × {{ row.height|round(1) }}</td><td>{{ row.quantity }}</td>
                 <td>{{ row.hinge_model }} / {{ row.hinge_count }}</td><td>{{ row.lock_model }} / {{ row.lock_count }}</td>
                 <td>{{ row.handle_model }} / {{ row.handle_count }}</td><td>{{ row.cylinder_count }}</td>
             </tr>

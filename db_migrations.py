@@ -575,6 +575,19 @@ def apply_migrations(conn, allow_changes=False):
             )[0],
             "execution_type": "python_module",
             "module_name": "030_optional_handle_model",
+        },
+        {
+            "name": "031_door_codes_and_locations",
+            "description": "Group identical doors by code and retain installer locations",
+            "check_logic": lambda c: (
+                "door_code" not in {row[1] for row in c.execute("PRAGMA table_info(doors)")}
+                or not c.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' "
+                    "AND name='door_installation_locations'"
+                ).fetchone()
+            ),
+            "execution_type": "python_module",
+            "module_name": "031_door_codes_and_locations",
         }
     ]
 

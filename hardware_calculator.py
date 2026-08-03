@@ -68,6 +68,7 @@ def calculate_project_hardware(doors):
     warnings = []
     included_door_count = 0
     excluded_row_count = 0
+    door_codes = {}
 
     def add_total(group, model, count):
         if count > 0:
@@ -81,6 +82,8 @@ def calculate_project_hardware(doors):
 
         location = _clean(door.get("location")) or f"ردیف {row_number}"
         door_id = door.get("id")
+        door_code = _clean(door.get("door_code")) or f"D-{row_number:02d}"
+        door_codes[door_id] = door_code
         try:
             width = float(door.get("width"))
             height = float(door.get("height"))
@@ -184,6 +187,7 @@ def calculate_project_hardware(doors):
             details.append(
                 {
                     "door_id": door_id,
+                    "door_code": door_code,
                     "location": location,
                     "width": width,
                     "height": height,
@@ -253,6 +257,7 @@ def calculate_project_hardware(doors):
         details.append(
             {
                 "door_id": door_id,
+                "door_code": door_code,
                 "location": location,
                 "width": width,
                 "height": height,
@@ -267,6 +272,9 @@ def calculate_project_hardware(doors):
                 "has_warning": any(item["door_id"] == door_id for item in warnings),
             }
         )
+
+    for warning in warnings:
+        warning.setdefault("door_code", door_codes.get(warning.get("door_id"), "—"))
 
     summary = [
         {"group": group, "model": model, "quantity": quantity, "unit": unit}
