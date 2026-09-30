@@ -17,3 +17,6 @@ backups/
 *_backup_*.db
 .maintenance.json
 static/exports/*.xlsx
+
+# Local Graphify knowledge graph and caches
+graphify-out/

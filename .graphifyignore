@@ -1,0 +1,21 @@
+# Sensitive and runtime data
+.env
+.env.*
+*.db
+*.db-*
+*.db.backup
+backups/
+logs/
+
+# Historical duplicate sources and generated artifacts
+bakup/
+__pycache__/
+*.py[cod]
+*.backup*
+*.orig.*
+graphify-out/
+
+# Large binary assets that do not help architecture analysis
+static/fonts/
+static/images/
+*.pkl
